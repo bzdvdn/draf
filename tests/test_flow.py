@@ -157,3 +157,132 @@ class TestRegistryIsolation:
         r_b = asyncio.run(g_b.run(state={}))
         assert r_a["src"] == "A"
         assert r_b["src"] == "B"
+
+
+class TestSubFlow:
+    def test_subflow_basic(self):
+        from draf.flow import Flow, Case
+        from draf.node import Node
+        import asyncio
+
+        class AddOne(Node):
+            type = "ao"
+            async def execute(self, ctx, state):
+                state["val"] = state.get("val", 0) + 1
+                return state
+
+        sub = Flow("counter").step(AddOne({}))
+        sub_g = sub.compile()
+
+        parent = Flow("parent").step(AddOne({}))
+        parent.add_flow(sub, max_iterations=5)
+        g = parent.compile()
+
+        r = asyncio.run(g.run({"val": 0}))
+        assert r["val"] == 2
+
+    def test_subflow_with_maps(self):
+        from draf.flow import Flow
+        from draf.builtin import Transform
+        import asyncio
+
+        sub = Flow("inner")
+        sub.step(Transform({"action": "uppercase", "input_key": "x", "output_key": "y"}))
+        sub_g = sub.compile()
+
+        parent = Flow("outer")
+        parent.add_flow(sub, input_map={"text": "x"}, output_map={"y": "result"})
+        g = parent.compile()
+
+        r = asyncio.run(g.run({"text": "hello"}))
+        assert r["result"] == "HELLO"
+
+    def test_subflow_state_isolation(self):
+        from draf.flow import Flow
+        from draf.node import Node
+        import asyncio
+
+        class SetFoo(Node):
+            type = "sf"
+            async def execute(self, ctx, state):
+                state["foo"] = "bar"
+                return state
+
+        sub = Flow("inner").step(SetFoo({}))
+        parent = Flow("outer").step(SetFoo({}))
+        parent.add_flow(sub)
+        g = parent.compile()
+
+        r = asyncio.run(g.run({}))
+        assert r["foo"] == "bar"
+
+
+class TestCyclicGraph:
+    @pytest.mark.asyncio
+    async def test_simple_cycle_terminates_by_condition(self):
+        from draf.graph import Graph, Edge
+        from draf.node import Node
+
+        class Counter(Node):
+            type = "ct"
+            async def execute(self, ctx, state):
+                state["n"] = state.get("n", 0) + 1
+                return state
+
+        class Done(Node):
+            type = "dn"
+            async def execute(self, ctx, state):
+                state["done"] = True
+                return state
+
+        # counter -> counter (loop, condition: n<3) -> done (unconditional)
+        g = Graph(
+            nodes={"ct": Counter({}), "dn": Done({})},
+            edges=[
+                Edge("ct", "ct", "n=1,2"),
+                Edge("ct", "dn"),
+            ],
+            entry_point="ct",
+        )
+        r = await g.run(state={}, max_iterations=10)
+        assert r["n"] == 3
+        assert r["done"] is True
+
+    @pytest.mark.asyncio
+    async def test_max_iterations_raises(self):
+        from draf.graph import Graph, Edge
+        from draf.node import Node
+
+        class InfLoop(Node):
+            type = "il"
+            async def execute(self, ctx, state):
+                state["n"] = state.get("n", 0) + 1
+                return state
+
+        # self-loop with unconditional edge -> infinite
+        g = Graph(
+            nodes={"il": InfLoop({})},
+            edges=[Edge("il", "il")],
+            entry_point="il",
+        )
+        with pytest.raises(RuntimeError, match="max_iterations"):
+            await g.run(state={}, max_iterations=5)
+
+    @pytest.mark.asyncio
+    async def test_max_iterations_linear_completes(self):
+        from draf.graph import Graph, Edge
+        from draf.node import Node
+
+        class AddOne(Node):
+            type = "ao"
+            async def execute(self, ctx, state):
+                state["n"] = state.get("n", 0) + 1
+                return state
+
+        g = Graph(
+            nodes={"a": AddOne({}), "b": AddOne({})},
+            edges=[Edge("a", "b")],
+            entry_point="a",
+        )
+        r = await g.run(state={}, max_iterations=10)
+        assert r["n"] == 2

@@ -73,6 +73,7 @@ class Graph:
         reducers: dict[str, Reducer] | None = None,
         hooks: dict[str, Callable] | None = None,
         node_timeout: float | None = None,
+        max_iterations: int | None = None,
     ) -> dict | State:
         """Execute the graph starting from the entry point.
 
@@ -86,6 +87,12 @@ class Graph:
             hooks: Observability hooks (see class docstring).
             node_timeout: Max seconds per node.  ``asyncio.TimeoutError``
                 triggers error edges (``__error__``) like any other exception.
+            max_iterations: Max total node executions before raising
+                ``RuntimeError``.  Guards against infinite loops in
+                cyclic graphs (e.g. agentic loops).  ``None`` means unlimited.
+
+        Raises:
+            RuntimeError: If *max_iterations* is exceeded.
 
         Returns:
             Final state (same type as passed in).
@@ -99,7 +106,14 @@ class Graph:
         hooks = hooks or {}
 
         current_id = self.entry_point
+        iteration = 0
         while current_id:
+            if max_iterations is not None and iteration >= max_iterations:
+                raise RuntimeError(
+                    f"graph exceeded max_iterations={max_iterations}"
+                )
+            iteration += 1
+
             node = self.nodes[current_id]
             ctx = ExecContext(state, tool_dict)
 
@@ -159,19 +173,32 @@ class Graph:
     def _evaluate(self, condition: str, state: dict) -> bool:
         if "!=" in condition:
             key, value = condition.split("!=", 1)
-            state_val = str(state.get(key.strip()))
-            if "," in value:
-                values = [v.strip() for v in value.split(",")]
-                return state_val not in values
-            return state_val != value.strip()
+            key = key.strip()
+            raw = value.strip()
+            state_val = state.get(key)
+            if raw == "":
+                return state_val is not None and state_val != ""
+            if state_val is None:
+                return True
+            state_str = str(state_val)
+            if "," in raw:
+                values = [v.strip() for v in raw.split(",")]
+                return state_str not in values
+            return state_str != raw
         if "=" in condition:
             parts = condition.split("=", 1)
             key = parts[0].strip()
-            raw = parts[1]
+            raw = parts[1].strip()
+            state_val = state.get(key)
+            if raw == "":
+                return state_val is None or state_val == ""
+            if state_val is None:
+                return False
+            state_str = str(state_val)
             if "," in raw:
                 values = [v.strip() for v in raw.split(",")]
-                return str(state.get(key)) in values
-            return str(state.get(key)) == raw.strip()
+                return state_str in values
+            return state_str == raw
         return False
 
     def to_yaml(self) -> str:

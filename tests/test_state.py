@@ -83,6 +83,46 @@ class TestTypedState:
         apply_reducers(state, {"count": 3}, {"count": sum_counter})
         assert state["count"] == 3
 
+    def test_reducers_from_yaml_schema_with_dict_values(self):
+        from draf.state import reducers_from_yaml_schema
+
+        schema = {
+            "messages": {"reducer": "append", "type": "list"},
+            "status": {"reducer": "keep"},
+            "count": {"reducer": "override"},
+        }
+        reducers = reducers_from_yaml_schema(schema)
+        assert reducers["messages"] == "append"
+        assert reducers["status"] == "keep"
+        assert reducers["count"] == "override"
+
+    def test_reducers_from_yaml_schema_defaults_to_override(self):
+        from draf.state import reducers_from_yaml_schema
+
+        schema = {"x": {}, "y": {"reducer": "append"}}
+        reducers = reducers_from_yaml_schema(schema)
+        assert reducers["x"] == "override"
+        assert reducers["y"] == "append"
+
+    def test_reducers_from_yaml_schema_ignores_invalid_reducer(self):
+        from draf.state import reducers_from_yaml_schema
+
+        schema = {"x": {"reducer": "invalid"}, "y": {"reducer": "append"}}
+        reducers = reducers_from_yaml_schema(schema)
+        assert "x" not in reducers
+        assert reducers["y"] == "append"
+
+    def test_reducers_from_yaml_schema_empty(self):
+        from draf.state import reducers_from_yaml_schema
+
+        assert reducers_from_yaml_schema({}) == {}
+
+    def test_reducers_from_yaml_schema_with_non_dict(self):
+        from draf.state import reducers_from_yaml_schema
+
+        schema = {"a": 42}
+        assert reducers_from_yaml_schema(schema) == {}
+
     def test_no_reducer_falls_back_to_override(self):
         from draf.state import apply_reducers
 
@@ -282,6 +322,56 @@ class TestStateClass:
 
         state = State(S, {"x": "hello"})
         assert repr(state) == "{'x': 'hello'}"
+
+    def test_load_workflow_parses_state_schema_and_initial(self):
+        import tempfile, os
+        yaml_content = """
+name: test
+state:
+  schema:
+    messages:
+      reducer: append
+    status:
+      reducer: keep
+  initial:
+    status: active
+steps:
+  - id: step1
+    type: transform
+    config: {action: uppercase, input_key: text, output_key: out}
+edges: []
+"""
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
+            f.write(yaml_content)
+            path = f.name
+        try:
+            from draf.yaml import load_workflow
+            graph, tools, initial, reducers = load_workflow(path)
+            assert initial == {"status": "active"}
+            assert reducers == {"messages": "append", "status": "keep"}
+        finally:
+            os.unlink(path)
+
+    def test_load_workflow_no_state_returns_empty(self):
+        import tempfile, os
+        yaml_content = """
+name: test
+steps:
+  - id: step1
+    type: transform
+    config: {action: uppercase, input_key: text, output_key: out}
+edges: []
+"""
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
+            f.write(yaml_content)
+            path = f.name
+        try:
+            from draf.yaml import load_workflow
+            graph, tools, initial, reducers = load_workflow(path)
+            assert initial == {}
+            assert reducers == {}
+        finally:
+            os.unlink(path)
 
     def test_roundtrip_via_graph(self):
         from typing import TypedDict, Annotated

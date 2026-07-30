@@ -69,6 +69,7 @@ class Flow:
 
         The *flow* is compiled and wrapped in a SubFlow node.
         Pass *input_map* / *output_map* as keyword arguments for key remapping.
+        Pass *max_iterations* to limit internal steps (see :class:`SubFlow`).
         """
         sub = SubFlow(graph=flow.compile(), **kw)
         self._nodes.append(sub)
@@ -127,6 +128,70 @@ class Flow:
                     condition=f"{key}!={negated}",
                 )
             )
+        return self
+
+    def react(
+        self,
+        model: str,
+        system: str = "",
+        *,
+        input_key: str = "input",
+        output_key: str = "output",
+        messages_key: str = "messages",
+        **config,
+    ) -> "Flow":
+        """Build a ReAct agent loop (LLM ↔ tool) inside this flow.
+
+        Creates two nodes: an LLM agent and a tool executor, wired in a
+        cycle.  The agent calls the LLM; if the LLM requests a tool, the
+        signal ``_tool_call_name`` is set and execution passes to the
+        tool executor, which runs the tool and loops back to the agent.
+        When the LLM responds without a tool call, the output is stored
+        at *output_key* and the graph terminates.
+
+        Args:
+            model: LLM model name (e.g. ``gpt-4``).
+            system: Optional system prompt.
+            input_key: State key for user input (default ``"input"``).
+            output_key: State key for final response (default ``"output"``).
+            messages_key: State key for conversation (default ``"messages"``).
+            **config: Extra kwargs passed to :class:`ReActAgent` config
+                (temperature, max_tokens, response_format, provider, etc.).
+
+        Remember to pass ``max_iterations`` to ``graph.run()``::
+
+            result = await graph.run(state, tools=tools, max_iterations=20)
+        """
+        from draf.builtin.agent import ReActAgent, ToolExec
+
+        agent_cfg = {
+            "model": model,
+            "system": system,
+            "input_key": input_key,
+            "output_key": output_key,
+            "messages_key": messages_key,
+            **config,
+        }
+        agent = ReActAgent(agent_cfg)
+
+        self._nodes.append(agent)
+        agent_id = self._next_id(agent)
+        self._node_ids.append(agent_id)
+
+        tool_exec = ToolExec({"messages_key": messages_key})
+        self._nodes.append(tool_exec)
+        tool_id = self._next_id(tool_exec)
+        self._node_ids.append(tool_id)
+
+        self._edges.append(
+            Edge(agent_id, tool_id, "_tool_call_name!=")
+        )
+        self._edges.append(Edge(tool_id, agent_id))
+
+        if self._last_added is not None:
+            self._edges.append(Edge(self._last_added, agent_id))
+
+        self._last_added = agent_id
         return self
 
     def compile(self) -> Graph:

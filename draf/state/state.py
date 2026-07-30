@@ -7,6 +7,35 @@ Reducer = Callable[[Any, Any], Any] | str
 """Merge strategy: ``"override"``, ``"append"``, ``"keep"``, or a callable ``(old, new) -> value``."""
 
 
+def reducers_from_yaml_schema(schema: dict) -> dict[str, Reducer]:
+    """Convert a YAML state schema dict into a reducer map.
+
+    YAML format::
+
+        state:
+          schema:
+            messages:
+              reducer: append
+              type: list
+            status:
+              reducer: keep
+
+    Returns a dict like ``{"messages": "append", "status": "keep"}``.
+    Keys without a ``reducer`` field default to ``"override"``.
+    """
+    reducers: dict[str, Reducer] = {}
+    for key, spec in schema.items():
+        if isinstance(spec, dict):
+            reducer = spec.get("reducer", "override")
+        elif isinstance(spec, str):
+            reducer = spec
+        else:
+            continue
+        if reducer in ("override", "append", "keep"):
+            reducers[key] = reducer
+    return reducers
+
+
 def reducers_from_typeddict(cls: type) -> dict[str, Reducer]:
     """Extract per-key reducers from a TypedDict's ``Annotated`` metadata.
 

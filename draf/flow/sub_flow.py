@@ -11,6 +11,8 @@ class SubFlow(Node):
         graph: Compiled sub-graph to run.
         input_map: Parent key → sub-graph key (default: passthrough).
         output_map: Sub-graph key → parent key (default: passthrough).
+        max_iterations: Max node executions inside the sub-graph
+            (passed to ``graph.run()``).  ``None`` means unlimited.
     """
 
     type = "subflow"
@@ -20,11 +22,13 @@ class SubFlow(Node):
         graph: Graph,
         input_map: dict[str, str] | None = None,
         output_map: dict[str, str] | None = None,
+        max_iterations: int | None = None,
     ):
         super().__init__({})
         self._graph = graph
         self._input_map = input_map or {}
         self._output_map = output_map or {}
+        self._max_iterations = max_iterations
 
     async def execute(self, ctx, state: dict) -> dict:
         sub_state = {}
@@ -34,7 +38,11 @@ class SubFlow(Node):
         else:
             sub_state = dict(state)
 
-        result = await self._graph.run(sub_state, tools=list(ctx.tools.values()))
+        result = await self._graph.run(
+            sub_state,
+            tools=list(ctx.tools.values()),
+            max_iterations=self._max_iterations,
+        )
 
         out = {}
         if self._output_map:

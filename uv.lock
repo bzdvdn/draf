@@ -515,6 +515,7 @@ source = { editable = "." }
 dependencies = [
     { name = "httpx" },
     { name = "pyyaml" },
+    { name = "typer" },
 ]
 
 [package.optional-dependencies]
@@ -559,6 +560,7 @@ requires-dist = [
     { name = "qdrant-client", marker = "extra == 'embedding'", specifier = ">=1.9" },
     { name = "slack-sdk", marker = "extra == 'tools'", specifier = ">=3.27" },
     { name = "sqlalchemy", marker = "extra == 'embedding'", specifier = ">=2.0" },
+    { name = "typer", specifier = ">=0.12" },
 ]
 provides-extras = ["embedding", "tools", "all"]
 
