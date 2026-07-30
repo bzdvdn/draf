@@ -1,0 +1,314 @@
+import pytest
+
+
+class TestTypedState:
+    def test_reducers_from_typeddict_extracts_annotated(self):
+        from typing import TypedDict, Annotated
+        from draf.state import reducers_from_typeddict
+
+        def dummy_reducer(old, new):
+            return new
+
+        class MyState(TypedDict):
+            items: Annotated[list, "append"]
+            name: str
+            score: Annotated[int, dummy_reducer]
+
+        reducers = reducers_from_typeddict(MyState)
+        assert reducers["items"] == "append"
+        assert reducers["score"] is dummy_reducer
+        assert "name" not in reducers
+
+    def test_reducers_from_typeddict_no_annotations_returns_empty(self):
+        from typing import TypedDict
+        from draf.state import reducers_from_typeddict
+
+        class Plain(TypedDict):
+            x: str
+
+        assert reducers_from_typeddict(Plain) == {}
+
+    def test_apply_override(self):
+        from draf.state import apply_reducers
+
+        state = {"a": 1}
+        apply_reducers(state, {"a": 2}, {"a": "override"})
+        assert state["a"] == 2
+
+    def test_apply_append(self):
+        from draf.state import apply_reducers
+
+        state = {"msgs": ["hello"]}
+        apply_reducers(state, {"msgs": ["world"]}, {"msgs": "append"})
+        assert state["msgs"] == ["hello", "world"]
+
+    def test_apply_append_new_key(self):
+        from draf.state import apply_reducers
+
+        state = {}
+        apply_reducers(state, {"msgs": ["hello"]}, {"msgs": "append"})
+        assert state["msgs"] == ["hello"]
+
+    def test_apply_keep_existing(self):
+        from draf.state import apply_reducers
+
+        state = {"x": "first"}
+        apply_reducers(state, {"x": "second"}, {"x": "keep"})
+        assert state["x"] == "first"
+
+    def test_apply_keep_new(self):
+        from draf.state import apply_reducers
+
+        state = {}
+        apply_reducers(state, {"x": "first"}, {"x": "keep"})
+        assert state["x"] == "first"
+
+    def test_apply_callable_reducer(self):
+        from draf.state import apply_reducers
+
+        def sum_counter(old, new):
+            return (old or 0) + new
+
+        state = {"count": 5}
+        apply_reducers(state, {"count": 3}, {"count": sum_counter})
+        assert state["count"] == 8
+
+    def test_apply_callable_first_time(self):
+        from draf.state import apply_reducers
+
+        def sum_counter(old, new):
+            return (old or 0) + new
+
+        state = {}
+        apply_reducers(state, {"count": 3}, {"count": sum_counter})
+        assert state["count"] == 3
+
+    def test_no_reducer_falls_back_to_override(self):
+        from draf.state import apply_reducers
+
+        state = {"x": 1}
+        apply_reducers(state, {"x": 2}, {})
+        assert state["x"] == 2
+
+    def test_unrelated_keys_untouched(self):
+        from draf.state import apply_reducers
+
+        state = {"keep": "me"}
+        apply_reducers(state, {"x": 1}, {"x": "override"})
+        assert state["keep"] == "me"
+
+    @pytest.mark.asyncio
+    async def test_graph_run_with_reducers(self):
+        from draf.node import Node
+        from draf.graph import Graph, Edge
+
+        class AppendOne(Node):
+            type = "ao"
+            async def execute(self, ctx, state):
+                return {"msgs": ["one"]}
+
+        class AppendTwo(Node):
+            type = "at"
+            async def execute(self, ctx, state):
+                return {"msgs": ["two"]}
+
+        g = Graph(
+            nodes={"a": AppendOne({}), "b": AppendTwo({})},
+            edges=[Edge("a", "b")],
+            entry_point="a",
+        )
+        r = await g.run(state={}, reducers={"msgs": "append"})
+        assert r["msgs"] == ["one", "two"]
+
+    @pytest.mark.asyncio
+    async def test_graph_run_without_reducers_backward_compat(self):
+        from draf.node import Node
+        from draf.graph import Graph, Edge
+
+        class WriteX(Node):
+            type = "wx"
+            async def execute(self, ctx, state):
+                return {"x": 1}
+
+        class WriteXAgain(Node):
+            type = "wx2"
+            async def execute(self, ctx, state):
+                return {"x": 2}
+
+        g = Graph(
+            nodes={"a": WriteX({}), "b": WriteXAgain({})},
+            edges=[Edge("a", "b")],
+            entry_point="a",
+        )
+        r = await g.run(state={})
+        assert r["x"] == 2  # last write wins
+
+    @pytest.mark.asyncio
+    async def test_reducers_via_typeddict(self):
+        from typing import TypedDict, Annotated
+        from draf.node import Node
+        from draf.graph import Graph, Edge
+        from draf.state import reducers_from_typeddict
+
+        class ChatState(TypedDict):
+            msgs: Annotated[list, "append"]
+
+        class AddMsg(Node):
+            type = "am"
+            async def execute(self, ctx, state):
+                return {"msgs": ["hello"]}
+
+        class AddMsg2(Node):
+            type = "am2"
+            async def execute(self, ctx, state):
+                return {"msgs": ["world"]}
+
+        g = Graph(
+            nodes={"a": AddMsg({}), "b": AddMsg2({})},
+            edges=[Edge("a", "b")],
+            entry_point="a",
+        )
+        reducers = reducers_from_typeddict(ChatState)
+        r = await g.run(state={}, reducers=reducers)
+        assert r["msgs"] == ["hello", "world"]
+
+
+class TestStateClass:
+    def test_construct_and_access(self):
+        from typing import TypedDict
+        from draf.state import State
+
+        class S(TypedDict):
+            name: str
+            score: int
+
+        state = State(S, {"name": "alice", "score": 10})
+        assert state["name"] == "alice"
+        assert state["score"] == 10
+        assert len(state) == 2
+        assert "name" in state
+
+    def test_merge_with_reducers(self):
+        from typing import TypedDict, Annotated
+        from draf.state import State
+
+        class S(TypedDict):
+            msgs: Annotated[list, "append"]
+            x: str
+
+        state = State(S, {"msgs": ["a"], "x": "old"})
+        state.merge({"msgs": ["b", "c"], "x": "new"})
+        assert state["msgs"] == ["a", "b", "c"]
+        assert state["x"] == "new"
+
+    def test_merge_keep(self):
+        from typing import TypedDict, Annotated
+        from draf.state import State
+
+        class S(TypedDict):
+            first: Annotated[str, "keep"]
+
+        state = State(S, {"first": "original"})
+        state.merge({"first": "override"})
+        assert state["first"] == "original"
+
+    def test_merge_callable_reducer(self):
+        from typing import TypedDict, Annotated
+        from draf.state import State
+
+        def add(old, new):
+            return (old or 0) + new
+
+        class S(TypedDict):
+            total: Annotated[int, add]
+
+        state = State(S, {"total": 5})
+        state.merge({"total": 3})
+        assert state["total"] == 8
+
+    def test_setitem_direct(self):
+        from typing import TypedDict, Annotated
+        from draf.state import State
+
+        class S(TypedDict):
+            x: Annotated[str, "keep"]
+
+        state = State(S, {"x": "original"})
+        state["x"] = "direct"
+        assert state["x"] == "direct"
+
+    def test_dict_methods(self):
+        from typing import TypedDict
+        from draf.state import State
+
+        class S(TypedDict):
+            a: str
+            b: int
+
+        state = State(S, {"a": "x", "b": 1})
+        assert set(state.keys()) == {"a", "b"}
+        assert set(state.values()) == {"x", 1}
+        assert set(state.items()) == {("a", "x"), ("b", 1)}
+
+    def test_get_with_default(self):
+        from typing import TypedDict
+        from draf.state import State
+
+        class S(TypedDict):
+            a: str
+
+        state = State(S, {"a": "x"})
+        assert state.get("a") == "x"
+        assert state.get("missing", "default") == "default"
+
+    def test_copy_returns_dict(self):
+        from typing import TypedDict
+        from draf.state import State
+
+        class S(TypedDict):
+            a: str
+
+        state = State(S, {"a": "x"})
+        d = state.copy()
+        assert d == {"a": "x"}
+        assert isinstance(d, dict)
+
+    def test_repr(self):
+        from typing import TypedDict
+        from draf.state import State
+
+        class S(TypedDict):
+            x: str
+
+        state = State(S, {"x": "hello"})
+        assert repr(state) == "{'x': 'hello'}"
+
+    def test_roundtrip_via_graph(self):
+        from typing import TypedDict, Annotated
+        from draf.node import Node
+        from draf.graph import Graph, Edge
+        from draf.state import State
+
+        class S(TypedDict):
+            msgs: Annotated[list, "append"]
+
+        class AppendOne(Node):
+            type = "ao"
+            async def execute(self, ctx, state):
+                return {"msgs": ["one"]}
+
+        class AppendTwo(Node):
+            type = "at"
+            async def execute(self, ctx, state):
+                return {"msgs": ["two"]}
+
+        g = Graph(
+            nodes={"a": AppendOne({}), "b": AppendTwo({})},
+            edges=[Edge("a", "b")],
+            entry_point="a",
+        )
+        import asyncio
+        state = State(S)
+        result = asyncio.run(g.run(state))
+        assert result is state
+        assert result["msgs"] == ["one", "two"]

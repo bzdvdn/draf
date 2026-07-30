@@ -1,0 +1,39 @@
+# user
+old/
+.speckeep
+.opencode
+
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*.pyo
+
+# Distribution / packaging
+dist/
+build/
+*.egg
+*.egg-info/
+
+# Virtual environments
+.venv/
+.venv*/
+venv/
+
+# Testing / linting / typing
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# IDE / editor
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS junk
+.DS_Store
+Thumbs.db
+
+# Environment variables
+.env
+.env.*
