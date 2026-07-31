@@ -6,13 +6,31 @@ import shlex
 from draf.tool.tool import Tool
 
 _DEFAULT_BLOCKED = {
-    "sudo", "su", "chmod", "chown", "chattr",
-    "mkfs", "dd", "fdisk", "parted",
-    "iptables", "ufw",
-    "systemctl", "service",
-    "shutdown", "reboot", "poweroff", "halt", "init",
-    "kill", "pkill", "killall",
-    "passwd", "useradd", "userdel", "usermod",
+    "sudo",
+    "su",
+    "chmod",
+    "chown",
+    "chattr",
+    "mkfs",
+    "dd",
+    "fdisk",
+    "parted",
+    "iptables",
+    "ufw",
+    "systemctl",
+    "service",
+    "shutdown",
+    "reboot",
+    "poweroff",
+    "halt",
+    "init",
+    "kill",
+    "pkill",
+    "killall",
+    "passwd",
+    "useradd",
+    "userdel",
+    "usermod",
     "visudo",
 }
 
@@ -43,7 +61,9 @@ class ShellTool(Tool):
         if prog in _DEFAULT_BLOCKED:
             raise PermissionError(f"blocked command: {prog}")
         if self._allowed is not None and prog not in self._allowed:
-            raise PermissionError(f"command not allowed: {prog} (allowed: {self._allowed})")
+            raise PermissionError(
+                f"command not allowed: {prog} (allowed: {self._allowed})"
+            )
 
         proc = await asyncio.create_subprocess_shell(
             command,

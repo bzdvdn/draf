@@ -20,7 +20,9 @@ class VectorStore(ABC):
         ...
 
     @abstractmethod
-    async def search(self, query: list[float], k: int = 10) -> list[tuple[str, float, dict]]:
+    async def search(
+        self, query: list[float], k: int = 10
+    ) -> list[tuple[str, float, dict]]:
         """Search for the *k* nearest neighbours.
 
         Returns:

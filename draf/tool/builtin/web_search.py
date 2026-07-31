@@ -27,6 +27,7 @@ class WebSearchTool(Tool):
             response.raise_for_status()
 
         import html
+
         text = html.unescape(response.text)
         lines = []
         count = 0

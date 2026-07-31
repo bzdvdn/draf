@@ -14,8 +14,12 @@ app = typer.Typer(
 @app.command()
 def run(
     file: str = typer.Option(..., "--file", "-f", help="Path to workflow YAML file"),
-    output: str | None = typer.Option(None, "--output", "-o", help="Write result to file"),
-    pretty: bool = typer.Option(False, "--pretty", "-p", help="Pretty-print JSON output"),
+    output: str | None = typer.Option(
+        None, "--output", "-o", help="Write result to file"
+    ),
+    pretty: bool = typer.Option(
+        False, "--pretty", "-p", help="Pretty-print JSON output"
+    ),
 ) -> None:
     """Run a workflow from a YAML file."""
     from draf.yaml import load_workflow

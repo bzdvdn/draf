@@ -109,9 +109,7 @@ class Graph:
         iteration = 0
         while current_id:
             if max_iterations is not None and iteration >= max_iterations:
-                raise RuntimeError(
-                    f"graph exceeded max_iterations={max_iterations}"
-                )
+                raise RuntimeError(f"graph exceeded max_iterations={max_iterations}")
             iteration += 1
 
             node = self.nodes[current_id]
@@ -143,7 +141,8 @@ class Graph:
                     apply_reducers(state, result, reducers or {})
 
             outgoing = [
-                e for e in self.edges
+                e
+                for e in self.edges
                 if e.source_id == current_id and e.condition != _ERROR_CONDITION
             ]
             if not outgoing:
@@ -170,6 +169,15 @@ class Graph:
                 return edge.target_id
         return None
 
+    @staticmethod
+    def _norm(value: str) -> str:
+        """Normalise a condition value for comparison.
+
+        Strips whitespace, lowercases, and removes trailing punctuation
+        so LLM output like ``"Positive."`` matches ``positive``.
+        """
+        return value.strip().lower().rstrip(".,!?;:")
+
     def _evaluate(self, condition: str, state: dict) -> bool:
         if "!=" in condition:
             key, value = condition.split("!=", 1)
@@ -180,11 +188,11 @@ class Graph:
                 return state_val is not None and state_val != ""
             if state_val is None:
                 return True
-            state_str = str(state_val)
+            state_str = self._norm(str(state_val))
             if "," in raw:
-                values = [v.strip() for v in raw.split(",")]
+                values = [self._norm(v) for v in raw.split(",")]
                 return state_str not in values
-            return state_str != raw
+            return state_str != self._norm(raw)
         if "=" in condition:
             parts = condition.split("=", 1)
             key = parts[0].strip()
@@ -194,16 +202,17 @@ class Graph:
                 return state_val is None or state_val == ""
             if state_val is None:
                 return False
-            state_str = str(state_val)
+            state_str = self._norm(str(state_val))
             if "," in raw:
-                values = [v.strip() for v in raw.split(",")]
+                values = [self._norm(v) for v in raw.split(",")]
                 return state_str in values
-            return state_str == raw
+            return state_str == self._norm(raw)
         return False
 
     def to_yaml(self) -> str:
         """Serialize this graph to a YAML string."""
         from draf.yaml import graph_to_yaml
+
         return graph_to_yaml(self)
 
 

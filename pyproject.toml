@@ -15,6 +15,13 @@ embedding = [
     "chromadb>=0.5",
     "asyncpg>=0.29",
     "sqlalchemy>=2.0",
+    "pgvector>=0.2",
+]
+rag-pdf = [
+    "pypdf>=4.0",
+]
+rag-excel = [
+    "openpyxl>=3.1",
 ]
 tools = [
     "beautifulsoup4>=4.12",
@@ -23,7 +30,7 @@ tools = [
     "slack-sdk>=3.27",
 ]
 all = [
-    "draf[embedding,tools]",
+    "draf[embedding,tools,rag-pdf,rag-excel]",
 ]
 
 [tool.pytest.ini_options]
@@ -36,6 +43,7 @@ build-backend = "hatchling.build"
 [tool.mypy]
 ignore_missing_imports = true
 warn_unused_ignores = false
+exclude = ["examples/"]
 
 [dependency-groups]
 dev = [

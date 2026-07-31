@@ -18,11 +18,17 @@ class ToolRegistry:
             ValueError: If the class has no non-empty *name* attribute.
         """
         if not hasattr(tool_cls, "name") or not tool_cls.name:
-            raise ValueError(f"Tool class {tool_cls.__name__} must have a non-empty 'name' attribute")
+            raise ValueError(
+                f"Tool class {tool_cls.__name__} must have a non-empty 'name' attribute"
+            )
         self._tools[tool_cls.name] = tool_cls
 
-    def create(self, name: str) -> Tool:
+    def create(self, name: str, config: dict | None = None) -> Tool:
         """Instantiate a tool by name.
+
+        If *config* is provided, the tool class is constructed with it as a
+        dict argument when it accepts one; otherwise it is instantiated
+        without arguments and the config values are assigned as attributes.
 
         Raises:
             KeyError: If the name is not registered.
@@ -30,7 +36,16 @@ class ToolRegistry:
         if name not in self._tools:
             msg = f"unknown tool: {name}"
             raise KeyError(msg)
-        return self._tools[name]()
+        cls = self._tools[name]
+        if config is None:
+            return cls()
+        try:
+            return cls(config)  # type: ignore[call-arg]
+        except TypeError:
+            tool = cls()
+            for k, v in config.items():
+                setattr(tool, k, v)
+            return tool
 
     def list(self) -> list[str]:
         """Return all registered tool names."""
@@ -67,6 +82,7 @@ def tool(tool_name: str, description: str | None = None):
 
                 def run(self, **kwargs):
                     import asyncio
+
                     return asyncio.run(fn(**kwargs))
 
         else:

@@ -2,6 +2,7 @@
 
 import asyncio
 
+from draf.node.context import ExecContext
 from draf.node.node import Node
 
 
@@ -14,13 +15,20 @@ class Retry(Node):
 
     type = "retry"
 
-    def __init__(self, node: Node, max_retries: int = 3, delay: float = 0.0):
-        super().__init__({})
+    def __init__(
+        self,
+        node: Node,
+        max_retries: int = 3,
+        delay: float = 0.0,
+        config: dict | None = None,
+        **kwargs,
+    ):
+        super().__init__(config, **kwargs)
         self._node = node
         self._max_retries = max_retries
         self._delay = delay
 
-    async def execute(self, ctx, state):
+    async def execute(self, ctx: ExecContext, state: dict) -> dict:
         last_exc: Exception | None = None
         for attempt in range(self._max_retries):
             try:

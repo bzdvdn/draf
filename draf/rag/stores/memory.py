@@ -23,7 +23,9 @@ class InMemoryVectorStore(VectorStore):
             self._vectors[vid] = vec
             self._metadatas[vid] = meta
 
-    async def search(self, query: list[float], k: int = 10) -> list[tuple[str, float, dict]]:
+    async def search(
+        self, query: list[float], k: int = 10
+    ) -> list[tuple[str, float, dict]]:
         scores = []
         for vid, vec in self._vectors.items():
             sim = cosine_similarity(query, vec)

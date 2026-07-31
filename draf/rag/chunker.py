@@ -48,6 +48,7 @@ class Chunker:
 
     def _chunk_sentence(self, text: str) -> list[str]:
         import re
+
         sentences = re.split(r"(?<=[.!?])\s+", text)
         chunks = []
         current = []

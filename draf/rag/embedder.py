@@ -5,13 +5,18 @@ import os
 
 import httpx
 
+_EMBEDDER_DEFAULTS = {
+    "openai": ("https://api.openai.com/v1", "OPENAI_API_KEY"),
+    "ollama": ("http://localhost:11434/v1", ""),
+}
+
 
 @dataclass
 class Embedder:
     """Convert text to vector embeddings using a provider API.
 
     Attributes:
-        provider: Provider name (default: ``openai``).
+        provider: Provider name (``openai``, ``ollama``, ...).
         model: Embedding model name.
         base_url: Optional custom API base URL.
     """
@@ -21,15 +26,17 @@ class Embedder:
     base_url: str | None = None
 
     def __post_init__(self):
+        default_url, default_env = _EMBEDDER_DEFAULTS.get(
+            self.provider, _EMBEDDER_DEFAULTS["openai"]
+        )
         self._base_url = self.base_url or os.environ.get(
-            f"{self.provider.upper()}_BASE_URL",
-            "https://api.openai.com/v1",
+            f"{self.provider.upper()}_BASE_URL", default_url
         )
         self._api_key = os.environ.get(
             f"{self.provider.upper()}_API_KEY",
-            os.environ.get("OPENAI_API_KEY", ""),
+            os.environ.get(default_env, ""),
         )
-        if not self._api_key:
+        if default_env and not self._api_key:
             raise ValueError(f"API key not found for provider {self.provider}")
 
     async def embed(self, text: str) -> list[float]:
@@ -39,13 +46,13 @@ class Embedder:
 
     async def embed_many(self, texts: list[str]) -> list[list[float]]:
         """Embed multiple texts in a single API call."""
+        headers = {"Content-Type": "application/json"}
+        if self._api_key:
+            headers["Authorization"] = f"Bearer {self._api_key}"
         async with httpx.AsyncClient(timeout=30) as client:
             response = await client.post(
                 f"{self._base_url}/embeddings",
-                headers={
-                    "Authorization": f"Bearer {self._api_key}",
-                    "Content-Type": "application/json",
-                },
+                headers=headers,
                 json={
                     "model": self.model,
                     "input": texts,
@@ -53,4 +60,7 @@ class Embedder:
             )
             response.raise_for_status()
             data = response.json()
-            return [item["embedding"] for item in sorted(data["data"], key=lambda x: x["index"])]
+            return [
+                item["embedding"]
+                for item in sorted(data["data"], key=lambda x: x["index"])
+            ]

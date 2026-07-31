@@ -1,6 +1,7 @@
 """Abstract base for all graph nodes."""
 
 from abc import ABC, abstractmethod
+import typing
 
 
 class Node(ABC):
@@ -10,16 +11,16 @@ class Node(ABC):
 
     Attributes:
         type: Unique node type identifier used for registry lookups.
-        config: Arbitrary configuration dict passed at construction.
+        config: Configuration dict (merged from constructor kwargs).
     """
 
     type: str = ""
 
-    def __init__(self, config: dict | None = None):
-        self.config = config or {}
+    def __init__(self, config: dict | None = None, **kwargs):
+        self.config = {**(config or {}), **kwargs}
 
     @abstractmethod
-    async def execute(self, ctx, state: dict) -> dict:
+    async def execute(self, ctx: typing.Any, state: dict) -> dict:
         """Execute the node's logic.
 
         Args:

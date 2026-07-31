@@ -8,7 +8,8 @@ class TestTool:
         class MyTool(Tool):
             name = "mytool"
             description = "Does stuff"
-            def run(self, x: int = 0) -> int:
+
+            def run(self, x: int = 0) -> int:  # type: ignore[override]
                 return x * 2
 
         t = MyTool()
@@ -23,12 +24,60 @@ class TestTool:
         class MyTool(Tool):
             name = "calc"
             description = "calc"
-            def run(self, x: int = 0) -> int:
+
+            def run(self, x: int = 0) -> int:  # type: ignore[override]
                 return x + 1
 
         t = MyTool()
         r = asyncio.run(t.arun(x=41))
         assert r == 42
+
+
+class TestCoerceArgs:
+    def test_coerces_strings_to_declared_types(self):
+        from draf.tool import Tool
+        from draf.tool.tool import coerce_args
+
+        class MyTool(Tool):
+            name = "typed"
+            description = "typed"
+
+            def run(self, count: int = 0, ratio: float = 0.0, flag: bool = False):  # type: ignore[override]
+                return (count, ratio, flag)
+
+        t = MyTool()
+        args = coerce_args(t, {"count": "3", "ratio": "1.5", "flag": "true"})
+        assert args == {"count": 3, "ratio": 1.5, "flag": True}
+
+    def test_coerces_against_async_arun(self):
+        from draf.tool import Tool
+        from draf.tool.tool import coerce_args
+
+        class MyTool(Tool):
+            name = "asynct"
+            description = "asynct"
+
+            async def arun(self, k: int = 5) -> int:  # type: ignore[override]
+                return k
+
+        t = MyTool()
+        args = coerce_args(t, {"k": "1"})
+        assert args == {"k": 1}
+
+    def test_leaves_correct_types_untouched(self):
+        from draf.tool import Tool
+        from draf.tool.tool import coerce_args
+
+        class MyTool(Tool):
+            name = "already"
+            description = "already"
+
+            def run(self, n: int = 0):  # type: ignore[override]
+                return n
+
+        t = MyTool()
+        args = coerce_args(t, {"n": 7})
+        assert args == {"n": 7}
 
 
 class TestToolDecorator:
@@ -65,7 +114,9 @@ class TestToolRegistry:
         class FT(Tool):
             name = "ft"
             description = "ft"
-            def run(self): return "ok"
+
+            def run(self):
+                return "ok"
 
         reg = ToolRegistry()
         reg.register(FT)
@@ -77,6 +128,7 @@ class TestToolRegistry:
 class TestBuiltinTools:
     def test_calculator(self):
         from draf.tool.builtin import CalculatorTool
+
         t = CalculatorTool()
         assert t.run(expression="2+2") == "4"
         assert t.run(expression="3*4") == "12"
@@ -85,12 +137,14 @@ class TestBuiltinTools:
     @pytest.mark.asyncio
     async def test_shell(self):
         from draf.tool.builtin import ShellTool
+
         t = ShellTool()
         r = await t.arun(command="echo ok")
         assert "ok" in r
 
     def test_file_tools(self, tmp_path):
         from draf.tool.builtin.file import WriteFileTool, ReadFileTool, EditFileTool
+
         path = str(tmp_path / "test.txt")
         wt = WriteFileTool()
         wt.run(path=path, content="hello world")
@@ -105,6 +159,7 @@ class TestShellSandbox:
     @pytest.mark.asyncio
     async def test_blocked_commands(self):
         from draf.tool.builtin import ShellTool
+
         t = ShellTool()
         with pytest.raises(PermissionError, match="blocked"):
             await t.arun("dd if=/dev/zero of=/tmp/x bs=1 count=1")
@@ -114,6 +169,7 @@ class TestShellSandbox:
     @pytest.mark.asyncio
     async def test_allowed_commands_whitelist(self):
         from draf.tool.builtin import ShellTool
+
         t = ShellTool(allowed_commands=["echo"])
         with pytest.raises(PermissionError, match="not allowed"):
             await t.arun("ls /tmp")
@@ -123,6 +179,7 @@ class TestShellSandbox:
     @pytest.mark.asyncio
     async def test_allowed_commands_overrides_blocked(self):
         from draf.tool.builtin import ShellTool
+
         t = ShellTool(allowed_commands=["dd"])
         with pytest.raises(PermissionError, match="blocked"):
             await t.arun("dd if=/dev/zero of=/tmp/x bs=1 count=1")
@@ -130,6 +187,7 @@ class TestShellSandbox:
     @pytest.mark.asyncio
     async def test_empty_command_raises(self):
         from draf.tool.builtin import ShellTool
+
         t = ShellTool()
         with pytest.raises(ValueError, match="empty"):
             await t.arun("")

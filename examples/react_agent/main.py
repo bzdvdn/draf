@@ -1,0 +1,52 @@
+"""ReAct agent: LLM + calculator tool in a visible graph cycle.
+
+Requires Ollama running locally with llama3.1:8b.
+
+Usage:
+    # Make sure Ollama is running and has the model
+    ollama pull llama3.1:8b
+    python examples/react_agent/main.py
+"""
+
+import asyncio
+from draf import set_defaults
+from draf.flow import Flow
+from draf.tool import Tool
+
+set_defaults(provider="ollama")
+
+
+class Calculator(Tool):
+    name = "calculator"
+    description = "Evaluate a mathematical expression"
+
+    def run(self, expression: str = "") -> str:
+        try:
+            return str(eval(expression, {"__builtins__": {}}, {}))
+        except Exception as e:
+            return f"Error: {e}"
+
+
+async def main():
+    flow = Flow("react_agent")
+    flow.react(
+        model="llama3.1:8b",
+        system="You are a helpful assistant with calculator access. "
+        "Use the calculator tool when you need to compute something.",
+        input_key="query",
+        output_key="answer",
+    )
+
+    graph = flow.compile()
+
+    result = await graph.run(
+        state={"query": "What is 2 + 2? Then multiply by 5."},
+        tools=[Calculator()],
+        max_iterations=10,
+    )
+    print("Answer:", result["answer"])
+    print("Messages:", len(result["messages"]))
+
+
+if __name__ == "__main__":
+    asyncio.run(main())

@@ -1,0 +1,5 @@
+id,topic,text
+doc_1,intro,"Draf is a Python framework for building AI agent workflows as data. Workflows are graphs: nodes transform state, edges carry conditions, and the graph owns all behaviour."
+doc_2,constitution,"The Draf constitution: the graph owns behaviour, nodes transform state, conditions live on edges, and a workflow is YAML data that compiles into a graph."
+doc_3,nodes,"Draf ships built-in nodes: Transform, LLM, ReActAgent, ToolExec, and Retry. Tools and RAG primitives are first-class citizens."
+doc_4,mascot,"The official mascot of Draf is a river otter named Flux. Flux rides the graph edges and never gets lost in a cycle."

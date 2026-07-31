@@ -37,5 +37,6 @@ class CalculatorTool(Tool):
             return _OPS[type(node.op)](self._eval(node.left), self._eval(node.right))
         if isinstance(node, ast.Name) and node.id == "pi":
             import math
+
             return math.pi
         raise ValueError(f"unsupported: {ast.dump(node)}")

@@ -23,11 +23,19 @@ class ChromaVectorStore(VectorStore):
         metadatas = [v[2] for v in vectors]
         self._collection.add(ids=ids, embeddings=embeddings, metadatas=metadatas)
 
-    async def search(self, query: list[float], k: int = 10) -> list[tuple[str, float, dict]]:
+    async def search(
+        self, query: list[float], k: int = 10
+    ) -> list[tuple[str, float, dict]]:
         results = self._collection.query(query_embeddings=[query], n_results=k)
         out = []
         for i in range(len(results["ids"][0])):
-            out.append((results["ids"][0][i], results["distances"][0][i] if results.get("distances") else 0.0, results["metadatas"][0][i] if results.get("metadatas") else {}))
+            out.append(
+                (
+                    results["ids"][0][i],
+                    results["distances"][0][i] if results.get("distances") else 0.0,
+                    results["metadatas"][0][i] if results.get("metadatas") else {},
+                )
+            )
         return out
 
     async def delete(self, ids: list[str]) -> None:

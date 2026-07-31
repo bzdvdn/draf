@@ -1,6 +1,31 @@
 """Abstract base for all tools."""
 
 import asyncio
+import typing
+
+
+def coerce_args(tool: "Tool", kwargs: dict) -> dict:
+    """Coerce tool-call arguments to match the tool's type hints.
+
+    LLMs often pass values as strings (e.g. ``k="1"`` instead of ``1``);
+    coerce them so tools receive properly typed arguments.
+    """
+    method = tool.arun if type(tool).run is Tool.run else tool.run
+    try:
+        hints = typing.get_type_hints(method)
+    except Exception:
+        hints = {}
+    for key, value in kwargs.items():
+        tp = hints.get(key)
+        if tp is int and not isinstance(value, int):
+            kwargs[key] = int(value)
+        elif tp is float and not isinstance(value, float):
+            kwargs[key] = float(value)
+        elif tp is bool and not isinstance(value, bool):
+            kwargs[key] = str(value).lower() in ("true", "1")
+        elif tp is str and not isinstance(value, str):
+            kwargs[key] = str(value)
+    return kwargs
 
 
 class Tool:

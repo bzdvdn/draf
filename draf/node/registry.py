@@ -5,7 +5,7 @@ from typing import Any, Callable
 
 from draf.node.node import Node
 
-NodeFactory = Callable[[dict], Node]
+NodeFactory = Callable[..., Node]
 
 
 class NodeRegistry:
@@ -22,12 +22,13 @@ class NodeRegistry:
         """Register a node factory under a type name."""
         self._factories[name] = factory
 
-    def create(self, name: str, config: dict | None = None) -> Node:
+    def create(self, name: str, config: dict | None = None, **kwargs: Any) -> Node:
         """Create a node instance by type name.
 
         Args:
             name: Registered node type name.
-            config: Configuration dict passed to the node factory.
+            config: Optional configuration dict (backward-compatible).
+            **kwargs: Additional keyword arguments merged into config.
 
         Returns:
             A Node instance.
@@ -38,7 +39,8 @@ class NodeRegistry:
         if name not in self._factories:
             msg = f"unknown node type: {name}"
             raise KeyError(msg)
-        return self._factories[name](config or {})
+        merged = {**(config or {}), **kwargs}
+        return self._factories[name](merged)
 
     def list(self) -> list[str]:
         """Return all registered node type names."""

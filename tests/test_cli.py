@@ -1,6 +1,5 @@
 import json
 
-import pytest
 from typer.testing import CliRunner
 
 from draf.cli import app
@@ -29,6 +28,7 @@ steps:
 class TestLoadWorkflow:
     def test_basic_workflow(self, tmp_path):
         from draf.yaml import load_workflow
+
         path = tmp_path / "wf.yaml"
         path.write_text(SIMPLE_YAML)
         graph, tools, initial_state, reducers = load_workflow(str(path))
@@ -39,6 +39,7 @@ class TestLoadWorkflow:
 
     def test_with_tools(self, tmp_path):
         from draf.yaml import load_workflow
+
         path = tmp_path / "wf.yaml"
         path.write_text(TOOL_YAML)
         graph, tools, initial_state, reducers = load_workflow(str(path))
@@ -48,6 +49,7 @@ class TestLoadWorkflow:
     def test_runs_to_completion(self, tmp_path):
         from draf.yaml import load_workflow
         import asyncio
+
         path = tmp_path / "wf.yaml"
         path.write_text(SIMPLE_YAML)
         graph, tools, initial_state, reducers = load_workflow(str(path))

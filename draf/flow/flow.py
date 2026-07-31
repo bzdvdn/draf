@@ -1,7 +1,6 @@
 """Fluid flow builder for constructing graphs."""
 
 from draf.node.node import Node
-from draf.node.registry import NodeRegistry, default_registry
 from draf.graph import Graph, Edge
 from draf.flow.case import Case
 from draf.flow.sub_flow import SubFlow
@@ -12,23 +11,17 @@ class Flow:
 
     Args:
         name: Optional flow name.
-        registry: Isolated node registry.
-            If ``None`` (default) uses the global ``default_registry``
-            for backward compatibility.  Pass a custom or cloned registry
-            to prevent cross-contamination between flows.
 
     Usage::
 
         flow = Flow("my-flow")
-        flow.step("llm_chat", model="gpt-4")
-        flow.step(start_node)
+        flow.step(LLM(model="gpt-4"))
         flow.branch("status", Case("ok").add(ok_node), default=err_node)
         graph = flow.compile()
     """
 
-    def __init__(self, name: str = "", registry: NodeRegistry | None = None):
+    def __init__(self, name: str = ""):
         self._name = name
-        self._registry = registry or default_registry
         self._nodes: list[Node] = []
         self._node_ids: list[str] = []
         self._edges: list[Edge] = []
@@ -36,26 +29,26 @@ class Flow:
         self._last_added: str | None = None
         self._last_branch_key: str | None = None
         self._last_branch_values: list[str] = []
+        self._branch_point: str | None = None
+        self._branch_ends: list[str] = []
 
     def _next_id(self, node: Node) -> str:
         self._counter += 1
         return f"{node.type}_{self._counter}"
 
-    def step(self, node_or_type: Node | str, **config) -> "Flow":
+    def step(self, node: Node) -> "Flow":
         """Append a node to the linear chain.
 
-        Accepts a Node instance or a registered type name (looked up
-        from the flow's registry with optional *config* kwargs).
+        Accepts a Node instance::
 
-        Returns ``self`` for chaining::
+            flow.step(Transform(action="uppercase"))
+            flow.step(LLM(model="gpt-4"))
+            flow.step(custom_node)
 
-            flow.step(A()).step(B()).step(C())
-            flow.step("transform", action="uppercase")
+        Returns ``self`` for chaining.
         """
-        if isinstance(node_or_type, str):
-            node = self._registry.create(node_or_type, config)
-        else:
-            node = node_or_type
+        if not isinstance(node, Node):
+            raise TypeError("step expects a Node instance")
         self._nodes.append(node)
         nid = self._next_id(node)
         self._node_ids.append(nid)
@@ -90,36 +83,36 @@ class Flow:
 
         Each case creates an edge ``key=<case.value>`` from the last node.
         The default creates an edge ``key!=<all case values>``.
+
+        Multiple nodes within a case are chained sequentially.
+        Use ``converge()`` after branching to merge branches.
         """
         if not cases:
             raise ValueError("branch requires at least one Case")
         assert self._last_added is not None
         self._last_branch_key = key
         self._last_branch_values = []
+        self._branch_point = self._last_added
+        self._branch_ends = []
         for case in cases:
             self._last_branch_values.append(case.value)
+            prev_id: str | None = None
             for n in case._nodes:
                 self._nodes.append(n)
                 nid = self._next_id(n)
                 self._node_ids.append(nid)
-                condition = f"{key}={case.value}"
-                self._edges.append(Edge(source_id=self._last_added, target_id=nid, condition=condition))
+                parent = prev_id if prev_id is not None else self._last_added
+                condition = f"{key}={case.value}" if prev_id is None else None
+                self._edges.append(
+                    Edge(source_id=parent, target_id=nid, condition=condition)
+                )
+                prev_id = nid
+            if prev_id is not None:
+                self._branch_ends.append(prev_id)
         if default:
             self._nodes.append(default)
             dnid = self._next_id(default)
             self._node_ids.append(dnid)
-            negated = ",".join(self._last_branch_values)
-            self._edges.append(Edge(source_id=self._last_added, target_id=dnid, condition=f"{key}!={negated}"))
-        return self
-
-    def default(self, node: Node) -> "Flow":
-        """Add a fallback node for the most recent branch."""
-        self._nodes.append(node)
-        dnid = self._next_id(node)
-        self._node_ids.append(dnid)
-        if self._last_branch_key and self._last_branch_values:
-            assert self._last_added is not None
-            key = self._last_branch_key
             negated = ",".join(self._last_branch_values)
             self._edges.append(
                 Edge(
@@ -128,6 +121,50 @@ class Flow:
                     condition=f"{key}!={negated}",
                 )
             )
+            self._branch_ends.append(dnid)
+        if self._branch_ends:
+            self._last_added = self._branch_ends[-1]
+        return self
+
+    def default(self, node: Node) -> "Flow":
+        """Add a fallback node for the most recent branch."""
+        self._nodes.append(node)
+        dnid = self._next_id(node)
+        self._node_ids.append(dnid)
+        bp = self._branch_point or self._last_added
+        if self._last_branch_key and self._last_branch_values:
+            assert bp is not None
+            key = self._last_branch_key
+            negated = ",".join(self._last_branch_values)
+            self._edges.append(
+                Edge(
+                    source_id=bp,
+                    target_id=dnid,
+                    condition=f"{key}!={negated}",
+                )
+            )
+        self._branch_ends.append(dnid)
+        self._last_added = dnid
+        return self
+
+    def converge(self, node: Node) -> "Flow":
+        """Merge all branch ends into a single node.
+
+        Adds edges from every branch end (set by the last ``branch()``
+        call) to *node*.  Use after ``branch()`` to rejoin paths::
+
+            flow.branch("sentiment",
+                Case("positive").add(on_pos),
+                Case("negative").add(on_neg),
+            ).converge(shout_node)
+        """
+        self._nodes.append(node)
+        nid = self._next_id(node)
+        self._node_ids.append(nid)
+        for src in self._branch_ends:
+            self._edges.append(Edge(source_id=src, target_id=nid))
+        self._last_added = nid
+        self._branch_ends = []
         return self
 
     def react(
@@ -162,7 +199,7 @@ class Flow:
 
             result = await graph.run(state, tools=tools, max_iterations=20)
         """
-        from draf.builtin.agent import ReActAgent, ToolExec
+        from draf.node.agent import ReActAgent, ToolExec
 
         agent_cfg = {
             "model": model,
@@ -172,20 +209,18 @@ class Flow:
             "messages_key": messages_key,
             **config,
         }
-        agent = ReActAgent(agent_cfg)
+        agent = ReActAgent(**agent_cfg)
 
         self._nodes.append(agent)
         agent_id = self._next_id(agent)
         self._node_ids.append(agent_id)
 
-        tool_exec = ToolExec({"messages_key": messages_key})
+        tool_exec = ToolExec(messages_key=messages_key)
         self._nodes.append(tool_exec)
         tool_id = self._next_id(tool_exec)
         self._node_ids.append(tool_id)
 
-        self._edges.append(
-            Edge(agent_id, tool_id, "_tool_call_name!=")
-        )
+        self._edges.append(Edge(agent_id, tool_id, "_tool_call_name!="))
         self._edges.append(Edge(tool_id, agent_id))
 
         if self._last_added is not None:

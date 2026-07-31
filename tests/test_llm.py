@@ -1,20 +1,54 @@
 import pytest
 
 
+class TestParseTextToolCall:
+    def test_parses_parameters_form(self):
+        from draf.node.llm import _parse_text_tool_call
+
+        content = 'Calling tool: {"name": "rag", "parameters": {"k": 5, "query": "x"}}'
+        assert _parse_text_tool_call(content) == ("rag", {"k": 5, "query": "x"})
+
+    def test_parses_arguments_form(self):
+        from draf.node.llm import _parse_text_tool_call
+
+        content = '{"name": "calc", "arguments": {"expression": "2+2"}}'
+        assert _parse_text_tool_call(content) == ("calc", {"expression": "2+2"})
+
+    def test_no_tool_call_returns_none(self):
+        from draf.node.llm import _parse_text_tool_call
+
+        assert _parse_text_tool_call("just a normal answer") is None
+
+    def test_nested_braces_in_arguments(self):
+        from draf.node.llm import _parse_text_tool_call
+
+        content = '{"name": "rag", "parameters": {"k": 1, "query": "a {b} c"}}'
+        assert _parse_text_tool_call(content) == (
+            "rag",
+            {"k": 1, "query": "a {b} c"},
+        )
+
+
 class TestLLMNode:
     @pytest.mark.asyncio
     async def test_sends_request_and_stores_response(self, monkeypatch):
-        from draf.builtin import LLM
+        from draf.node import LLM
         from draf.node import ExecContext
+
         monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
 
         async def mock_post(*a, **kw):
             class MockResponse:
-                def raise_for_status(self): pass
-                def json(self): return {"choices": [{"message": {"content": "hi there"}}]}
+                def raise_for_status(self):
+                    pass
+
+                def json(self):
+                    return {"choices": [{"message": {"content": "hi there"}}]}
+
             return MockResponse()
 
         import httpx
+
         monkeypatch.setattr(httpx.AsyncClient, "post", mock_post)
 
         node = LLM({"model": "gpt-4", "system": "Say hi", "output_key": "greeting"})
@@ -24,17 +58,23 @@ class TestLLMNode:
 
     @pytest.mark.asyncio
     async def test_structured_output_json_mode(self, monkeypatch):
-        from draf.builtin import LLM
+        from draf.node import LLM
         from draf.node import ExecContext
+
         monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
 
         async def mock_post(*a, **kw):
             class MockResponse:
-                def raise_for_status(self): pass
-                def json(self): return {"choices": [{"message": {"content": '{"ok": true}'}}]}
+                def raise_for_status(self):
+                    pass
+
+                def json(self):
+                    return {"choices": [{"message": {"content": '{"ok": true}'}}]}
+
             return MockResponse()
 
         import httpx
+
         monkeypatch.setattr(httpx.AsyncClient, "post", mock_post)
 
         node = LLM({"model": "gpt-4", "response_format": {"type": "json_object"}})
@@ -44,46 +84,59 @@ class TestLLMNode:
 
     @pytest.mark.asyncio
     async def test_tool_calling_loop(self, monkeypatch):
-        from draf.builtin import LLM
+        from draf.node import LLM
         from draf.node import ExecContext
         from draf.tool import Tool
+
         monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
 
         class UppercaseTool(Tool):
             name = "uppercase"
             description = "Convert text to uppercase"
-            def run(self, text: str = "") -> str:
+
+            def run(self, text: str = "") -> str:  # type: ignore[override]
                 return text.upper()
 
         tool_call_response = {
-            "choices": [{
-                "message": {
-                    "content": None,
-                    "tool_calls": [{
-                        "id": "call_1",
-                        "function": {
-                            "name": "uppercase",
-                            "arguments": '{"text": "hello"}',
-                        },
-                    }],
-                },
-            }],
+            "choices": [
+                {
+                    "message": {
+                        "content": None,
+                        "tool_calls": [
+                            {
+                                "id": "call_1",
+                                "function": {
+                                    "name": "uppercase",
+                                    "arguments": '{"text": "hello"}',
+                                },
+                            }
+                        ],
+                    },
+                }
+            ],
         }
         content_response = {
-            "choices": [{
-                "message": {"content": "the result is HELLO"},
-            }],
+            "choices": [
+                {
+                    "message": {"content": "the result is HELLO"},
+                }
+            ],
         }
 
         responses = [tool_call_response, content_response]
 
         async def mock_post(*a, **kw):
             class MockResponse:
-                def raise_for_status(self): pass
-                def json(self): return responses.pop(0)
+                def raise_for_status(self):
+                    pass
+
+                def json(self):
+                    return responses.pop(0)
+
             return MockResponse()
 
         import httpx
+
         monkeypatch.setattr(httpx.AsyncClient, "post", mock_post)
 
         node = LLM({"model": "gpt-4", "use_tools": True})
@@ -93,9 +146,10 @@ class TestLLMNode:
 
     @pytest.mark.asyncio
     async def test_tool_calling_executes_and_feeds_back(self, monkeypatch):
-        from draf.builtin import LLM
+        from draf.node import LLM
         from draf.node import ExecContext
         from draf.tool import Tool
+
         monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
 
         call_log = []
@@ -103,20 +157,28 @@ class TestLLMNode:
         class LogTool(Tool):
             name = "logger"
             description = "Log a message"
-            def run(self, msg: str = "") -> str:
+
+            def run(self, msg: str = "") -> str:  # type: ignore[override]
                 call_log.append(msg)
                 return f"logged: {msg}"
 
         tool_resp = {
-            "choices": [{
-                "message": {
-                    "content": None,
-                    "tool_calls": [{
-                        "id": "call_1",
-                        "function": {"name": "logger", "arguments": '{"msg": "test"}'},
-                    }],
-                },
-            }],
+            "choices": [
+                {
+                    "message": {
+                        "content": None,
+                        "tool_calls": [
+                            {
+                                "id": "call_1",
+                                "function": {
+                                    "name": "logger",
+                                    "arguments": '{"msg": "test"}',
+                                },
+                            }
+                        ],
+                    },
+                }
+            ],
         }
         content_resp = {
             "choices": [{"message": {"content": "done"}}],
@@ -126,11 +188,16 @@ class TestLLMNode:
 
         async def mock_post(*a, **kw):
             class MockResponse:
-                def raise_for_status(self): pass
-                def json(self): return responses.pop(0)
+                def raise_for_status(self):
+                    pass
+
+                def json(self):
+                    return responses.pop(0)
+
             return MockResponse()
 
         import httpx
+
         monkeypatch.setattr(httpx.AsyncClient, "post", mock_post)
 
         node = LLM({"model": "gpt-4", "use_tools": True})
@@ -141,33 +208,45 @@ class TestLLMNode:
 
     @pytest.mark.asyncio
     async def test_manual_tool_defs_without_use_tools(self, monkeypatch):
-        from draf.builtin import LLM
+        from draf.node import LLM
         from draf.node import ExecContext
+
         monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
 
         async def mock_post(*a, **kw):
             class MockResponse:
-                def raise_for_status(self): pass
-                def json(self): return {"choices": [{"message": {"content": "ok"}}]}
+                def raise_for_status(self):
+                    pass
+
+                def json(self):
+                    return {"choices": [{"message": {"content": "ok"}}]}
+
             return MockResponse()
 
         import httpx
+
         monkeypatch.setattr(httpx.AsyncClient, "post", mock_post)
 
-        node = LLM({"model": "gpt-4", "tools": [{"type": "function", "function": {"name": "x"}}]})
+        node = LLM(
+            {
+                "model": "gpt-4",
+                "tools": [{"type": "function", "function": {"name": "x"}}],
+            }
+        )
         ctx = ExecContext(state={}, tools={})
         result = await node.execute(ctx, {})
         assert result["output"] == "ok"
 
     @pytest.mark.asyncio
     async def test_tool_schema_generation(self):
-        from draf.builtin import LLM
+        from draf.node import LLM
         from draf.tool import Tool
 
         class MyTool(Tool):
             name = "mytool"
             description = "Does stuff"
-            def run(self, x: int = 0, y: str = "") -> str:
+
+            def run(self, x: int = 0, y: str = "") -> str:  # type: ignore[override]
                 return f"{x} {y}"
 
         schema = LLM._tool_to_schema(MyTool())
@@ -179,13 +258,14 @@ class TestLLMNode:
 
     @pytest.mark.asyncio
     async def test_tool_schema_required_params(self):
-        from draf.builtin import LLM
+        from draf.node import LLM
         from draf.tool import Tool
 
         class ReqTool(Tool):
             name = "req"
             description = "Required params"
-            def run(self, name: str, age: int) -> str:
+
+            def run(self, name: str, age: int) -> str:  # type: ignore[override]
                 return f"{name} {age}"
 
         schema = LLM._tool_to_schema(ReqTool())
@@ -193,8 +273,9 @@ class TestLLMNode:
 
     @pytest.mark.asyncio
     async def test_streaming_accumulates_content(self, monkeypatch):
-        from draf.builtin import LLM
+        from draf.node import LLM
         from draf.node import ExecContext
+
         monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
 
         sse_lines = [
@@ -222,6 +303,7 @@ class TestLLMNode:
             return MockStreamCM()
 
         import httpx
+
         monkeypatch.setattr(httpx.AsyncClient, "stream", mock_stream)
 
         node = LLM({"model": "gpt-4", "stream": True})
@@ -231,8 +313,9 @@ class TestLLMNode:
 
     @pytest.mark.asyncio
     async def test_streaming_calls_on_token(self, monkeypatch):
-        from draf.builtin import LLM
+        from draf.node import LLM
         from draf.node import ExecContext
+
         monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
 
         sse_lines = [
@@ -260,6 +343,7 @@ class TestLLMNode:
             return MockStreamCM()
 
         import httpx
+
         monkeypatch.setattr(httpx.AsyncClient, "stream", mock_stream)
 
         tokens = []
@@ -275,9 +359,10 @@ class TestLLMNode:
 
     @pytest.mark.asyncio
     async def test_streaming_disabled_when_tools_are_used(self, monkeypatch):
-        from draf.builtin import LLM
+        from draf.node import LLM
         from draf.node import ExecContext
         from draf.tool import Tool
+
         monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
 
         async def mock_post(*a, **kw):
@@ -291,12 +376,14 @@ class TestLLMNode:
             return MockResponse()
 
         import httpx
+
         monkeypatch.setattr(httpx.AsyncClient, "post", mock_post)
 
         class SimpleTool(Tool):
             name = "simple"
             description = "simple"
-            def run(self) -> str:
+
+            def run(self) -> str:  # type: ignore[override]
                 return "ok"
 
         node = LLM({"model": "gpt-4", "stream": True, "use_tools": True})

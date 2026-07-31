@@ -57,11 +57,13 @@ def from_yaml(source: str) -> Graph:
             entry_point = sid
 
     for edge_data in data.get("edges", []):
-        edges.append(Edge(
-            source_id=edge_data["from"],
-            target_id=edge_data["to"],
-            condition=edge_data.get("condition"),
-        ))
+        edges.append(
+            Edge(
+                source_id=edge_data["from"],
+                target_id=edge_data["to"],
+                condition=edge_data.get("condition"),
+            )
+        )
 
     return Graph(nodes=nodes, edges=edges, entry_point=entry_point or "")
 
@@ -70,11 +72,13 @@ def graph_to_yaml(graph: Graph) -> str:
     """Serialize a ``Graph`` instance to a YAML string."""
     steps = []
     for nid, node in graph.nodes.items():
-        steps.append({
-            "id": nid,
-            "type": getattr(node, "type", nid),
-            "config": getattr(node, "config", {}),
-        })
+        steps.append(
+            {
+                "id": nid,
+                "type": getattr(node, "type", nid),
+                "config": getattr(node, "config", {}),
+            }
+        )
 
     edges = []
     for e in graph.edges:
@@ -123,6 +127,7 @@ def load_workflow(path: str) -> tuple[Graph, list[Tool], dict, dict[str, Reducer
         data = yaml.safe_load(f)
 
     import draf.tool.builtin  # noqa: F401 — registers built-in tools
+    import draf.rag  # noqa: F401 — registers the "rag" tool
     from draf.node.registry import default_registry
 
     nodes: dict[str, Node] = {}
@@ -140,21 +145,22 @@ def load_workflow(path: str) -> tuple[Graph, list[Tool], dict, dict[str, Reducer
             entry_point = sid
 
     for edge_data in data.get("edges", []):
-        edges.append(Edge(
-            source_id=edge_data["from"],
-            target_id=edge_data["to"],
-            condition=edge_data.get("condition"),
-        ))
+        edges.append(
+            Edge(
+                source_id=edge_data["from"],
+                target_id=edge_data["to"],
+                condition=edge_data.get("condition"),
+            )
+        )
 
     tools: list[Tool] = []
+    base_dir = os.path.dirname(os.path.abspath(path))
     for td in data.get("tools", []):
         ttype = td["type"]
         tconfig = td.get("config", {})
-        tool = default_tool_registry.create(ttype)
-        if tconfig:
-            for k, v in tconfig.items():
-                setattr(tool, k, v)
-        tools.append(tool)
+        if ttype == "rag":
+            tconfig = _resolve_rag_config(tconfig, base_dir)
+        tools.append(default_tool_registry.create(ttype, tconfig))
 
     graph = Graph(nodes=nodes, edges=edges, entry_point=entry_point or "")
 
@@ -169,3 +175,36 @@ def load_workflow(path: str) -> tuple[Graph, list[Tool], dict, dict[str, Reducer
     reducers: dict[str, Reducer] = reducers_from_yaml_schema(schema)
 
     return graph, tools, initial, reducers
+
+
+def _resolve_rag_config(config: dict, base_dir: str) -> dict:
+    """Make relative paths in a ``rag`` tool config absolute.
+
+    Resolves document file paths and ``store.path`` against *base_dir*
+    (the directory of the workflow YAML).
+    """
+
+    def _abs(item: dict) -> dict:
+        item = dict(item)
+        for key in ("file", "path"):
+            if key in item and not os.path.isabs(item[key]):
+                item[key] = os.path.join(base_dir, item[key])
+        return item
+
+    result = dict(config)
+    store = config.get("store")
+    if isinstance(store, dict):
+        result["store"] = _abs(store)
+
+    docs = config.get("documents")
+    if isinstance(docs, str):
+        if not os.path.isabs(docs):
+            result["documents"] = os.path.join(base_dir, docs)
+    elif isinstance(docs, dict):
+        result["documents"] = _abs(docs)
+    elif isinstance(docs, list):
+        result["documents"] = [
+            _abs(doc) if isinstance(doc, dict) and "text" not in doc else doc
+            for doc in docs
+        ]
+    return result

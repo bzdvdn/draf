@@ -11,10 +11,13 @@ class TestEdgeConditions:
 
         class PN(Node):
             type = "pn"
-            async def execute(self, ctx, state): return {}
+
+            async def execute(self, ctx, state):
+                return {}
 
         class TN(Node):
             type = "tn"
+
             async def execute(self, ctx, state):
                 state["ok"] = True
                 return state
@@ -34,10 +37,13 @@ class TestEdgeConditions:
 
         class PN(Node):
             type = "pn"
-            async def execute(self, ctx, state): return {}
+
+            async def execute(self, ctx, state):
+                return {}
 
         class TN(Node):
             type = "tn"
+
             async def execute(self, ctx, state):
                 state["ok"] = True
                 return state
@@ -59,10 +65,13 @@ class TestEdgeConditions:
 
         class PN(Node):
             type = "pn"
-            async def execute(self, ctx, state): return {}
+
+            async def execute(self, ctx, state):
+                return {}
 
         class TN(Node):
             type = "tn"
+
             async def execute(self, ctx, state):
                 state["ok"] = True
                 return state
@@ -86,11 +95,13 @@ class TestErrorEdges:
 
         class Crash(Node):
             type = "cr"
+
             async def execute(self, ctx, state):
                 raise ValueError("crash")
 
         class Fallback(Node):
             type = "fb"
+
             async def execute(self, ctx, state):
                 state["handled"] = True
                 return state
@@ -110,11 +121,13 @@ class TestErrorEdges:
 
         class Crash(Node):
             type = "cr"
+
             async def execute(self, ctx, state):
                 raise ValueError("crash")
 
         class Other(Node):
             type = "ot"
+
             async def execute(self, ctx, state):
                 return {"ok": True}
 
@@ -133,6 +146,7 @@ class TestErrorEdges:
 
         class Normal(Node):
             type = "n"
+
             async def execute(self, ctx, state):
                 state["x"] = "ok"
                 return state
@@ -154,12 +168,15 @@ class TestHooks:
 
         class Simple(Node):
             type = "s"
+
             async def execute(self, ctx, state):
                 return {"done": True}
 
         g = Graph(nodes={"a": Simple({})}, edges=[], entry_point="a")
         calls = []
-        result = await g.run(state={}, hooks={"on_node_start": lambda nid, n, s: calls.append(nid)})
+        result = await g.run(
+            state={}, hooks={"on_node_start": lambda nid, n, s: calls.append(nid)}
+        )
         assert calls == ["a"]
         assert result["done"] is True
 
@@ -170,6 +187,7 @@ class TestHooks:
 
         class Simple(Node):
             type = "s"
+
             async def execute(self, ctx, state):
                 return {"done": True}
 
@@ -189,11 +207,13 @@ class TestHooks:
 
         class Crash(Node):
             type = "cr"
+
             async def execute(self, ctx, state):
                 raise RuntimeError("boom")
 
         class Fallback(Node):
             type = "fb"
+
             async def execute(self, ctx, state):
                 state["ok"] = True
                 return state
@@ -220,12 +240,14 @@ class TestNodeTimeout:
 
         class Slow(Node):
             type = "slow"
+
             async def execute(self, ctx, state):
                 await asyncio.sleep(10)
                 return {}
 
         class Fallback(Node):
             type = "fb"
+
             async def execute(self, ctx, state):
                 state["fallback"] = True
                 return state
@@ -245,6 +267,7 @@ class TestNodeTimeout:
 
         class Slow(Node):
             type = "slow"
+
             async def execute(self, ctx, state):
                 await asyncio.sleep(10)
                 return {}
@@ -264,6 +287,7 @@ class TestNodeTimeout:
 
         class Fast(Node):
             type = "fast"
+
             async def execute(self, ctx, state):
                 state["done"] = True
                 return state
@@ -283,6 +307,7 @@ class TestNodeTimeout:
 
         class Slow(Node):
             type = "slow"
+
             async def execute(self, ctx, state):
                 await asyncio.sleep(10)
                 return {}
@@ -297,7 +322,11 @@ class TestNodeTimeout:
             await g.run(
                 state={},
                 node_timeout=0.01,
-                hooks={"on_node_error": lambda nid, n, s, e: errors.append(type(e).__name__)},
+                hooks={
+                    "on_node_error": lambda nid, n, s, e: errors.append(
+                        type(e).__name__
+                    )
+                },
             )
         assert errors == ["TimeoutError"]
 
@@ -309,6 +338,7 @@ class TestYAML:
 
         class TN(Node):
             type = "tn"
+
             async def execute(self, ctx, state):
                 state["x"] = "y"
                 return state

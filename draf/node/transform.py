@@ -8,9 +8,35 @@ class Transform(Node):
 
     Supported actions: ``uppercase``, ``lowercase``, ``trim``,
     ``count_lines``, ``value``.
+
+    Parameters:
+        action: Transform action name.
+        input_key: State key to read from.
+        output_key: State key to write to.
+        value: Literal value (used with ``action="value"``).
     """
 
     type = "transform"
+
+    def __init__(
+        self,
+        config: dict | None = None,
+        *,
+        action: str = "",
+        input_key: str = "",
+        output_key: str = "",
+        value: str | None = None,
+        **kwargs,
+    ):
+        merged = {
+            "action": action,
+            "input_key": input_key,
+            "output_key": output_key,
+            "value": value,
+            **(config or {}),
+            **kwargs,
+        }
+        super().__init__(**merged)
 
     async def execute(self, ctx, state: dict) -> dict:
         action = self.config.get("action", "")

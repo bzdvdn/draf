@@ -6,7 +6,13 @@ import os
 import httpx
 
 from draf.node.node import Node
-from draf.builtin.llm import _PROVIDER_DEFAULTS
+from draf.node.llm import (
+    LLM,
+    _PROVIDER_DEFAULTS,
+    _extract_message,
+    _parse_text_tool_call,
+)
+from draf.tool.tool import coerce_args
 
 
 class ReActAgent(Node):
@@ -24,23 +30,67 @@ class ReActAgent(Node):
         agent  ──(_tool_call_name!=)──→  tool_exec
         tool_exec  ──(unconditional)──→  agent
 
-    Config (all optional except *model*):
-
-        model           — Model name (e.g. ``gpt-4``).
-        system          — System prompt.
-        input_key       — State key for user input (default ``"input"``).
-        output_key      — State key for final response (default ``"output"``).
-        messages_key    — State key for conversation (default ``"messages"``).
-        tool_call_key   — Signal key (default ``"_tool_call_name"``).
-        temperature     — Sampling temperature.
-        max_tokens      — Max tokens in response.
-        response_format — ``{"type": "json_object"}`` etc.
-        provider        — Force a provider (auto-detected from model).
-        base_url        — Custom base URL.
-        api_key_env     — Custom env var name for API key.
+    Parameters:
+        model: Model name (e.g. ``gpt-4``).
+        system: System prompt.
+        input_key: State key for user input (default ``"input"``).
+        output_key: State key for final response (default ``"output"``).
+        messages_key: State key for conversation (default ``"messages"``).
+        tool_call_key: Signal key (default ``"_tool_call_name"``).
+        temperature: Sampling temperature.
+        max_tokens: Max tokens in response.
+        response_format: ``{"type": "json_object"}`` etc.
+        provider: Force a provider (auto-detected from model).
+        base_url: Custom base URL.
+        api_key_env: Custom env var name for API key.
+        chat_path: Custom API path.
+        auth_header: Custom auth header name.
+        auth_prefix: Custom auth header prefix.
     """
 
     type = "react_agent"
+
+    def __init__(
+        self,
+        config: dict | None = None,
+        *,
+        model: str = "gpt-4",
+        system: str = "",
+        input_key: str = "input",
+        output_key: str = "output",
+        messages_key: str = "messages",
+        tool_call_key: str = "_tool_call_name",
+        temperature: float | None = None,
+        max_tokens: int | None = None,
+        response_format: dict | None = None,
+        provider: str | None = None,
+        base_url: str | None = None,
+        api_key_env: str | None = None,
+        chat_path: str | None = None,
+        auth_header: str | None = None,
+        auth_prefix: str | None = None,
+        **kwargs,
+    ):
+        merged = {
+            "model": model,
+            "system": system,
+            "input_key": input_key,
+            "output_key": output_key,
+            "messages_key": messages_key,
+            "tool_call_key": tool_call_key,
+            "temperature": temperature,
+            "max_tokens": max_tokens,
+            "response_format": response_format,
+            "provider": provider,
+            "base_url": base_url,
+            "api_key_env": api_key_env,
+            "chat_path": chat_path,
+            "auth_header": auth_header,
+            "auth_prefix": auth_prefix,
+            **(config or {}),
+            **kwargs,
+        }
+        super().__init__(**merged)
 
     async def execute(self, ctx, state: dict) -> dict:
         cfg = self.config
@@ -69,11 +119,13 @@ class ReActAgent(Node):
                 messages.append({"role": "user", "content": user_input})
 
         tool_defs = []
-        from draf.builtin.llm import LLM
+
         for t in ctx.tools.values():
             tool_defs.append(LLM._tool_to_schema(t))
 
-        provider_key = provider_name or model.split("-")[0].split("/")[0]
+        provider_key = (
+            provider_name or LLM.DEFAULT_PROVIDER or model.split("-")[0].split("/")[0]
+        )
         provider_key = provider_key.lower()
         defaults = _PROVIDER_DEFAULTS.get(provider_key, _PROVIDER_DEFAULTS["openai"])
 
@@ -92,7 +144,9 @@ class ReActAgent(Node):
         headers = {"Content-Type": "application/json"}
         hdr_name = auth_header or defaults["auth_header"]
         if hdr_name and api_key:
-            hdr_prefix = auth_prefix if "auth_prefix" in cfg else defaults["auth_prefix"]
+            hdr_prefix = (
+                auth_prefix if "auth_prefix" in cfg else defaults["auth_prefix"]
+            )
             headers[hdr_name] = f"{hdr_prefix}{api_key}"
 
         body: dict = {"model": model, "messages": messages}
@@ -107,13 +161,14 @@ class ReActAgent(Node):
 
         async with httpx.AsyncClient(timeout=120) as client:
             resp = await client.post(
-                f"{resolved_url}{resolved_path}", headers=headers, json=body
+                f"{resolved_url}{resolved_path}",
+                headers=headers,
+                json={**body, "stream": False},
             )
             resp.raise_for_status()
             data = resp.json()
 
-        choice = data.get("choices", [{}])[0]
-        msg = choice.get("message", {})
+        msg = _extract_message(data)
 
         result: dict = {}
         tool_calls = msg.get("tool_calls")
@@ -123,13 +178,24 @@ class ReActAgent(Node):
             fn = tc.get("function", {})
             result[tool_call_key] = fn.get("name", "")
             result["_tool_call_id"] = tc.get("id", "")
-            result["_tool_call_args"] = fn.get("arguments", "{}")
+            raw_args = fn.get("arguments", "{}")
+            if isinstance(raw_args, dict):
+                raw_args = json.dumps(raw_args)
+            result["_tool_call_args"] = raw_args
             messages.append(msg)
         else:
             content = msg.get("content", "")
-            result[output_key] = content
-            result[tool_call_key] = ""
-            messages.append({"role": "assistant", "content": content})
+            parsed = _parse_text_tool_call(content) if tool_defs else None
+            if parsed:
+                name, args = parsed
+                result[tool_call_key] = name
+                result["_tool_call_id"] = f"call_{len(messages)}"
+                result["_tool_call_args"] = json.dumps(args)
+                messages.append(msg)
+            else:
+                result[output_key] = content
+                result[tool_call_key] = ""
+                messages.append({"role": "assistant", "content": content})
 
         result[messages_key] = messages
         return result
@@ -139,18 +205,32 @@ class ToolExec(Node):
     """Executes a tool signalled by ``ReActAgent`` and feeds the result
     back into the conversation history.
 
-    Config:
-
-        messages_key    — State key for messages (default ``"messages"``).
-        tool_call_key   — Signal key (default ``"_tool_call_name"``).
+    Parameters:
+        messages_key: State key for messages (default ``"messages"``).
+        tool_call_key: Signal key (default ``"_tool_call_name"``).
     """
 
     type = "tool_exec"
 
+    def __init__(
+        self,
+        config: dict | None = None,
+        *,
+        messages_key: str = "messages",
+        tool_call_key: str = "_tool_call_name",
+        **kwargs,
+    ):
+        merged = {
+            "messages_key": messages_key,
+            "tool_call_key": tool_call_key,
+            **(config or {}),
+            **kwargs,
+        }
+        super().__init__(**merged)
+
     async def execute(self, ctx, state: dict) -> dict:
-        cfg = self.config
-        messages_key = cfg.get("messages_key", "messages")
-        tool_call_key = cfg.get("tool_call_key", "_tool_call_name")
+        messages_key = self.config.get("messages_key", "messages")
+        tool_call_key = self.config.get("tool_call_key", "_tool_call_name")
 
         name = state.get(tool_call_key, "")
         args_raw = state.get("_tool_call_args", "{}")
@@ -164,18 +244,20 @@ class ToolExec(Node):
         tool = ctx.tools.get(name)
         if tool:
             try:
-                result = await tool.arun(**args)
+                result = await tool.arun(**coerce_args(tool, args))
             except Exception as e:
                 result = f"Error calling '{name}': {e}"
         else:
             result = f"Error: unknown tool '{name}'"
 
         messages = list(state.get(messages_key, []))
-        messages.append({
-            "role": "tool",
-            "tool_call_id": call_id,
-            "content": str(result) if result is not None else "",
-        })
+        messages.append(
+            {
+                "role": "tool",
+                "tool_call_id": call_id,
+                "content": str(result) if result is not None else "",
+            }
+        )
 
         return {
             messages_key: messages,

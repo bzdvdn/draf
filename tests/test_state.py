@@ -144,11 +144,13 @@ class TestTypedState:
 
         class AppendOne(Node):
             type = "ao"
+
             async def execute(self, ctx, state):
                 return {"msgs": ["one"]}
 
         class AppendTwo(Node):
             type = "at"
+
             async def execute(self, ctx, state):
                 return {"msgs": ["two"]}
 
@@ -167,11 +169,13 @@ class TestTypedState:
 
         class WriteX(Node):
             type = "wx"
+
             async def execute(self, ctx, state):
                 return {"x": 1}
 
         class WriteXAgain(Node):
             type = "wx2"
+
             async def execute(self, ctx, state):
                 return {"x": 2}
 
@@ -195,11 +199,13 @@ class TestTypedState:
 
         class AddMsg(Node):
             type = "am"
+
             async def execute(self, ctx, state):
                 return {"msgs": ["hello"]}
 
         class AddMsg2(Node):
             type = "am2"
+
             async def execute(self, ctx, state):
                 return {"msgs": ["world"]}
 
@@ -324,7 +330,9 @@ class TestStateClass:
         assert repr(state) == "{'x': 'hello'}"
 
     def test_load_workflow_parses_state_schema_and_initial(self):
-        import tempfile, os
+        import tempfile
+        import os
+
         yaml_content = """
 name: test
 state:
@@ -346,6 +354,7 @@ edges: []
             path = f.name
         try:
             from draf.yaml import load_workflow
+
             graph, tools, initial, reducers = load_workflow(path)
             assert initial == {"status": "active"}
             assert reducers == {"messages": "append", "status": "keep"}
@@ -353,7 +362,9 @@ edges: []
             os.unlink(path)
 
     def test_load_workflow_no_state_returns_empty(self):
-        import tempfile, os
+        import tempfile
+        import os
+
         yaml_content = """
 name: test
 steps:
@@ -367,6 +378,7 @@ edges: []
             path = f.name
         try:
             from draf.yaml import load_workflow
+
             graph, tools, initial, reducers = load_workflow(path)
             assert initial == {}
             assert reducers == {}
@@ -384,11 +396,13 @@ edges: []
 
         class AppendOne(Node):
             type = "ao"
+
             async def execute(self, ctx, state):
                 return {"msgs": ["one"]}
 
         class AppendTwo(Node):
             type = "at"
+
             async def execute(self, ctx, state):
                 return {"msgs": ["two"]}
 
@@ -398,6 +412,7 @@ edges: []
             entry_point="a",
         )
         import asyncio
+
         state = State(S)
         result = asyncio.run(g.run(state))
         assert result is state

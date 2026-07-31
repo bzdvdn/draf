@@ -24,7 +24,11 @@ class SubFlow(Node):
         output_map: dict[str, str] | None = None,
         max_iterations: int | None = None,
     ):
-        super().__init__({})
+        super().__init__(
+            input_map=input_map or {},
+            output_map=output_map or {},
+            max_iterations=max_iterations,
+        )
         self._graph = graph
         self._input_map = input_map or {}
         self._output_map = output_map or {}

@@ -12,7 +12,10 @@ default_tool_registry.register(EditFileTool)
 default_tool_registry.register(WebSearchTool)
 
 __all__ = [
-    "CalculatorTool", "ShellTool",
-    "ReadFileTool", "WriteFileTool", "EditFileTool",
+    "CalculatorTool",
+    "ShellTool",
+    "ReadFileTool",
+    "WriteFileTool",
+    "EditFileTool",
     "WebSearchTool",
 ]
