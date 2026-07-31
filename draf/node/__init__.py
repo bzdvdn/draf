@@ -3,7 +3,7 @@ from draf.node.registry import NodeRegistry, default_registry, node
 from draf.node.context import ExecContext
 from draf.node.retry import Retry
 from draf.node.transform import Transform
-from draf.node.llm import LLM
+from draf.node.llm import LLM, StructuredOutputError
 from draf.node.agent import ReActAgent, ToolExec
 from draf.node.parallel import Parallel
 from draf.node.map import Map
@@ -35,6 +35,7 @@ __all__ = [
     "Retry",
     "Transform",
     "LLM",
+    "StructuredOutputError",
     "ReActAgent",
     "ToolExec",
     "Parallel",

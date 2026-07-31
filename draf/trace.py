@@ -59,7 +59,8 @@ class TraceEvent:
     Attributes:
         kind: Event type — ``run_start``, ``node_start``, ``node_end``,
             ``node_error``, ``edge``, ``checkpoint``, ``llm``, ``retry``,
-            ``interrupt``, ``interrupt_resume``, or ``run_end``.
+            ``structured``, ``interrupt``, ``interrupt_resume``,
+            or ``run_end``.
         timestamp: Seconds since the tracer started (monotonic).
         node_id: Graph node id the event belongs to, if any.
         node_type: Node type string, if any.
@@ -218,6 +219,22 @@ class RunTracer:
             node_type=node_type,
             attempt=attempt,
             error=str(error),
+        )
+
+    def structured(
+        self,
+        node_id: str | None,
+        node_type: str | None,
+        errors: str,
+        attempt: int,
+    ) -> None:
+        """Record a structured-output validation failure (1-based attempt)."""
+        self._record(
+            "structured",
+            node_id=node_id,
+            node_type=node_type,
+            attempt=attempt,
+            errors=errors,
         )
 
     def interrupt(self, node_id: str, key: str, prompt: str) -> None:

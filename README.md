@@ -288,7 +288,8 @@ async for event in graph.stream(state):
 ```
 
 Event types: `run_start`, `node_start`, `node_end`, `node_error`, `edge`,
-`token`, `llm`, `interrupt`, `interrupt_resume`, `checkpoint`, `run_end`.
+`token`, `llm`, `structured`, `interrupt`, `interrupt_resume`,
+`checkpoint`, `run_end`.
 LLM tokens are emitted as they arrive (any node without tool calls streams
 automatically in this mode); routing decisions, checkpoints, and interrupt
 pauses are streamed the same way.  `stream()` accepts the same parameters as
@@ -296,6 +297,47 @@ pauses are streamed the same way.  `stream()` accepts the same parameters as
 
 See [streaming](examples/streaming/) — `run.py` (Flow) and `graph.py`
 (low-level `Graph`) — for a full console demo.
+
+## Structured output
+
+Guarantee the LLM returns a schema-conforming JSON object instead of free
+text.  Pass a JSON Schema (`json_schema`) or a Python type spec
+(`output_type` — `TypedDict`, dataclass, or `dict[str, type]`):
+
+```python
+from typing import TypedDict
+from draf import Flow, LLM
+
+class Weather(TypedDict):
+    city: str
+    temp: float
+
+flow = Flow("weather")
+flow.step(LLM(model="llama3.1:8b", output_key="weather", output_type=Weather))
+graph = flow.compile()
+
+result = await graph.run({"city": "Москва"})
+result["weather"]  # {"city": "...", "temp": 12.5} — a parsed dict, validated
+```
+
+The response is parsed as JSON, validated against the schema, and re-asked
+with the validation error fed back (up to `max_retries`, default 2).  If
+all attempts fail, a `StructuredOutputError` is raised — route it with an
+`__error__` edge.  Schema errors are recorded as `structured` events in the
+tracer and the stream.  Without a schema, `parse=True` still parses the
+response into a dict (no validation).
+
+The same field map works in YAML:
+
+```yaml
+steps:
+  - id: weather
+    type: llm_chat
+    config:
+      model: llama3.1:8b
+      output_key: weather
+      json_schema: {type: object, properties: {city: {type: string}, temp: {type: number}}, required: [city, temp]}
+```
 
 ## Observability (telemetry)
 
@@ -326,6 +368,7 @@ The CLI exposes the same report: `draf -f workflow.yaml --trace`.
 | [human_in_loop](examples/human_in_loop/) | Approve/Edit LLM output via `Interrupt` + `loop()` + resume (Python and YAML) |
 | [react_agent](examples/react_agent/) | ReAct agent loop |
 | [streaming](examples/streaming/) | Live LLM tokens + graph events via `graph.stream()` |
+| [structured_output](examples/structured_output/) | Schema-validated LLM JSON via `output_type`/`json_schema` |
 | [rag_search](examples/rag_search/) | RAG over a local CSV, in-memory store |
 | [rag_stores](examples/rag_stores/) | Same RAG agent on every vector store |
 | [checkpoint_resume](examples/checkpoint_resume/) | Crash/resume in a few lines |

@@ -13,6 +13,7 @@ from draf.node import (
     Retry,
     Transform,
     LLM,
+    StructuredOutputError,
     ReActAgent,
     ToolExec,
     Parallel,
@@ -23,6 +24,7 @@ from draf.node import (
 from draf.tool import Tool, ToolRegistry, default_tool_registry, tool
 from draf.graph import Graph, Edge
 from draf.flow import Flow, Case, SubFlow
+from draf.schema import json_schema_from_type, validate_json
 from draf.rag import VectorStore, Embedder, Chunker, RAGTool
 from draf.rag.stores import (
     InMemoryVectorStore,
@@ -75,6 +77,7 @@ __all__ = [
     "Edge",
     "Transform",
     "LLM",
+    "StructuredOutputError",
     "ReActAgent",
     "ToolExec",
     "Parallel",
@@ -84,6 +87,8 @@ __all__ = [
     "Flow",
     "Case",
     "SubFlow",
+    "json_schema_from_type",
+    "validate_json",
     "VectorStore",
     "Embedder",
     "Chunker",

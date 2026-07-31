@@ -13,6 +13,12 @@ from draf.node.node import Node
 from draf.prompt import render_template
 from draf.tool.tool import Tool, coerce_args
 from draf.stream import StreamEvent
+from draf.schema import (
+    extract_json_object,
+    json_schema_from_type,
+    parse_json_object,
+    validate_json,
+)
 
 _PROVIDER_DEFAULTS = {
     "openai": {
@@ -65,32 +71,6 @@ def _extract_message(data: dict) -> dict:
     return msg
 
 
-def _extract_json_object(text: str, start: int) -> str | None:
-    """Return the balanced JSON object starting at ``text[start] == '{'``."""
-    depth = 0
-    in_str = False
-    esc = False
-    for i in range(start, len(text)):
-        c = text[i]
-        if in_str:
-            if esc:
-                esc = False
-            elif c == "\\":
-                esc = True
-            elif c == '"':
-                in_str = False
-            continue
-        if c == '"':
-            in_str = True
-        elif c == "{":
-            depth += 1
-        elif c == "}":
-            depth -= 1
-            if depth == 0:
-                return text[start : i + 1]
-    return None
-
-
 def _parse_text_tool_call(content: str) -> tuple[str, dict] | None:
     """Parse a tool call embedded in plain text content.
 
@@ -109,7 +89,7 @@ def _parse_text_tool_call(content: str) -> tuple[str, dict] | None:
         brace = content.find("{", content.find(":", idx))
         if brace == -1:
             continue
-        obj = _extract_json_object(content, brace)
+        obj = extract_json_object(content, brace)
         if obj is None:
             continue
         try:
@@ -151,6 +131,32 @@ def _extract_usage(data: dict) -> tuple[int, int]:
     return int(prompt or 0), int(completion or 0)
 
 
+class StructuredOutputError(ValueError):
+    """Raised when an LLM response fails structured-output parsing/validation.
+
+    Attributes:
+        schema: The JSON Schema the output was validated against (or ``None``).
+        content: Raw text the LLM returned.
+        errors: Parse/validation error message from the last attempt.
+        attempts: Number of attempts made before giving up.
+    """
+
+    def __init__(
+        self,
+        *,
+        schema: dict | None = None,
+        content: str = "",
+        errors: str = "",
+        attempts: int = 0,
+    ):
+        self.schema = schema
+        self.content = content
+        self.errors = errors
+        self.attempts = attempts
+        message = f"LLM output failed structured validation after {attempts} attempt(s): {errors}"
+        super().__init__(message)
+
+
 class LLM(Node):
     """Call an LLM chat API with tool calling and structured output.
 
@@ -174,6 +180,19 @@ class LLM(Node):
         stream: If ``True``, use SSE streaming.
             Automatically disabled when tool calling is active.
         on_token: Optional callback ``(token: str) -> None`` for streaming.
+        json_schema: JSON Schema dict describing the expected response.
+            When set, the response is parsed as JSON, validated against
+            the schema, and re-asked (with the validation error fed back)
+            up to *max_retries* times.  The parsed object is stored under
+            *output_key*.  Adds ``response_format: {"type": "json_object"}``
+            for OpenAI-compatible providers (``format: "json"`` for Ollama)
+            unless *response_format* is already set.
+        output_type: Python type spec — a ``TypedDict``, dataclass, or
+            ``dict[str, type]`` field map — converted to a JSON Schema.
+            Alternative to *json_schema*.
+        parse: If ``True`` without a schema, parse the response as a JSON
+            object and store the dict under *output_key* (no validation).
+        max_retries: How many times to re-ask after a validation failure.
         base_url: Custom base URL (overrides provider default).
         chat_path: Custom API path (overrides provider default).
         auth_header: Custom auth header name.
@@ -206,6 +225,10 @@ class LLM(Node):
         response_format: dict | None = None,
         stream: bool = False,
         on_token: typing.Callable[[str], None] | None = None,
+        json_schema: dict | None = None,
+        output_type: typing.Type[typing.Any] | None = None,
+        parse: bool = False,
+        max_retries: int = 2,
         base_url: str | None = None,
         chat_path: str | None = None,
         auth_header: str | None = None,
@@ -229,6 +252,10 @@ class LLM(Node):
             "response_format": response_format,
             "stream": stream,
             "on_token": on_token,
+            "json_schema": json_schema,
+            "output_type": output_type,
+            "parse": parse,
+            "max_retries": max_retries,
             "base_url": base_url,
             "chat_path": chat_path,
             "auth_header": auth_header,
@@ -307,11 +334,25 @@ class LLM(Node):
             body["max_tokens"] = cfg["max_tokens"]
 
         has_tools = bool(tool_defs)
-        content = ""
         output_key = cfg.get("output_key", "output")
 
+        schema = self._resolve_schema(cfg)
+        structured = schema is not None
+        parse_only = bool(cfg.get("parse", False)) and not structured
+
+        if structured and not cfg.get("response_format"):
+            if provider_key == "ollama":
+                body["format"] = "json"
+            else:
+                body["response_format"] = {"type": "json_object"}
+
         graph_stream = getattr(ctx, "emit", None) is not None
-        if (cfg.get("stream", False) or graph_stream) and not has_tools:
+        content: str | dict = ""
+        if (
+            (cfg.get("stream", False) or graph_stream)
+            and not has_tools
+            and not structured
+        ):
             content = await self._post_llm_stream(
                 resolved_url,
                 resolved_path,
@@ -320,7 +361,12 @@ class LLM(Node):
                 self._token_sink(ctx, cfg, provider_key),
             )
         else:
-            for _round in range(self._MAX_TOOL_ROUNDS if has_tools else 1):
+            max_retries = int(cfg.get("max_retries", 2))
+            rounds = self._MAX_TOOL_ROUNDS if has_tools else 1
+            if structured:
+                rounds = max(rounds, max_retries + 1)
+            attempts = 0
+            for _round in range(rounds):
                 t0 = time.monotonic()
                 data = await self._post_llm(resolved_url, resolved_path, headers, body)
                 await self._record_llm(ctx, cfg, provider_key, data, t0)
@@ -350,20 +396,65 @@ class LLM(Node):
                         ]
                         msg = {**msg, "tool_calls": tool_calls}
 
-                if not has_tools or not tool_calls:
-                    break
+                if has_tools and tool_calls:
+                    body["messages"].append(msg)
+                    for tc in tool_calls:
+                        tc_result = await self._execute_tool_call(tc, ctx)
+                        body["messages"].append(
+                            {
+                                "role": "tool",
+                                "tool_call_id": tc["id"],
+                                "content": tc_result,
+                            }
+                        )
+                    continue
 
-                body["messages"].append(msg)
-                for tc in tool_calls:
-                    tc_result = await self._execute_tool_call(tc, ctx)
+                if structured:
+                    assert schema is not None
+                    assert isinstance(content, str)
+                    parsed_value, error = self._parse_structured(content, schema)
+                    if error is None:
+                        content = parsed_value
+                        break
+                    attempts += 1
+                    await self._record_structured(ctx, cfg, schema, error, attempts)
+                    if attempts > max_retries:
+                        raise StructuredOutputError(
+                            schema=schema,
+                            content=content,
+                            errors=error,
+                            attempts=attempts,
+                        )
+                    body["messages"].append({"role": "assistant", "content": content})
                     body["messages"].append(
                         {
-                            "role": "tool",
-                            "tool_call_id": tc["id"],
-                            "content": tc_result,
+                            "role": "user",
+                            "content": (
+                                "Your previous response failed JSON schema "
+                                f"validation: {error}\n"
+                                "Respond with a single JSON object conforming "
+                                f"to this schema:\n{json.dumps(schema)}"
+                            ),
                         }
                     )
+                    continue
 
+                if parse_only:
+                    raw = content
+                    assert isinstance(raw, str)
+                    try:
+                        parsed = parse_json_object(raw)
+                    except ValueError as exc:
+                        raise StructuredOutputError(
+                            content=raw,
+                            errors=str(exc),
+                            attempts=1,
+                        ) from exc
+                    content = parsed
+                break
+
+        if isinstance(content, dict):
+            return {output_key: content}
         return {output_key: content or ""}
 
     def _resolve_provider(self, cfg: dict) -> str:
@@ -372,6 +463,49 @@ class LLM(Node):
             return p.lower()
         detected = cfg.get("model", "gpt-4").split("-")[0].split("/")[0]
         return detected.lower()
+
+    def _resolve_schema(self, cfg: dict) -> dict | None:
+        """Return the JSON Schema for structured output, if configured."""
+        if cfg.get("json_schema") is not None:
+            return json_schema_from_type(cfg["json_schema"])
+        if cfg.get("output_type") is not None:
+            return json_schema_from_type(cfg["output_type"])
+        return None
+
+    def _parse_structured(
+        self, content: str, schema: dict
+    ) -> tuple[typing.Any, str | None]:
+        """Parse *content* as JSON and validate it against *schema*.
+
+        Returns:
+            ``(value, None)`` on success, ``(None, error_message)`` otherwise.
+        """
+        try:
+            value = parse_json_object(content)
+        except ValueError as exc:
+            return None, str(exc)
+        errors = validate_json(value, schema)
+        if errors:
+            return None, "; ".join(errors)
+        return value, None
+
+    async def _record_structured(
+        self, ctx, cfg: dict, schema: dict, errors: str, attempt: int
+    ) -> None:
+        """Record a structured-output validation failure."""
+        tracer = getattr(ctx, "tracer", None)
+        if tracer is not None:
+            tracer.structured(ctx.node_id, ctx.node_type, errors, attempt)
+        emit = getattr(ctx, "emit", None)
+        if emit is not None:
+            await emit(
+                StreamEvent(
+                    "structured",
+                    node_id=ctx.node_id,
+                    node_type=ctx.node_type,
+                    data={"errors": errors, "attempt": attempt},
+                )
+            )
 
     async def _record_llm(
         self, ctx, cfg: dict, provider_key: str, data: dict, t0: float

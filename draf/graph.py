@@ -179,8 +179,9 @@ class Graph:
                     print(event.data["token"], end="", flush=True)
 
         Event types: ``run_start``, ``node_start``, ``node_end``,
-        ``node_error``, ``edge``, ``token``, ``llm``, ``interrupt``,
-        ``interrupt_resume``, ``checkpoint``, and a final ``run_end``.
+        ``node_error``, ``edge``, ``token``, ``llm``, ``structured``,
+        ``interrupt``, ``interrupt_resume``, ``checkpoint``, and a final
+        ``run_end``.
         Token events are only emitted when the running LLM node streams
         (any node with no tool calls streams automatically in this mode).
 
