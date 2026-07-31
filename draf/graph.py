@@ -8,6 +8,7 @@ from typing import Any, Callable
 from draf.node.node import Node
 from draf.node.registry import NodeRegistry, default_registry
 from draf.node.context import ExecContext
+from draf.node.interrupt import GraphInterrupt
 from draf.tool.tool import Tool
 from draf.state import Reducer, State, apply_reducers
 from draf.checkpoint import Checkpoint, Checkpointer
@@ -15,6 +16,8 @@ from draf.trace import RunTracer, _ms
 
 
 _ERROR_CONDITION = "__error__"
+_INTERRUPT_KEY = "__interrupt__"
+_MISSING = object()
 
 
 @dataclass
@@ -79,6 +82,7 @@ class Graph:
         max_iterations: int | None = None,
         checkpointer: Checkpointer | None = None,
         checkpoint_id: str | None = None,
+        resume: dict | None = None,
         tracer: RunTracer | None = None,
     ) -> dict | State:
         """Execute the graph starting from the entry point.
@@ -105,6 +109,10 @@ class Graph:
                 Required when *checkpointer* is set.  On a fresh ID the
                 graph starts from *state* at the entry point; on an
                 existing ID it resumes from the saved checkpoint.
+            resume: When a :class:`~draf.node.interrupt.Interrupt` node
+                paused the run, pass a dict of ``{key: value}`` answers.
+                Each key is written into the state before execution
+                continues past the interrupt.  ``None`` on a normal run.
             tracer: Optional :class:`~draf.trace.RunTracer` collecting
                 an event log for this run — timeline, node latency,
                 retries, checkpoint activity, and LLM token usage.
@@ -113,6 +121,10 @@ class Graph:
 
         Raises:
             RuntimeError: If *max_iterations* is exceeded.
+            GraphInterrupt: When an ``Interrupt`` node is reached.  The
+                exception carries ``key``/``prompt`` for the operator;
+                resume by calling ``run`` again with the same
+                *checkpoint_id* and a ``resume`` dict.
 
         Returns:
             Final state (same type as passed in).
@@ -144,6 +156,7 @@ class Graph:
         if tracer is not None:
             tracer.run_start(checkpoint_id=cid or None)
 
+        pending: dict | None = None
         if checkpointer is not None:
             saved = await checkpointer.load(cid)
             if tracer is not None:
@@ -156,6 +169,30 @@ class Graph:
                 current_id = saved.next_node_id
                 iteration = saved.iteration
                 state = _restore_state(state, saved.state)
+                pending = (
+                    state.pop(_INTERRUPT_KEY, None) if isinstance(state, dict) else None
+                )
+
+        if pending is not None:
+            if not resume:
+                raise GraphInterrupt(
+                    key=pending["key"],
+                    prompt=pending.get("prompt", ""),
+                    node_id=pending.get("node_id"),
+                    checkpoint_id=cid or None,
+                )
+            for key, value in resume.items():
+                state[key] = value
+            if tracer is not None:
+                tracer.interrupt_resume(pending.get("node_id"), list(resume.keys()))
+            interrupt_node = pending.get("node_id")
+            if interrupt_node is not None:
+                outgoing = [
+                    e
+                    for e in self.edges
+                    if e.source_id == interrupt_node and e.condition != _ERROR_CONDITION
+                ]
+                current_id = self._resolve_edge(outgoing, state) if outgoing else None
 
         while current_id:
             if max_iterations is not None and iteration >= max_iterations:
@@ -198,6 +235,29 @@ class Graph:
                     )
                 else:
                     result = await node.execute(ctx, state)
+            except GraphInterrupt as exc:
+                if tracer is not None:
+                    tracer.interrupt(current_id, exc.key, exc.prompt)
+                if checkpointer is not None:
+                    pending = dict(state)
+                    pending[_INTERRUPT_KEY] = {
+                        "key": exc.key,
+                        "prompt": exc.prompt,
+                        "node_id": current_id,
+                    }
+                    await checkpointer.save(
+                        cid,
+                        Checkpoint(
+                            state=pending,
+                            next_node_id=None,
+                            iteration=iteration,
+                        ),
+                    )
+                    if tracer is not None:
+                        tracer.checkpoint("save", cid, None)
+                exc.node_id = current_id
+                exc.checkpoint_id = cid or None
+                raise
             except Exception as exc:
                 if tracer is not None:
                     tracer.node_error(current_id, node.type, _ms(start), exc)

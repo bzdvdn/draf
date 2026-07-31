@@ -243,6 +243,115 @@ class Flow:
         self._branch_ends = []
         return self
 
+    def interrupt(self, key: str, prompt: str = "") -> "Flow":
+        """Pause the flow for human input at this point.
+
+        Appends an :class:`~draf.node.interrupt.Interrupt` node.  When
+        execution reaches it, ``graph.run()`` raises
+        :class:`~draf.node.interrupt.GraphInterrupt`; resume by calling
+        ``run()`` again with the same ``checkpoint_id`` and a ``resume``
+        dict mapping *key* to the operator's answer::
+
+            try:
+                await graph.run(state, checkpointer=cp, checkpoint_id="run-1")
+            except GraphInterrupt as interrupt:
+                print(interrupt.prompt)
+                answer = input("> ")
+                await graph.run(
+                    state, checkpointer=cp,
+                    checkpoint_id="run-1", resume={key: answer},
+                )
+
+        Args:
+            key: State key that receives the resume value.
+            prompt: Human-readable question shown to the operator.
+
+        Returns:
+            ``self`` for chaining.
+        """
+        from draf.node.interrupt import Interrupt
+
+        return self.step(Interrupt(key=key, prompt=prompt))
+
+    def loop(
+        self,
+        key: str,
+        until: str,
+        done: Node | list[Node],
+        body: Node | list[Node],
+    ) -> "Flow":
+        """Run a chain repeatedly until ``state[key]`` equals *until*.
+
+        Repeats the *body* chain, then checks a condition on
+        ``state[key]``.  When the value equals *until*, execution
+        proceeds to the *done* chain and continues after the loop;
+        otherwise the *body* chain runs and loops back to the decider
+        (the last node before this call)::
+
+            flow.step(draft_llm)
+            flow.interrupt("approved", "Одобрить?")   # decider
+            flow.loop(
+                key="approved", until="да",
+                done=final_llm, body=edit_llm,
+            )
+
+        Wires::
+
+            decider --key=until--> done -> ...   (continue after loop)
+            decider --key!=until--> body -> ... -> decider   (repeat)
+
+        The decider is any node that writes *key* (an ``Interrupt``
+        whose resume value lands there, an LLM, a ``Transform``, …).
+
+        Args:
+            key: State key to check.
+            until: Value of *key* that stops the loop.
+            done: Node or chain run when the loop terminates.
+            body: Node or chain repeated while the loop continues.
+
+        Returns:
+            ``self`` for chaining.
+        """
+        decider = self._last_added
+        if decider is None:
+            raise ValueError("loop requires a preceding node to decide from")
+        done_chain = [done] if isinstance(done, Node) else list(done)
+        body_chain = [body] if isinstance(body, Node) else list(body)
+        if not done_chain:
+            raise ValueError("loop requires at least one node in done")
+
+        def add_chain(chain: list[Node], first_condition: str) -> tuple[str, str]:
+            first_id: str | None = None
+            prev: str | None = None
+            for n in chain:
+                self._nodes.append(n)
+                nid = self._next_id(n)
+                self._node_ids.append(nid)
+                if first_id is None:
+                    self._edges.append(
+                        Edge(
+                            source_id=decider,
+                            target_id=nid,
+                            condition=first_condition,
+                        )
+                    )
+                    first_id = nid
+                else:
+                    assert prev is not None
+                    self._edges.append(Edge(source_id=prev, target_id=nid))
+                prev = nid
+            assert first_id is not None
+            assert prev is not None
+            return first_id, prev
+
+        _, done_last = add_chain(done_chain, f"{key}={until}")
+        body_first, body_last = add_chain(body_chain, f"{key}!={until}")
+        if body_last is not None:
+            self._edges.append(Edge(source_id=body_last, target_id=decider))
+
+        self._last_added = done_last
+        return self
+
     def react(
         self,
         model: str,

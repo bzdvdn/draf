@@ -204,6 +204,68 @@ branches, and `result_key` overrides which per-item key to collect. Full demo:
 `examples/map_repair_plans/` (Python with typed `State`, plus the same
 workflow as YAML for `draf -f workflow.yaml`).
 
+## Human-in-the-loop (interrupts)
+
+Pause a workflow for operator input with an `Interrupt` node.  When
+execution reaches it, `graph.run()` raises `GraphInterrupt`; resume with
+the same `checkpoint_id` plus a `resume` dict::
+
+```python
+from draf.checkpoint import JSONFileCheckpointer
+from draf.node.interrupt import GraphInterrupt
+from draf.flow import Flow
+
+flow = Flow("approval")
+flow.step(LLM(model="llama3.1:8b", prompt="Составь план: {task}", output_key="draft"))
+flow.interrupt(key="approved", prompt="Одобрить? (да / правки)")
+flow.step(LLM(model="llama3.1:8b", prompt="{draft}\nВердикт: {approved}", output_key="final"))
+
+graph = flow.compile()
+cp = JSONFileCheckpointer("checkpoints")
+
+try:
+    await graph.run(state=state, checkpointer=cp, checkpoint_id="run-1")
+except GraphInterrupt as interrupt:
+    print(interrupt.prompt)          # "Одобрить? (да / правки)"
+    answer = input("> ")
+    result = await graph.run(
+        state=state, checkpointer=cp,
+        checkpoint_id="run-1", resume={"approved": answer},
+    )
+```
+
+The answer lands in `state["approved"]` and execution continues past the
+interrupt.  Interrupts require a `checkpointer`; the resume value for an
+already-paused run is requested again if `resume` is missing.
+
+### Revision loop
+
+To re-ask on rejection, wire a cycle with `Flow.loop()` — a conditional
+edge on the answer that sends execution back to the `Interrupt` node::
+
+```python
+flow.step(LLM(model="llama3.1:8b", prompt="Составь план: {task}", output_key="draft"))
+flow.interrupt(key="approved", prompt="Одобрить? (да / правки)")
+flow.loop(
+    key="approved",
+    until="да",
+    done=LLM(model="llama3.1:8b", prompt="{draft}", output_key="final"),
+    body=LLM(model="llama3.1:8b",
+             prompt="Переработай {draft} с учётом: {approved}", output_key="draft"),
+)
+```
+
+`loop()` wires `decider --key=until--> done` (stop) and
+`decider --key!=until--> body -> decider` (repeat), so the graph returns
+to the same `Interrupt` after each edit.  `max_iterations` caps the
+rounds.  The decider can be any node that writes `key`, not just an
+`Interrupt` — `loop()` also works for pure LLM self-check loops.
+
+The same loop is described declaratively in YAML — conditional edges
+already express the cycle, and `interrupt` is a registered node type.
+See `examples/human_in_loop/workflow.yaml` for the full workflow;
+running it still needs a `checkpointer` and a `resume` loop in Python.
+
 ## Observability (telemetry)
 
 Pass a `RunTracer` to `graph.run()` to collect a JSON-serialisable event log:
@@ -230,6 +292,7 @@ The CLI exposes the same report: `draf -f workflow.yaml --trace`.
 | [branching](examples/branching/) | Conditional edges + Flow API |
 | [parallel](examples/parallel/) | Concurrent branches + typed `State` reducers |
 | [map_repair_plans](examples/map_repair_plans/) | Dynamic fan-out (`Map`) + `{key}` prompt templates + typed `State` |
+| [human_in_loop](examples/human_in_loop/) | Approve/Edit LLM output via `Interrupt` + `loop()` + resume (Python and YAML) |
 | [react_agent](examples/react_agent/) | ReAct agent loop |
 | [rag_search](examples/rag_search/) | RAG over a local CSV, in-memory store |
 | [rag_stores](examples/rag_stores/) | Same RAG agent on every vector store |

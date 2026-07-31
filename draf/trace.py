@@ -59,7 +59,7 @@ class TraceEvent:
     Attributes:
         kind: Event type — ``run_start``, ``node_start``, ``node_end``,
             ``node_error``, ``edge``, ``checkpoint``, ``llm``, ``retry``,
-            or ``run_end``.
+            ``interrupt``, ``interrupt_resume``, or ``run_end``.
         timestamp: Seconds since the tracer started (monotonic).
         node_id: Graph node id the event belongs to, if any.
         node_type: Node type string, if any.
@@ -219,6 +219,19 @@ class RunTracer:
             attempt=attempt,
             error=str(error),
         )
+
+    def interrupt(self, node_id: str, key: str, prompt: str) -> None:
+        """Record that an ``Interrupt`` node paused the run for input."""
+        self._record(
+            "interrupt",
+            node_id=node_id,
+            key=key,
+            prompt=prompt,
+        )
+
+    def interrupt_resume(self, node_id: str | None, keys: list[str]) -> None:
+        """Record that a paused run resumed with answers for *keys*."""
+        self._record("interrupt_resume", node_id=node_id, keys=keys)
 
     def run_end(
         self,

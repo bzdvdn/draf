@@ -17,6 +17,8 @@ from draf.node import (
     ToolExec,
     Parallel,
     Map,
+    Interrupt,
+    GraphInterrupt,
 )
 from draf.tool import Tool, ToolRegistry, default_tool_registry, tool
 from draf.graph import Graph, Edge
@@ -76,6 +78,8 @@ __all__ = [
     "ToolExec",
     "Parallel",
     "Map",
+    "Interrupt",
+    "GraphInterrupt",
     "Flow",
     "Case",
     "SubFlow",

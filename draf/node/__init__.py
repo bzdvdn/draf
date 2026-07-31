@@ -7,11 +7,13 @@ from draf.node.llm import LLM
 from draf.node.agent import ReActAgent, ToolExec
 from draf.node.parallel import Parallel
 from draf.node.map import Map
+from draf.node.interrupt import Interrupt, GraphInterrupt
 
 default_registry.register("transform", lambda cfg: Transform(cfg))
 default_registry.register("llm_chat", lambda cfg: LLM(cfg))
 default_registry.register("react_agent", lambda cfg: ReActAgent(cfg))
 default_registry.register("tool_exec", lambda cfg: ToolExec(cfg))
+default_registry.register("interrupt", lambda cfg: Interrupt(cfg))
 default_registry.register(
     "parallel",
     lambda cfg: Parallel(cfg.get("branches", []) if isinstance(cfg, dict) else []),
@@ -37,4 +39,6 @@ __all__ = [
     "ToolExec",
     "Parallel",
     "Map",
+    "Interrupt",
+    "GraphInterrupt",
 ]
