@@ -37,3 +37,9 @@ Thumbs.db
 # Environment variables
 .env
 .env.*
+
+# Runtime artifacts (examples)
+*.db
+*.sqlite3
+checkpoints/
+chroma_db/

@@ -9,6 +9,7 @@ from draf.node.registry import NodeRegistry, default_registry
 from draf.node.context import ExecContext
 from draf.tool.tool import Tool
 from draf.state import Reducer, State, apply_reducers
+from draf.checkpoint import Checkpoint, Checkpointer
 
 
 _ERROR_CONDITION = "__error__"
@@ -74,6 +75,8 @@ class Graph:
         hooks: dict[str, Callable] | None = None,
         node_timeout: float | None = None,
         max_iterations: int | None = None,
+        checkpointer: Checkpointer | None = None,
+        checkpoint_id: str | None = None,
     ) -> dict | State:
         """Execute the graph starting from the entry point.
 
@@ -90,6 +93,15 @@ class Graph:
             max_iterations: Max total node executions before raising
                 ``RuntimeError``.  Guards against infinite loops in
                 cyclic graphs (e.g. agentic loops).  ``None`` means unlimited.
+            checkpointer: Optional persistence backend.  When set, a
+                checkpoint is written before each node execution, so a
+                crashed or interrupted run can be resumed by calling
+                ``run`` again with the same *checkpoint_id* and the new
+                initial state ignored in favor of the saved one.
+            checkpoint_id: Key identifying a run (e.g. ``"thread-1"``).
+                Required when *checkpointer* is set.  On a fresh ID the
+                graph starts from *state* at the entry point; on an
+                existing ID it resumes from the saved checkpoint.
 
         Raises:
             RuntimeError: If *max_iterations* is exceeded.
@@ -97,6 +109,13 @@ class Graph:
         Returns:
             Final state (same type as passed in).
         """
+        if checkpointer is not None:
+            if checkpoint_id is None:
+                raise ValueError("checkpoint_id is required when checkpointer is set")
+            cid: str = checkpoint_id
+        else:
+            cid = ""
+
         registry = registry or default_registry
         tool_dict: dict[str, Tool] = {}
         if tools:
@@ -105,8 +124,16 @@ class Graph:
 
         hooks = hooks or {}
 
-        current_id = self.entry_point
+        current_id: str | None = self.entry_point
         iteration = 0
+
+        if checkpointer is not None:
+            saved = await checkpointer.load(cid)
+            if saved is not None:
+                current_id = saved.next_node_id
+                iteration = saved.iteration
+                state = _restore_state(state, saved.state)
+
         while current_id:
             if max_iterations is not None and iteration >= max_iterations:
                 raise RuntimeError(f"graph exceeded max_iterations={max_iterations}")
@@ -114,6 +141,16 @@ class Graph:
 
             node = self.nodes[current_id]
             ctx = ExecContext(state, tool_dict)
+
+            if checkpointer is not None:
+                await checkpointer.save(
+                    cid,
+                    Checkpoint(
+                        state=dict(state),
+                        next_node_id=current_id,
+                        iteration=iteration - 1,
+                    ),
+                )
 
             _call_hook(hooks, "on_node_start", current_id, node, state)
 
@@ -129,6 +166,15 @@ class Graph:
                 error_edge = self._find_error_edge(current_id)
                 if error_edge is not None:
                     current_id = error_edge.target_id
+                    if checkpointer is not None:
+                        await checkpointer.save(
+                            cid,
+                            Checkpoint(
+                                state=dict(state),
+                                next_node_id=current_id,
+                                iteration=iteration,
+                            ),
+                        )
                     continue
                 raise
 
@@ -152,6 +198,12 @@ class Graph:
             if next_id is None:
                 break
             current_id = next_id
+
+        if checkpointer is not None:
+            await checkpointer.save(
+                cid,
+                Checkpoint(state=dict(state), next_node_id=None, iteration=iteration),
+            )
 
         return state
 
@@ -220,3 +272,16 @@ def _call_hook(hooks: dict, name: str, *args: Any) -> None:
     fn = hooks.get(name)
     if fn is not None:
         fn(*args)
+
+
+def _restore_state(original: dict | State, data: dict) -> dict | State:
+    """Rehydrate state from checkpoint data, preserving a State wrapper.
+
+    If *original* is a :class:`State` instance its schema (and reducers)
+    are kept and only the data is replaced. Plain dicts are returned as-is.
+    """
+    if isinstance(original, State):
+        original.clear()
+        original.update(data)
+        return original
+    return data

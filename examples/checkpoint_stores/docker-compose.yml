@@ -1,0 +1,25 @@
+# Start PostgreSQL for the pg checkpointer example.
+#
+# Usage:
+#   docker compose up -d
+#   # ... run the pg example ...
+#   docker compose down        # stop, keep data
+#   docker compose down -v     # stop and wipe data
+#
+# file and sqlite checkpointers need no server.
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: draf-checkpoint-pg
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: postgres
+    ports:
+      - "5433:5432"
+    volumes:
+      - pg_checkpoint_data:/var/lib/postgresql/data
+
+volumes:
+  pg_checkpoint_data:

@@ -538,6 +538,9 @@ embedding = [
     { name = "qdrant-client" },
     { name = "sqlalchemy" },
 ]
+pg-checkpoint = [
+    { name = "asyncpg" },
+]
 rag-excel = [
     { name = "openpyxl" },
 ]
@@ -559,10 +562,11 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "asyncpg", marker = "extra == 'embedding'", specifier = ">=0.29" },
+    { name = "asyncpg", marker = "extra == 'pg-checkpoint'", specifier = ">=0.29" },
     { name = "beautifulsoup4", marker = "extra == 'tools'", specifier = ">=4.12" },
     { name = "boto3", marker = "extra == 'tools'", specifier = ">=1.34" },
     { name = "chromadb", marker = "extra == 'embedding'", specifier = ">=0.5" },
-    { name = "draf", extras = ["embedding", "tools", "rag-pdf", "rag-excel"], marker = "extra == 'all'" },
+    { name = "draf", extras = ["embedding", "tools", "rag-pdf", "rag-excel", "pg-checkpoint"], marker = "extra == 'all'" },
     { name = "httpx", specifier = ">=0.27" },
     { name = "openpyxl", marker = "extra == 'rag-excel'", specifier = ">=3.1" },
     { name = "pgvector", marker = "extra == 'embedding'", specifier = ">=0.2" },
@@ -574,7 +578,7 @@ requires-dist = [
     { name = "sqlalchemy", marker = "extra == 'embedding'", specifier = ">=2.0" },
     { name = "typer", specifier = ">=0.12" },
 ]
-provides-extras = ["embedding", "rag-pdf", "rag-excel", "tools", "all"]
+provides-extras = ["embedding", "rag-pdf", "rag-excel", "pg-checkpoint", "tools", "all"]
 
 [package.metadata.requires-dev]
 dev = [{ name = "pytest-asyncio", specifier = ">=1.4.0" }]
