@@ -175,6 +175,22 @@ class TestRAGTool:
         assert rag.name == "rag"
         assert "search" in rag.description.lower()
 
+    def test_rag_tool_custom_name(self):
+        from draf.rag import RAGTool
+        from draf.rag.stores import InMemoryVectorStore
+
+        store = InMemoryVectorStore(768)
+        rag = RAGTool(store=store, embedder=None, name="rag_docs")
+        assert rag.name == "rag_docs"
+
+        cfg = {
+            "name": "kb_main",
+            "embedder": {"provider": "ollama", "model": "nomic-embed-text"},
+            "store": {"type": "in_memory", "dim": 768},
+        }
+        rag = RAGTool(cfg)
+        assert rag.name == "kb_main"
+
     def test_config_with_inline_documents(self, tmp_path):
         from draf.rag import RAGTool
 

@@ -43,3 +43,4 @@ Thumbs.db
 *.sqlite3
 checkpoints/
 chroma_db/
+examples/parallel/rag_report.md

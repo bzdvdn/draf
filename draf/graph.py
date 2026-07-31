@@ -132,6 +132,11 @@ class Graph:
 
         hooks = hooks or {}
 
+        if isinstance(state, State):
+            reducers = reducers or state.reducers
+        else:
+            reducers = reducers or {}
+
         current_id: str | None = self.entry_point
         iteration = 0
         run_started = time.monotonic()
@@ -166,6 +171,7 @@ class Graph:
                 node_id=current_id,
                 node_type=node.type,
                 tracer=tracer,
+                reducers=reducers,
             )
             start = time.monotonic()
 

@@ -128,6 +128,7 @@ class RAGTool(Tool):
     workflow YAML)::
 
         {
+          "name": "rag_docs",  # optional; overrides the default "rag"
           "embedder": {"provider": "ollama", "model": "nomic-embed-text"},
           "store": {"type": "in_memory", "dim": 768},
           "documents": [
@@ -158,6 +159,7 @@ class RAGTool(Tool):
         embedder: Embedder | None = None,
         chunker: Chunker | None = None,
         documents: list[tuple[str, dict]] | None = None,
+        name: str | None = None,
     ):
         self.store = store
         self.embedder = embedder
@@ -166,8 +168,12 @@ class RAGTool(Tool):
         self._seeded = False
         if isinstance(config, dict):
             self._apply_config(config)
+        if name is not None:
+            self.name = name
 
     def _apply_config(self, config: dict) -> None:
+        if config.get("name"):
+            self.name = config["name"]
         emb = config.get("embedder") or {}
         self.embedder = Embedder(
             provider=emb.get("provider", "ollama"),

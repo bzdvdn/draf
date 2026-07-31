@@ -4,6 +4,7 @@ from draf.node.node import Node
 from draf.graph import Graph, Edge
 from draf.flow.case import Case
 from draf.flow.sub_flow import SubFlow
+from draf.node.parallel import Parallel
 
 
 class Flow:
@@ -72,6 +73,41 @@ class Flow:
             self._edges.append(Edge(source_id=self._last_added, target_id=nid))
         self._last_added = nid
         return self
+
+    def parallel(self, *branches) -> "Flow":
+        """Run several branch chains concurrently from the last node.
+
+        Each *branch* is a single :class:`Node`, a list of nodes (run
+        sequentially inside the branch), or a :class:`Flow` (embedded as
+        a :class:`SubFlow`).  Branches execute via ``asyncio.gather`` on
+        isolated copies of the state; per-key reducers (``append`` etc.)
+        merge their updates back without overwriting one another.
+
+        Combine with ``converge()`` to rejoin the parallel paths::
+
+            flow.parallel(
+                [Transform(action="uppercase", input_key="a", output_key="a")],
+                [Transform(action="uppercase", input_key="b", output_key="b")],
+            ).converge(shout_node)
+        """
+        branch_specs: list[Node | list[Node]] = [self._as_branch(b) for b in branches]
+        node = Parallel(branch_specs)
+        self._nodes.append(node)
+        nid = self._next_id(node)
+        self._node_ids.append(nid)
+        if self._last_added is not None:
+            self._edges.append(Edge(source_id=self._last_added, target_id=nid))
+        self._last_added = nid
+        self._branch_ends = [nid]
+        return self
+
+    def _as_branch(self, branch) -> list[Node]:
+        """Normalise a branch spec into a list of nodes."""
+        if isinstance(branch, Node):
+            return [branch]
+        if isinstance(branch, Flow):
+            return [SubFlow(graph=branch.compile())]
+        return list(branch)
 
     def branch(self, key: str, *cases: "Case", default: Node | None = None) -> "Flow":
         """Add conditional branching from the last added node.

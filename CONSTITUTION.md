@@ -157,7 +157,7 @@ Optional extras (import-error friendly, never block `import draf`):
 - **Test:** pytest
 - **Architecture:** `draf/` package with public modules
 - **Agent Graphs:** Directed graphs with conditional edges, branch/case/default,
-  parallel branches (future), checkpointing (future)
+  parallel branches, checkpointing
 
 ## Repository Layout
 

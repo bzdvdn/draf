@@ -1,6 +1,7 @@
 """Execution context passed to every node."""
 
 import typing
+from typing import Any
 
 from draf.tool.tool import Tool
 
@@ -21,6 +22,7 @@ class ExecContext:
         node_type: Node type string of the running node.
         tracer: Optional :class:`~draf.trace.RunTracer` collecting
             observability events for the current run.
+        reducers: Per-key merge strategies for state updates.
     """
 
     def __init__(
@@ -31,12 +33,14 @@ class ExecContext:
         node_id: str | None = None,
         node_type: str | None = None,
         tracer: "RunTracer | None" = None,
+        reducers: dict[str, Any] | None = None,
     ):
         self.state = state
         self.tools = tools
         self.node_id = node_id
         self.node_type = node_type
         self.tracer = tracer
+        self.reducers = reducers
 
     def tool(self, name: str) -> Tool:
         """Look up a tool by name.

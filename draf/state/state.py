@@ -109,3 +109,12 @@ class State(dict):
     def merge(self, new_values: dict) -> None:
         """Merge *new_values* using per-key reducers."""
         apply_reducers(self, new_values, self._reducers)
+
+    @property
+    def reducers(self) -> dict[str, Reducer]:
+        """Return this state's per-key reducers.
+
+        Exposed so nested components (e.g. parallel branches) apply the
+        same merge strategies as the top-level ``graph.run()`` merge.
+        """
+        return self._reducers

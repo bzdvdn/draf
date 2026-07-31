@@ -47,7 +47,7 @@ class Transform(Node):
         source = value if value is not None else state.get(input_key, "")
         result = self._apply(action, source)
         state[output_key] = result
-        return state
+        return {output_key: result}
 
     def _apply(self, action: str, text: str) -> str:
         if action == "uppercase":

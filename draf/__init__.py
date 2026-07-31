@@ -15,6 +15,7 @@ from draf.node import (
     LLM,
     ReActAgent,
     ToolExec,
+    Parallel,
 )
 from draf.tool import Tool, ToolRegistry, default_tool_registry, tool
 from draf.graph import Graph, Edge
@@ -72,6 +73,7 @@ __all__ = [
     "LLM",
     "ReActAgent",
     "ToolExec",
+    "Parallel",
     "Flow",
     "Case",
     "SubFlow",

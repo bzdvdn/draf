@@ -128,6 +128,35 @@ Backends: `JSONFileCheckpointer` (core), `SQLiteCheckpointer` (core),
 state wins over the passed-in state; a `State` instance keeps its schema and
 reducers.
 
+## Parallel branches
+
+Run independent branch chains concurrently and merge their results with
+`Flow.parallel()` — each branch gets an isolated copy of the state, and
+per-key reducers merge updates back so `append` branches accumulate instead
+of overwriting each other.
+
+```python
+from draf.flow import Flow
+from draf.node import Transform
+
+flow = Flow("p").parallel(
+    [Transform(action="uppercase", input_key="title", output_key="title")],
+    [Transform(action="uppercase", input_key="body", output_key="body")],
+).converge(Transform(action="value", value="done", output_key="status"))
+
+result = await flow.compile().run(state={"title": "hi", "body": "world"})
+# -> title/body uppercased in parallel, then status="done"
+```
+
+Branches can be single nodes, lists of nodes (run sequentially inside the
+branch), or embedded `Flow` subgraphs. The parallel node also works directly:
+`Parallel([[node1], [node2]])`.
+
+For a full end-to-end demo with LLM calls, see
+`examples/parallel/rag_report.py` — two RAG searches run in parallel branches,
+an LLM merges the summaries into a report file, and a final LLM reviews it
+(`VERDICT: pass/fail`). Requires local Ollama.
+
 ## Observability (telemetry)
 
 Pass a `RunTracer` to `graph.run()` to collect a JSON-serialisable event log:
@@ -152,6 +181,7 @@ The CLI exposes the same report: `draf -f workflow.yaml --trace`.
 | ------- | ------------- |
 | [basic_pipeline](examples/basic_pipeline/) | Minimal YAML pipeline, no API keys |
 | [branching](examples/branching/) | Conditional edges + Flow API |
+| [parallel](examples/parallel/) | Concurrent branches + typed `State` reducers |
 | [react_agent](examples/react_agent/) | ReAct agent loop |
 | [rag_search](examples/rag_search/) | RAG over a local CSV, in-memory store |
 | [rag_stores](examples/rag_stores/) | Same RAG agent on every vector store |

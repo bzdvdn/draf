@@ -5,12 +5,16 @@ from draf.node.retry import Retry
 from draf.node.transform import Transform
 from draf.node.llm import LLM
 from draf.node.agent import ReActAgent, ToolExec
+from draf.node.parallel import Parallel
 
 default_registry.register("transform", lambda cfg: Transform(cfg))
 default_registry.register("llm_chat", lambda cfg: LLM(cfg))
 default_registry.register("react_agent", lambda cfg: ReActAgent(cfg))
 default_registry.register("tool_exec", lambda cfg: ToolExec(cfg))
-
+default_registry.register(
+    "parallel",
+    lambda cfg: Parallel(cfg.get("branches", []) if isinstance(cfg, dict) else []),
+)
 __all__ = [
     "Node",
     "NodeRegistry",
@@ -22,4 +26,5 @@ __all__ = [
     "LLM",
     "ReActAgent",
     "ToolExec",
+    "Parallel",
 ]
