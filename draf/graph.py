@@ -3,7 +3,7 @@
 import asyncio
 import time
 from dataclasses import dataclass
-from typing import Any, Callable
+from typing import Any, AsyncIterator, Awaitable, Callable
 
 from draf.node.node import Node
 from draf.node.registry import NodeRegistry, default_registry
@@ -13,6 +13,7 @@ from draf.tool.tool import Tool
 from draf.state import Reducer, State, apply_reducers
 from draf.checkpoint import Checkpoint, Checkpointer
 from draf.trace import RunTracer, _ms
+from draf.stream import StreamEvent
 
 
 _ERROR_CONDITION = "__error__"
@@ -129,6 +130,149 @@ class Graph:
         Returns:
             Final state (same type as passed in).
         """
+        started = time.monotonic()
+        try:
+            result = await self._execute(
+                state,
+                tools=tools,
+                registry=registry,
+                reducers=reducers,
+                hooks=hooks,
+                node_timeout=node_timeout,
+                max_iterations=max_iterations,
+                checkpointer=checkpointer,
+                checkpoint_id=checkpoint_id,
+                resume=resume,
+                tracer=tracer,
+            )
+        except GraphInterrupt:
+            raise
+        except Exception as exc:
+            if tracer is not None:
+                tracer.run_end("error", _ms(started), exc)
+            raise
+        if tracer is not None:
+            tracer.run_end("ok", _ms(started))
+        return result
+
+    async def stream(
+        self,
+        state: dict | State,
+        tools: list[Tool] | None = None,
+        registry: NodeRegistry | None = None,
+        reducers: dict[str, Reducer] | None = None,
+        hooks: dict[str, Callable] | None = None,
+        node_timeout: float | None = None,
+        max_iterations: int | None = None,
+        checkpointer: Checkpointer | None = None,
+        checkpoint_id: str | None = None,
+        resume: dict | None = None,
+        tracer: RunTracer | None = None,
+    ) -> AsyncIterator[StreamEvent]:
+        """Stream events as the graph executes.
+
+        Behaves like :meth:`run` but yields a :class:`StreamEvent` for
+        each observable step instead of returning a final state::
+
+            async for event in graph.stream(state):
+                if event.type == "token":
+                    print(event.data["token"], end="", flush=True)
+
+        Event types: ``run_start``, ``node_start``, ``node_end``,
+        ``node_error``, ``edge``, ``token``, ``llm``, ``interrupt``,
+        ``interrupt_resume``, ``checkpoint``, and a final ``run_end``.
+        Token events are only emitted when the running LLM node streams
+        (any node with no tool calls streams automatically in this mode).
+
+        A run paused at an ``Interrupt`` node ends with an ``interrupt``
+        event (no ``run_end``); call :meth:`stream` or :meth:`run` again
+        with a ``resume`` dict and the same *checkpoint_id* to continue.
+        A failed run yields a ``run_end`` event with ``status: "error"``.
+
+        Parameters mirror :meth:`run`.
+        """
+        if checkpointer is not None and checkpoint_id is None:
+            raise ValueError("checkpoint_id is required when checkpointer is set")
+        queue: asyncio.Queue[StreamEvent | None] = asyncio.Queue()
+        started = time.monotonic()
+
+        async def _emit(event: StreamEvent) -> None:
+            await queue.put(event)
+
+        async def _runner() -> None:
+            try:
+                try:
+                    await self._execute(
+                        state,
+                        tools=tools,
+                        registry=registry,
+                        reducers=reducers,
+                        hooks=hooks,
+                        node_timeout=node_timeout,
+                        max_iterations=max_iterations,
+                        checkpointer=checkpointer,
+                        checkpoint_id=checkpoint_id,
+                        resume=resume,
+                        tracer=tracer,
+                        emit=_emit,
+                    )
+                except GraphInterrupt:
+                    return
+                except Exception as exc:
+                    if tracer is not None:
+                        tracer.run_end("error", _ms(started), exc)
+                    await _emit(
+                        StreamEvent(
+                            "run_end", data={"status": "error", "error": str(exc)}
+                        )
+                    )
+                    return
+                if tracer is not None:
+                    tracer.run_end("ok", _ms(started))
+                await _emit(
+                    StreamEvent(
+                        "run_end", data={"status": "ok", "total_ms": _ms(started)}
+                    )
+                )
+            finally:
+                await queue.put(None)
+
+        task = asyncio.create_task(_runner())
+        try:
+            while True:
+                item = await queue.get()
+                if item is None:
+                    break
+                yield item
+        finally:
+            if not task.done():
+                task.cancel()
+                try:
+                    await task
+                except asyncio.CancelledError:
+                    pass
+
+    async def _execute(
+        self,
+        state: dict | State,
+        tools: list[Tool] | None = None,
+        registry: NodeRegistry | None = None,
+        reducers: dict[str, Reducer] | None = None,
+        hooks: dict[str, Callable] | None = None,
+        node_timeout: float | None = None,
+        max_iterations: int | None = None,
+        checkpointer: Checkpointer | None = None,
+        checkpoint_id: str | None = None,
+        resume: dict | None = None,
+        tracer: RunTracer | None = None,
+        emit: "Callable[[StreamEvent], Awaitable[None]] | None" = None,
+    ) -> dict | State:
+        """Shared execution core for :meth:`run` and :meth:`stream`.
+
+        Returns the final state on success and raises on failure
+        (``GraphInterrupt`` to pause, other exceptions for errors).
+        ``run_end`` bookkeeping is left to the caller.
+        """
         if checkpointer is not None:
             if checkpoint_id is None:
                 raise ValueError("checkpoint_id is required when checkpointer is set")
@@ -151,10 +295,11 @@ class Graph:
 
         current_id: str | None = self.entry_point
         iteration = 0
-        run_started = time.monotonic()
 
         if tracer is not None:
             tracer.run_start(checkpoint_id=cid or None)
+        if emit is not None:
+            await emit(StreamEvent("run_start", data={"checkpoint_id": cid or None}))
 
         pending: dict | None = None
         if checkpointer is not None:
@@ -164,6 +309,19 @@ class Graph:
                     "load",
                     cid,
                     saved.next_node_id if saved is not None else None,
+                )
+            if emit is not None:
+                await emit(
+                    StreamEvent(
+                        "checkpoint",
+                        data={
+                            "action": "load",
+                            "checkpoint_id": cid,
+                            "next_node_id": (
+                                saved.next_node_id if saved is not None else None
+                            ),
+                        },
+                    )
                 )
             if saved is not None:
                 current_id = saved.next_node_id
@@ -185,6 +343,14 @@ class Graph:
                 state[key] = value
             if tracer is not None:
                 tracer.interrupt_resume(pending.get("node_id"), list(resume.keys()))
+            if emit is not None:
+                await emit(
+                    StreamEvent(
+                        "interrupt_resume",
+                        node_id=pending.get("node_id"),
+                        data={"keys": list(resume.keys())},
+                    )
+                )
             interrupt_node = pending.get("node_id")
             if interrupt_node is not None:
                 outgoing = [
@@ -196,8 +362,6 @@ class Graph:
 
         while current_id:
             if max_iterations is not None and iteration >= max_iterations:
-                if tracer is not None:
-                    tracer.run_end("error", _ms(run_started))
                 raise RuntimeError(f"graph exceeded max_iterations={max_iterations}")
             iteration += 1
 
@@ -209,6 +373,7 @@ class Graph:
                 node_type=node.type,
                 tracer=tracer,
                 reducers=reducers,
+                emit=emit,
             )
             start = time.monotonic()
 
@@ -223,10 +388,25 @@ class Graph:
                 )
                 if tracer is not None:
                     tracer.checkpoint("save", cid, current_id)
+                if emit is not None:
+                    await emit(
+                        StreamEvent(
+                            "checkpoint",
+                            data={
+                                "action": "save",
+                                "checkpoint_id": cid,
+                                "next_node_id": current_id,
+                            },
+                        )
+                    )
 
             _call_hook(hooks, "on_node_start", current_id, node, state)
             if tracer is not None:
                 tracer.node_start(current_id, node.type)
+            if emit is not None:
+                await emit(
+                    StreamEvent("node_start", node_id=current_id, node_type=node.type)
+                )
 
             try:
                 if node_timeout is not None:
@@ -238,6 +418,14 @@ class Graph:
             except GraphInterrupt as exc:
                 if tracer is not None:
                     tracer.interrupt(current_id, exc.key, exc.prompt)
+                if emit is not None:
+                    await emit(
+                        StreamEvent(
+                            "interrupt",
+                            node_id=current_id,
+                            data={"key": exc.key, "prompt": exc.prompt},
+                        )
+                    )
                 if checkpointer is not None:
                     pending = dict(state)
                     pending[_INTERRUPT_KEY] = {
@@ -255,6 +443,17 @@ class Graph:
                     )
                     if tracer is not None:
                         tracer.checkpoint("save", cid, None)
+                    if emit is not None:
+                        await emit(
+                            StreamEvent(
+                                "checkpoint",
+                                data={
+                                    "action": "save",
+                                    "checkpoint_id": cid,
+                                    "next_node_id": None,
+                                },
+                            )
+                        )
                 exc.node_id = current_id
                 exc.checkpoint_id = cid or None
                 raise
@@ -262,6 +461,15 @@ class Graph:
                 if tracer is not None:
                     tracer.node_error(current_id, node.type, _ms(start), exc)
                 _call_hook(hooks, "on_node_error", current_id, node, state, exc)
+                if emit is not None:
+                    await emit(
+                        StreamEvent(
+                            "node_error",
+                            node_id=current_id,
+                            node_type=node.type,
+                            data={"error": str(exc), "duration_ms": _ms(start)},
+                        )
+                    )
                 error_edge = self._find_error_edge(current_id)
                 if error_edge is not None:
                     current_id = error_edge.target_id
@@ -276,14 +484,32 @@ class Graph:
                         )
                         if tracer is not None:
                             tracer.checkpoint("save", cid, current_id)
+                        if emit is not None:
+                            await emit(
+                                StreamEvent(
+                                    "checkpoint",
+                                    data={
+                                        "action": "save",
+                                        "checkpoint_id": cid,
+                                        "next_node_id": current_id,
+                                    },
+                                )
+                            )
                     continue
-                if tracer is not None:
-                    tracer.run_end("error", _ms(run_started), exc)
                 raise
 
             _call_hook(hooks, "on_node_end", current_id, node, state, result)
             if tracer is not None:
                 tracer.node_end(current_id, node.type, _ms(start))
+            if emit is not None:
+                await emit(
+                    StreamEvent(
+                        "node_end",
+                        node_id=current_id,
+                        node_type=node.type,
+                        data={"duration_ms": _ms(start)},
+                    )
+                )
 
             if result:
                 if isinstance(state, State):
@@ -308,6 +534,19 @@ class Graph:
                     next_id,
                     self._matched_condition(outgoing, state, next_id),
                 )
+            if emit is not None:
+                await emit(
+                    StreamEvent(
+                        "edge",
+                        node_id=current_id,
+                        data={
+                            "target_id": next_id,
+                            "condition": self._matched_condition(
+                                outgoing, state, next_id
+                            ),
+                        },
+                    )
+                )
             current_id = next_id
 
         if checkpointer is not None:
@@ -317,9 +556,17 @@ class Graph:
             )
             if tracer is not None:
                 tracer.checkpoint("save", cid, None)
-
-        if tracer is not None:
-            tracer.run_end("ok", _ms(run_started))
+            if emit is not None:
+                await emit(
+                    StreamEvent(
+                        "checkpoint",
+                        data={
+                            "action": "save",
+                            "checkpoint_id": cid,
+                            "next_node_id": None,
+                        },
+                    )
+                )
 
         return state
 

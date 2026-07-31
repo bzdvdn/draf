@@ -39,6 +39,7 @@ from draf.state import (
     Reducer,
 )
 from draf.trace import RunTracer, TraceEvent, RunSummary, TokenUsage
+from draf.stream import StreamEvent
 
 
 def set_defaults(*, provider: str | None = None, **kwargs: object) -> None:
@@ -101,4 +102,5 @@ __all__ = [
     "TraceEvent",
     "RunSummary",
     "TokenUsage",
+    "StreamEvent",
 ]

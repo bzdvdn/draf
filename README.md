@@ -266,6 +266,37 @@ already express the cycle, and `interrupt` is a registered node type.
 See `examples/human_in_loop/workflow.yaml` for the full workflow;
 running it still needs a `checkpointer` and a `resume` loop in Python.
 
+## Streaming execution
+
+`graph.stream()` runs the same execution core as `graph.run()` but yields
+a `StreamEvent` for every observable step, so callers can render tokens and
+progress before the run finishes.  Build the graph with the `Flow` API (or
+directly with `Graph`) and stream it:
+
+```python
+from draf import Flow, LLM
+
+flow = Flow("chat")
+flow.step(LLM(model="llama3.1:8b", prompt="Скажи привет", output_key="answer"))
+graph = flow.compile()
+
+async for event in graph.stream(state):
+    if event.type == "token":
+        print(event.data["token"], end="", flush=True)
+    elif event.type == "run_end":
+        print("\nstatus:", event.data["status"])
+```
+
+Event types: `run_start`, `node_start`, `node_end`, `node_error`, `edge`,
+`token`, `llm`, `interrupt`, `interrupt_resume`, `checkpoint`, `run_end`.
+LLM tokens are emitted as they arrive (any node without tool calls streams
+automatically in this mode); routing decisions, checkpoints, and interrupt
+pauses are streamed the same way.  `stream()` accepts the same parameters as
+`run()` — tools, checkpointer, resume, tracer, `max_iterations`.
+
+See [streaming](examples/streaming/) — `run.py` (Flow) and `graph.py`
+(low-level `Graph`) — for a full console demo.
+
 ## Observability (telemetry)
 
 Pass a `RunTracer` to `graph.run()` to collect a JSON-serialisable event log:
@@ -294,6 +325,7 @@ The CLI exposes the same report: `draf -f workflow.yaml --trace`.
 | [map_repair_plans](examples/map_repair_plans/) | Dynamic fan-out (`Map`) + `{key}` prompt templates + typed `State` |
 | [human_in_loop](examples/human_in_loop/) | Approve/Edit LLM output via `Interrupt` + `loop()` + resume (Python and YAML) |
 | [react_agent](examples/react_agent/) | ReAct agent loop |
+| [streaming](examples/streaming/) | Live LLM tokens + graph events via `graph.stream()` |
 | [rag_search](examples/rag_search/) | RAG over a local CSV, in-memory store |
 | [rag_stores](examples/rag_stores/) | Same RAG agent on every vector store |
 | [checkpoint_resume](examples/checkpoint_resume/) | Crash/resume in a few lines |

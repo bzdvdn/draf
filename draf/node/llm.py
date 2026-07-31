@@ -12,6 +12,7 @@ import httpx
 from draf.node.node import Node
 from draf.prompt import render_template
 from draf.tool.tool import Tool, coerce_args
+from draf.stream import StreamEvent
 
 _PROVIDER_DEFAULTS = {
     "openai": {
@@ -309,15 +310,20 @@ class LLM(Node):
         content = ""
         output_key = cfg.get("output_key", "output")
 
-        if cfg.get("stream", False) and not has_tools:
+        graph_stream = getattr(ctx, "emit", None) is not None
+        if (cfg.get("stream", False) or graph_stream) and not has_tools:
             content = await self._post_llm_stream(
-                resolved_url, resolved_path, headers, body, cfg.get("on_token")
+                resolved_url,
+                resolved_path,
+                headers,
+                body,
+                self._token_sink(ctx, cfg, provider_key),
             )
         else:
             for _round in range(self._MAX_TOOL_ROUNDS if has_tools else 1):
                 t0 = time.monotonic()
                 data = await self._post_llm(resolved_url, resolved_path, headers, body)
-                self._record_llm(ctx, cfg, provider_key, data, t0)
+                await self._record_llm(ctx, cfg, provider_key, data, t0)
                 msg = _extract_message(data)
                 content = self._extract_content(
                     data,
@@ -367,23 +373,65 @@ class LLM(Node):
         detected = cfg.get("model", "gpt-4").split("-")[0].split("/")[0]
         return detected.lower()
 
-    def _record_llm(
+    async def _record_llm(
         self, ctx, cfg: dict, provider_key: str, data: dict, t0: float
     ) -> None:
-        """Record an LLM call's token usage on the context tracer."""
-        tracer = getattr(ctx, "tracer", None)
-        if tracer is None:
-            return
-        prompt, completion = _extract_usage(data)
+        """Record an LLM call's token usage and emit an ``llm`` stream event."""
         from draf.trace import _ms
 
-        tracer.llm(
-            provider_key,
-            str(cfg.get("model", "")),
-            prompt,
-            completion,
-            _ms(t0),
-        )
+        prompt, completion = _extract_usage(data)
+        duration = _ms(t0)
+        tracer = getattr(ctx, "tracer", None)
+        if tracer is not None:
+            tracer.llm(
+                provider_key, str(cfg.get("model", "")), prompt, completion, duration
+            )
+        emit = getattr(ctx, "emit", None)
+        if emit is not None:
+            await emit(
+                StreamEvent(
+                    "llm",
+                    node_id=ctx.node_id,
+                    node_type=ctx.node_type,
+                    data={
+                        "provider": provider_key,
+                        "model": str(cfg.get("model", "")),
+                        "prompt_tokens": prompt,
+                        "completion_tokens": completion,
+                        "duration_ms": duration,
+                    },
+                )
+            )
+
+    def _token_sink(
+        self, ctx, cfg: dict, provider_key: str
+    ) -> typing.Callable[[str], typing.Any]:
+        """Build the per-token callback for ``_post_llm_stream``.
+
+        Forwards each token to the node's ``on_token`` config and, when
+        running under ``graph.stream()``, emits a ``token`` :class:`StreamEvent`.
+        """
+        emit = getattr(ctx, "emit", None)
+        on_token = cfg.get("on_token")
+
+        async def sink(token: str) -> None:
+            if on_token is not None:
+                on_token(token)
+            if emit is not None:
+                await emit(
+                    StreamEvent(
+                        "token",
+                        node_id=ctx.node_id,
+                        node_type=ctx.node_type,
+                        data={
+                            "token": token,
+                            "provider": provider_key,
+                            "model": str(cfg.get("model", "")),
+                        },
+                    )
+                )
+
+        return sink
 
     async def _post_llm(
         self, base_url: str, path: str, headers: dict, body: dict
@@ -411,9 +459,12 @@ class LLM(Node):
             ) as resp:
                 resp.raise_for_status()
                 async for line in resp.aiter_lines():
-                    if not line.startswith("data: "):
+                    if line.startswith("data: "):
+                        data = line[6:].strip()
+                    elif line.startswith("{"):
+                        data = line.strip()
+                    else:
                         continue
-                    data = line[6:].strip()
                     if data == "[DONE]":
                         break
                     if not data:
@@ -424,10 +475,14 @@ class LLM(Node):
                         continue
                     delta = chunk.get("choices", [{}])[0].get("delta", {})
                     token = delta.get("content", "")
+                    if not token:
+                        token = (chunk.get("message") or {}).get("content", "")
                     if token:
                         content += token
                         if on_token:
-                            on_token(token)
+                            result = on_token(token)
+                            if inspect.isawaitable(result):
+                                await result
         return content
 
     async def _execute_tool_call(self, tc: dict, ctx) -> str:

@@ -1,12 +1,13 @@
 """Execution context passed to every node."""
 
 import typing
-from typing import Any
+from typing import Any, Awaitable, Callable
 
 from draf.tool.tool import Tool
 
 if typing.TYPE_CHECKING:
     from draf.trace import RunTracer
+    from draf.stream import StreamEvent
 
 
 class ExecContext:
@@ -23,6 +24,9 @@ class ExecContext:
         tracer: Optional :class:`~draf.trace.RunTracer` collecting
             observability events for the current run.
         reducers: Per-key merge strategies for state updates.
+        emit: Optional async sink receiving :class:`~draf.stream.StreamEvent`
+            objects as the run progresses (used by ``graph.stream()``).
+            ``None`` for plain ``graph.run()``.
     """
 
     def __init__(
@@ -34,6 +38,7 @@ class ExecContext:
         node_type: str | None = None,
         tracer: "RunTracer | None" = None,
         reducers: dict[str, Any] | None = None,
+        emit: "Callable[[StreamEvent], Awaitable[None]] | None" = None,
     ):
         self.state = state
         self.tools = tools
@@ -41,6 +46,7 @@ class ExecContext:
         self.node_type = node_type
         self.tracer = tracer
         self.reducers = reducers
+        self.emit = emit
 
     def tool(self, name: str) -> Tool:
         """Look up a tool by name.
