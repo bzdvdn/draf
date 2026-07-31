@@ -16,7 +16,8 @@ runtime magic.
 
 ```bash
 pip install draf
-# extras: draf[embedding] for RAG stores, draf[pg-checkpoint] for PostgreSQL checkpoints
+# extras: draf[embedding] for RAG stores, draf[pg-checkpoint] for PostgreSQL
+# checkpoints, draf[mcp] for MCP server tools, draf[tools] for more tools
 ```
 
 Python >= 3.11. Core runtime depends only on `httpx`, `pyyaml`, and `typer`.
@@ -339,6 +340,37 @@ steps:
       json_schema: {type: object, properties: {city: {type: string}, temp: {type: number}}, required: [city, temp]}
 ```
 
+## MCP tools
+
+Connect any [Model Context Protocol](https://modelcontextprotocol.io) server
+and use its tools anywhere built-in tools work — LLM nodes, the ReAct agent,
+registries.  Tools are fetched from the server (schema included) and wrapped
+as ordinary `Tool` instances, so `graph.run(state, tools=tools)` needs no
+changes.  Install `draf[mcp]`; the `mcp` SDK is imported lazily.
+
+```python
+from draf import Flow
+from draf.tool import mcp_tools
+
+flow = Flow("agent")
+flow.react(model="llama3.1:8b", input_key="query", output_key="answer")
+graph = flow.compile()
+
+# stdio server: spawn a subprocess
+async with mcp_tools(command=["uvx", "mcp-server-git"]) as tools:
+    # or a remote server: mcp_tools(url="http://localhost:8000/mcp")
+    result = await graph.run(
+        {"query": "What changed in the last commit?"},
+        tools=tools,
+        max_iterations=10,
+    )
+```
+
+`command` starts a stdio server (split into argv), `url` connects to a
+Streamable HTTP endpoint.  The session stays open for the `async with` block.
+A runnable pair — a tiny server plus a ReAct agent calling it — lives in
+[`examples/mcp/`](examples/mcp/).
+
 ## Observability (telemetry)
 
 Pass a `RunTracer` to `graph.run()` to collect a JSON-serialisable event log:
@@ -367,6 +399,7 @@ The CLI exposes the same report: `draf -f workflow.yaml --trace`.
 | [map_repair_plans](examples/map_repair_plans/) | Dynamic fan-out (`Map`) + `{key}` prompt templates + typed `State` |
 | [human_in_loop](examples/human_in_loop/) | Approve/Edit LLM output via `Interrupt` + `loop()` + resume (Python and YAML) |
 | [react_agent](examples/react_agent/) | ReAct agent loop |
+| [mcp](examples/mcp/) | ReAct agent calling tools from an MCP server (stdio) |
 | [streaming](examples/streaming/) | Live LLM tokens + graph events via `graph.stream()` |
 | [structured_output](examples/structured_output/) | Schema-validated LLM JSON via `output_type`/`json_schema` |
 | [rag_search](examples/rag_search/) | RAG over a local CSV, in-memory store |

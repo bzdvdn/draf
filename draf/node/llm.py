@@ -664,6 +664,16 @@ class LLM(Node):
 
     @staticmethod
     def _tool_to_schema(tool: Tool) -> dict:
+        provider_schema = tool.schema
+        if isinstance(provider_schema, dict):
+            return {
+                "type": "function",
+                "function": {
+                    "name": tool.name,
+                    "description": tool.description or "",
+                    "parameters": provider_schema,
+                },
+            }
         run_method = tool.run
         if type(tool).run is Tool.run and type(tool).arun is not Tool.arun:
             run_method = tool.arun

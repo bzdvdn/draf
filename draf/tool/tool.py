@@ -37,10 +37,14 @@ class Tool:
     Attributes:
         name: Unique tool name (defaults to lowercase class name).
         description: Human-readable description for LLM tool selection.
+        schema: Optional JSON Schema dict for the tool's arguments.  When
+            set (e.g. by :class:`~draf.tool.mcp.McpTool`), it is used as-is
+            instead of being inferred from the ``run``/``arun`` signature.
     """
 
     name: str = ""
     description: str = ""
+    schema: dict | None = None
 
     def __init_subclass__(cls, **kwargs):
         super().__init_subclass__(**kwargs)
