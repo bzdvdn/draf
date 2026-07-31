@@ -108,6 +108,16 @@ class TestCLI:
         data = json.loads(out_path.read_text())
         assert data["out"] == "HI"
 
+    def test_run_trace_prints_json_report(self, tmp_path):
+        path = tmp_path / "wf.yaml"
+        path.write_text(STATE_YAML)
+        result = runner.invoke(app, ["--file", str(path), "--trace"])
+        assert result.exit_code == 0, result.stderr
+        report = json.loads(result.stderr)
+        assert report["summary"]["status"] == "ok"
+        assert report["summary"]["node_count"] == 1
+        assert report["events"][0]["kind"] == "run_start"
+
     def test_run_missing_file_errors(self, tmp_path):
         result = runner.invoke(app, ["--file", str(tmp_path / "nope.yaml")])
         assert result.exit_code != 0

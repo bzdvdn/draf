@@ -1,6 +1,7 @@
 """Graph data structure for representing agent workflows."""
 
 import asyncio
+import time
 from dataclasses import dataclass
 from typing import Any, Callable
 
@@ -10,6 +11,7 @@ from draf.node.context import ExecContext
 from draf.tool.tool import Tool
 from draf.state import Reducer, State, apply_reducers
 from draf.checkpoint import Checkpoint, Checkpointer
+from draf.trace import RunTracer, _ms
 
 
 _ERROR_CONDITION = "__error__"
@@ -77,6 +79,7 @@ class Graph:
         max_iterations: int | None = None,
         checkpointer: Checkpointer | None = None,
         checkpoint_id: str | None = None,
+        tracer: RunTracer | None = None,
     ) -> dict | State:
         """Execute the graph starting from the entry point.
 
@@ -102,6 +105,11 @@ class Graph:
                 Required when *checkpointer* is set.  On a fresh ID the
                 graph starts from *state* at the entry point; on an
                 existing ID it resumes from the saved checkpoint.
+            tracer: Optional :class:`~draf.trace.RunTracer` collecting
+                an event log for this run — timeline, node latency,
+                retries, checkpoint activity, and LLM token usage.
+                Inspect ``tracer.events`` / ``tracer.summary()`` after
+                the run completes.
 
         Raises:
             RuntimeError: If *max_iterations* is exceeded.
@@ -126,9 +134,19 @@ class Graph:
 
         current_id: str | None = self.entry_point
         iteration = 0
+        run_started = time.monotonic()
+
+        if tracer is not None:
+            tracer.run_start(checkpoint_id=cid or None)
 
         if checkpointer is not None:
             saved = await checkpointer.load(cid)
+            if tracer is not None:
+                tracer.checkpoint(
+                    "load",
+                    cid,
+                    saved.next_node_id if saved is not None else None,
+                )
             if saved is not None:
                 current_id = saved.next_node_id
                 iteration = saved.iteration
@@ -136,11 +154,20 @@ class Graph:
 
         while current_id:
             if max_iterations is not None and iteration >= max_iterations:
+                if tracer is not None:
+                    tracer.run_end("error", _ms(run_started))
                 raise RuntimeError(f"graph exceeded max_iterations={max_iterations}")
             iteration += 1
 
             node = self.nodes[current_id]
-            ctx = ExecContext(state, tool_dict)
+            ctx = ExecContext(
+                state,
+                tool_dict,
+                node_id=current_id,
+                node_type=node.type,
+                tracer=tracer,
+            )
+            start = time.monotonic()
 
             if checkpointer is not None:
                 await checkpointer.save(
@@ -151,8 +178,12 @@ class Graph:
                         iteration=iteration - 1,
                     ),
                 )
+                if tracer is not None:
+                    tracer.checkpoint("save", cid, current_id)
 
             _call_hook(hooks, "on_node_start", current_id, node, state)
+            if tracer is not None:
+                tracer.node_start(current_id, node.type)
 
             try:
                 if node_timeout is not None:
@@ -162,6 +193,8 @@ class Graph:
                 else:
                     result = await node.execute(ctx, state)
             except Exception as exc:
+                if tracer is not None:
+                    tracer.node_error(current_id, node.type, _ms(start), exc)
                 _call_hook(hooks, "on_node_error", current_id, node, state, exc)
                 error_edge = self._find_error_edge(current_id)
                 if error_edge is not None:
@@ -175,10 +208,16 @@ class Graph:
                                 iteration=iteration,
                             ),
                         )
+                        if tracer is not None:
+                            tracer.checkpoint("save", cid, current_id)
                     continue
+                if tracer is not None:
+                    tracer.run_end("error", _ms(run_started), exc)
                 raise
 
             _call_hook(hooks, "on_node_end", current_id, node, state, result)
+            if tracer is not None:
+                tracer.node_end(current_id, node.type, _ms(start))
 
             if result:
                 if isinstance(state, State):
@@ -197,6 +236,12 @@ class Graph:
             next_id = self._resolve_edge(outgoing, state)
             if next_id is None:
                 break
+            if tracer is not None:
+                tracer.edge(
+                    current_id,
+                    next_id,
+                    self._matched_condition(outgoing, state, next_id),
+                )
             current_id = next_id
 
         if checkpointer is not None:
@@ -204,6 +249,11 @@ class Graph:
                 cid,
                 Checkpoint(state=dict(state), next_node_id=None, iteration=iteration),
             )
+            if tracer is not None:
+                tracer.checkpoint("save", cid, None)
+
+        if tracer is not None:
+            tracer.run_end("ok", _ms(run_started))
 
         return state
 
@@ -219,6 +269,17 @@ class Graph:
                 return edge.target_id
             if self._evaluate(edge.condition, state):
                 return edge.target_id
+        return None
+
+    def _matched_condition(
+        self, edges: list[Edge], state: dict, target_id: str
+    ) -> str | None:
+        """Return the condition of the first edge matching *state* and *target_id*."""
+        for edge in edges:
+            if edge.target_id != target_id:
+                continue
+            if edge.condition is None or self._evaluate(edge.condition, state):
+                return edge.condition
         return None
 
     @staticmethod

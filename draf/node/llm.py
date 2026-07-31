@@ -3,6 +3,7 @@
 import os
 import json
 import re
+import time
 import inspect
 import typing
 
@@ -130,6 +131,22 @@ _JSON_TYPE_MAP = {
 
 def _py_type_to_json(tp: type) -> str:
     return _JSON_TYPE_MAP.get(tp, "string")
+
+
+def _extract_usage(data: dict) -> tuple[int, int]:
+    """Extract ``(prompt_tokens, completion_tokens)`` from an LLM response.
+
+    Handles both OpenAI-style (``data["usage"]``) and Ollama-style
+    (``data["prompt_eval_count"]`` / ``data["eval_count"]``) formats.
+    """
+    usage = data.get("usage") or {}
+    prompt = usage.get("prompt_tokens")
+    completion = usage.get("completion_tokens")
+    if prompt is None:
+        prompt = data.get("prompt_eval_count", 0)
+    if completion is None:
+        completion = data.get("eval_count", 0)
+    return int(prompt or 0), int(completion or 0)
 
 
 class LLM(Node):
@@ -283,7 +300,9 @@ class LLM(Node):
             )
         else:
             for _round in range(self._MAX_TOOL_ROUNDS if has_tools else 1):
+                t0 = time.monotonic()
                 data = await self._post_llm(resolved_url, resolved_path, headers, body)
+                self._record_llm(ctx, cfg, provider_key, data, t0)
                 msg = _extract_message(data)
                 content = self._extract_content(
                     data,
@@ -332,6 +351,24 @@ class LLM(Node):
             return p.lower()
         detected = cfg.get("model", "gpt-4").split("-")[0].split("/")[0]
         return detected.lower()
+
+    def _record_llm(
+        self, ctx, cfg: dict, provider_key: str, data: dict, t0: float
+    ) -> None:
+        """Record an LLM call's token usage on the context tracer."""
+        tracer = getattr(ctx, "tracer", None)
+        if tracer is None:
+            return
+        prompt, completion = _extract_usage(data)
+        from draf.trace import _ms
+
+        tracer.llm(
+            provider_key,
+            str(cfg.get("model", "")),
+            prompt,
+            completion,
+            _ms(t0),
+        )
 
     async def _post_llm(
         self, base_url: str, path: str, headers: dict, body: dict

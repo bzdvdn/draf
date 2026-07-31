@@ -20,9 +20,16 @@ def run(
     pretty: bool = typer.Option(
         False, "--pretty", "-p", help="Pretty-print JSON output"
     ),
+    trace: bool = typer.Option(
+        False,
+        "--trace",
+        "-t",
+        help="Print a JSON run trace (timeline, latency, tokens)",
+    ),
 ) -> None:
     """Run a workflow from a YAML file."""
     from draf.yaml import load_workflow
+    from draf.trace import RunTracer
 
     try:
         graph, tools, initial_state, reducers = load_workflow(file)
@@ -31,10 +38,21 @@ def run(
         raise typer.Exit(1)
 
     try:
-        result = asyncio.run(graph.run(initial_state, tools=tools, reducers=reducers))
+        tracer = RunTracer() if trace else None
+        result = asyncio.run(
+            graph.run(
+                initial_state,
+                tools=tools,
+                reducers=reducers,
+                tracer=tracer,
+            )
+        )
     except Exception as e:
         typer.echo(f"error: workflow failed: {e}", err=True)
         raise typer.Exit(1)
+
+    if trace and tracer is not None:
+        typer.echo(tracer.to_json(), err=True)
 
     text = json.dumps(result, indent=2 if pretty else None, default=str) + "\n"
     if output:

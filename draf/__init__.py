@@ -34,6 +34,7 @@ from draf.state import (
     apply_reducers,
     Reducer,
 )
+from draf.trace import RunTracer, TraceEvent, RunSummary, TokenUsage
 
 
 def set_defaults(*, provider: str | None = None, **kwargs: object) -> None:
@@ -88,4 +89,8 @@ __all__ = [
     "reducers_from_yaml_schema",
     "apply_reducers",
     "Reducer",
+    "RunTracer",
+    "TraceEvent",
+    "RunSummary",
+    "TokenUsage",
 ]

@@ -2,6 +2,7 @@
 
 import json
 import os
+import time
 
 import httpx
 
@@ -10,6 +11,7 @@ from draf.node.llm import (
     LLM,
     _PROVIDER_DEFAULTS,
     _extract_message,
+    _extract_usage,
     _parse_text_tool_call,
 )
 from draf.tool.tool import coerce_args
@@ -160,6 +162,7 @@ class ReActAgent(Node):
             body["max_tokens"] = max_tokens
 
         async with httpx.AsyncClient(timeout=120) as client:
+            t0 = time.monotonic()
             resp = await client.post(
                 f"{resolved_url}{resolved_path}",
                 headers=headers,
@@ -167,6 +170,13 @@ class ReActAgent(Node):
             )
             resp.raise_for_status()
             data = resp.json()
+
+        tracer = getattr(ctx, "tracer", None)
+        if tracer is not None:
+            from draf.trace import _ms
+
+            prompt, completion = _extract_usage(data)
+            tracer.llm(provider_key, model, prompt, completion, _ms(t0))
 
         msg = _extract_message(data)
 

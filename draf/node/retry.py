@@ -35,6 +35,10 @@ class Retry(Node):
                 return await self._node.execute(ctx, state)
             except Exception as e:
                 last_exc = e
-                if attempt < self._max_retries - 1 and self._delay:
-                    await asyncio.sleep(self._delay)
+                if attempt < self._max_retries - 1:
+                    tracer = getattr(ctx, "tracer", None)
+                    if tracer is not None:
+                        tracer.retry(ctx.node_id, ctx.node_type, attempt + 1, e)
+                    if self._delay:
+                        await asyncio.sleep(self._delay)
         raise last_exc  # type: ignore[misc]
