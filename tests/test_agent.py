@@ -172,6 +172,318 @@ class TestReActAgent:
             )
 
 
+class TestParallelToolExecution:
+    @pytest.mark.asyncio
+    async def test_multiple_tools_fan_out_in_parallel(self, monkeypatch):
+        from draf.node.agent import ReActAgent, ToolExec
+        from draf.graph import Graph, Edge
+        from draf.tool import Tool
+        import asyncio
+
+        monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
+
+        lock = asyncio.Lock()
+        tracker = {"active": 0, "max_active": 0}
+
+        class SlowTool(Tool):
+            name = "slowtool"
+            description = "Slow async tool"
+
+            async def arun(self, **kwargs):  # type: ignore[override]
+                async with lock:
+                    tracker["active"] += 1
+                    tracker["max_active"] = max(tracker["max_active"], tracker["active"])
+                await asyncio.sleep(0.05)
+                async with lock:
+                    tracker["active"] -= 1
+                return "slow-done"
+
+        tool_response = {
+            "choices": [
+                {
+                    "message": {
+                        "content": None,
+                        "tool_calls": [
+                            {
+                                "id": "call_1",
+                                "function": {"name": "slowtool", "arguments": "{}"},
+                            },
+                            {
+                                "id": "call_2",
+                                "function": {"name": "slowtool", "arguments": "{}"},
+                            },
+                        ],
+                    },
+                }
+            ],
+        }
+        final_response = {
+            "choices": [{"message": {"content": "finished"}}],
+        }
+
+        responses = [tool_response, final_response]
+
+        async def mock_post(*a, **kw):
+            class MockResponse:
+                def raise_for_status(self):
+                    pass
+
+                def json(self):
+                    return responses.pop(0)
+
+            return MockResponse()
+
+        import httpx
+
+        monkeypatch.setattr(httpx.AsyncClient, "post", mock_post)
+
+        g = Graph(
+            nodes={
+                "agent": ReActAgent(
+                    {"model": "gpt-4", "input_key": "input", "output_key": "output"}
+                ),
+                "tool": ToolExec({}),
+            },
+            edges=[
+                Edge("agent", "tool", "_tool_call_name!="),
+                Edge("tool", "agent"),
+            ],
+            entry_point="agent",
+        )
+        r = await g.run(
+            state={"input": "do two things"}, tools=[SlowTool()], max_iterations=10
+        )
+        assert r["output"] == "finished"
+        assert tracker["max_active"] == 2
+        assert len(r["messages"]) == 5  # user + assistant(tc) + 2 tool + assistant
+        tool_msgs = [m for m in r["messages"] if m.get("role") == "tool"]
+        assert len(tool_msgs) == 2
+        assert all(m["content"] == "slow-done" for m in tool_msgs)
+
+    @pytest.mark.asyncio
+    async def test_single_round_parallel_saves_a_round(self, monkeypatch):
+        from draf.node.agent import ReActAgent, ToolExec
+        from draf.graph import Graph, Edge
+        from draf.tool import Tool
+        import asyncio
+
+        monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
+
+        lock = asyncio.Lock()
+        tracker = {"active": 0, "max_active": 0}
+
+        class SlowTool(Tool):
+            name = "slowtool"
+            description = "Slow async tool"
+
+            async def arun(self, **kwargs):  # type: ignore[override]
+                async with lock:
+                    tracker["active"] += 1
+                    tracker["max_active"] = max(tracker["max_active"], tracker["active"])
+                await asyncio.sleep(0.1)
+                async with lock:
+                    tracker["active"] -= 1
+                return "slow-done"
+
+        tool_response = {
+            "choices": [
+                {
+                    "message": {
+                        "content": None,
+                        "tool_calls": [
+                            {
+                                "id": "call_1",
+                                "function": {"name": "slowtool", "arguments": "{}"},
+                            },
+                            {
+                                "id": "call_2",
+                                "function": {"name": "slowtool", "arguments": "{}"},
+                            },
+                        ],
+                    },
+                }
+            ],
+        }
+        final_response = {
+            "choices": [{"message": {"content": "finished"}}],
+        }
+        responses = [tool_response, final_response]
+
+        async def mock_post(*a, **kw):
+            class MockResponse:
+                def raise_for_status(self):
+                    pass
+
+                def json(self):
+                    return responses.pop(0)
+
+            return MockResponse()
+
+        import httpx
+
+        monkeypatch.setattr(httpx.AsyncClient, "post", mock_post)
+
+        g = Graph(
+            nodes={
+                "agent": ReActAgent(
+                    {"model": "gpt-4", "input_key": "input", "output_key": "output"}
+                ),
+                "tool": ToolExec({}),
+            },
+            edges=[
+                Edge("agent", "tool", "_tool_call_name!="),
+                Edge("tool", "agent"),
+            ],
+            entry_point="agent",
+        )
+        started = asyncio.get_event_loop().time()
+        await g.run(
+            state={"input": "do two things"}, tools=[SlowTool()], max_iterations=10
+        )
+        elapsed = asyncio.get_event_loop().time() - started
+        assert elapsed < 0.19  # two 0.1s sleeps would take >= 0.2s if serial
+
+
+class TestToolErrorMode:
+    @pytest.mark.asyncio
+    async def test_tool_error_becomes_message_by_default(self, monkeypatch):
+        from draf.node.agent import ReActAgent, ToolExec
+        from draf.graph import Graph, Edge
+        from draf.tool import Tool
+
+        monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
+
+        class BoomTool(Tool):
+            name = "boom"
+            description = "Always fails"
+
+            def run(self, **kwargs) -> str:  # type: ignore[override]
+                raise RuntimeError("kaboom")
+
+        tool_response = {
+            "choices": [
+                {
+                    "message": {
+                        "content": None,
+                        "tool_calls": [
+                            {
+                                "id": "call_1",
+                                "function": {"name": "boom", "arguments": "{}"},
+                            }
+                        ],
+                    },
+                }
+            ],
+        }
+        final_response = {
+            "choices": [{"message": {"content": "recovered"}}],
+        }
+        responses = [tool_response, final_response]
+
+        async def mock_post(*a, **kw):
+            class MockResponse:
+                def raise_for_status(self):
+                    pass
+
+                def json(self):
+                    return responses.pop(0)
+
+            return MockResponse()
+
+        import httpx
+
+        monkeypatch.setattr(httpx.AsyncClient, "post", mock_post)
+
+        g = Graph(
+            nodes={
+                "agent": ReActAgent(
+                    {"model": "gpt-4", "input_key": "input", "output_key": "output"}
+                ),
+                "tool": ToolExec({}),
+            },
+            edges=[
+                Edge("agent", "tool", "_tool_call_name!="),
+                Edge("tool", "agent"),
+            ],
+            entry_point="agent",
+        )
+        r = await g.run(state={"input": "try"}, tools=[BoomTool()], max_iterations=5)
+        assert r["output"] == "recovered"
+        tool_msgs = [m for m in r["messages"] if m.get("role") == "tool"]
+        assert len(tool_msgs) == 1
+        assert "Error calling 'boom'" in tool_msgs[0]["content"]
+
+    @pytest.mark.asyncio
+    async def test_tool_error_raise_routes_to_error_edge(self, monkeypatch):
+        from draf.node.agent import ReActAgent, ToolExec
+        from draf.graph import Graph, Edge
+        from draf.node import Transform
+        from draf.tool import Tool
+
+        monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
+
+        class BoomTool(Tool):
+            name = "boom"
+            description = "Always fails"
+
+            def run(self, **kwargs) -> str:  # type: ignore[override]
+                raise RuntimeError("kaboom")
+
+        tool_response = {
+            "choices": [
+                {
+                    "message": {
+                        "content": None,
+                        "tool_calls": [
+                            {
+                                "id": "call_1",
+                                "function": {"name": "boom", "arguments": "{}"},
+                            }
+                        ],
+                    },
+                }
+            ],
+        }
+
+        async def mock_post(*a, **kw):
+            class MockResponse:
+                def raise_for_status(self):
+                    pass
+
+                def json(self):
+                    return tool_response
+
+            return MockResponse()
+
+        import httpx
+
+        monkeypatch.setattr(httpx.AsyncClient, "post", mock_post)
+
+        g = Graph(
+            nodes={
+                "agent": ReActAgent(
+                    {"model": "gpt-4", "input_key": "input", "output_key": "output"}
+                ),
+                "tool": ToolExec({"tool_error_mode": "raise"}),
+                "fallback": Transform(
+                    {
+                        "action": "value",
+                        "value": "fallback-handled",
+                        "output_key": "output",
+                    }
+                ),
+            },
+            edges=[
+                Edge("agent", "tool", "_tool_call_name!="),
+                Edge("tool", "agent"),
+                Edge("tool", "fallback", "__error__"),
+            ],
+            entry_point="agent",
+        )
+        r = await g.run(state={"input": "try"}, tools=[BoomTool()], max_iterations=5)
+        assert r["output"] == "fallback-handled"
+
+
 class TestFlowReact:
     @pytest.mark.asyncio
     async def test_flow_react_direct_response(self, monkeypatch):
@@ -296,3 +608,57 @@ class TestFlowReact:
         g = flow.compile()
         r = await g.run(state={"query": "hi"}, max_iterations=5)
         assert r["result"] == "HELLO WORLD"
+
+    @pytest.mark.asyncio
+    async def test_flow_harness_accepts_loop_kwargs(self, monkeypatch):
+        from draf.flow import Flow
+        from draf.node import Transform
+
+        monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
+
+        async def mock_post(*a, **kw):
+            class MockResponse:
+                def raise_for_status(self):
+                    pass
+
+                def json(self):
+                    return {"choices": [{"message": {"content": "hello world"}}]}
+
+            return MockResponse()
+
+        import httpx
+
+        monkeypatch.setattr(httpx.AsyncClient, "post", mock_post)
+
+        flow = Flow("test")
+        flow.harness(
+            model="gpt-4",
+            system="You are helpful.",
+            input_key="query",
+            output_key="answer",
+            max_tool_rounds=3,
+            tool_error_mode="raise",
+            parse_text_tool_calls=False,
+            temperature=0.2,
+            max_tokens=64,
+        )
+        flow.step(
+            Transform(
+                {"action": "uppercase", "input_key": "answer", "output_key": "result"}
+            )
+        )
+        g = flow.compile()
+        r = await g.run(state={"query": "hi"}, max_iterations=10)
+        assert r["answer"] == "hello world"
+        assert r["result"] == "HELLO WORLD"
+
+        from draf.node.agent import ReActAgent, ToolExec
+
+        agent = next(n for n in g.nodes.values() if isinstance(n, ReActAgent))
+        assert agent.config["max_tool_rounds"] == 3
+        assert agent.config["parse_text_tool_calls"] is False
+        assert agent.config["temperature"] == 0.2
+        assert agent.config["max_tokens"] == 64
+
+        tool_exec = next(n for n in g.nodes.values() if isinstance(n, ToolExec))
+        assert tool_exec.config["tool_error_mode"] == "raise"

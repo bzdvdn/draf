@@ -1,27 +1,23 @@
 """ReAct agent: graph-visible tool-calling loop."""
 
 import json
-import os
-import time
 
-import httpx
-
-from draf.node.node import Node
-from draf.node.llm import (
-    LLM,
-    _PROVIDER_DEFAULTS,
-    _extract_message,
-    _extract_usage,
-    _parse_text_tool_call,
+from draf.harness import (
+    Harness,
+    execute_tool_calls,
+    parse_text_tool_call,
+    tool_to_schema,
 )
-from draf.tool.tool import coerce_args
+from draf.node.node import Node
+from draf.node.llm import LLM
 
 
 class ReActAgent(Node):
     """Single-step LLM node for a graph-level ReAct loop.
 
-    Executes one LLM call, then signals whether a tool was requested
-    by setting ``state["_tool_call_name"]``.
+    Executes one LLM call, then signals any requested tools by setting
+    ``state["_tool_calls"]`` (a list of ``{id, name, args}``) and a
+    non-empty ``state["_tool_call_name"]``.
 
     When the LLM responds without calling a tool, the output key is
     set and ``_tool_call_name`` is cleared — the parent graph stops
@@ -48,6 +44,9 @@ class ReActAgent(Node):
         chat_path: Custom API path.
         auth_header: Custom auth header name.
         auth_prefix: Custom auth header prefix.
+        max_tool_rounds: Round limit used by the harness loop.
+        parse_text_tool_calls: Decode text-embedded tool calls.
+        tool_error_mode: ``"message"`` (default) or ``"raise"``.
     """
 
     type = "react_agent"
@@ -96,21 +95,11 @@ class ReActAgent(Node):
 
     async def execute(self, ctx, state: dict) -> dict:
         cfg = self.config
-        model = cfg.get("model", "gpt-4")
         system = cfg.get("system", "")
         input_key = cfg.get("input_key", "input")
         output_key = cfg.get("output_key", "output")
         messages_key = cfg.get("messages_key", "messages")
         tool_call_key = cfg.get("tool_call_key", "_tool_call_name")
-        temperature = cfg.get("temperature")
-        max_tokens = cfg.get("max_tokens")
-        response_format = cfg.get("response_format")
-        provider_name = cfg.get("provider", "")
-        base_url = cfg.get("base_url", "")
-        api_key_env = cfg.get("api_key_env", "")
-        chat_path = cfg.get("chat_path", "")
-        auth_header = cfg.get("auth_header", "")
-        auth_prefix = cfg.get("auth_prefix", "")
 
         messages = list(state.get(messages_key, []))
         if not messages:
@@ -120,91 +109,56 @@ class ReActAgent(Node):
             if user_input:
                 messages.append({"role": "user", "content": user_input})
 
-        tool_defs = []
+        tool_defs = [tool_to_schema(t) for t in ctx.tools.values()]
 
-        for t in ctx.tools.values():
-            tool_defs.append(LLM._tool_to_schema(t))
-
-        provider_key = (
-            provider_name or LLM.DEFAULT_PROVIDER or model.split("-")[0].split("/")[0]
-        )
-        provider_key = provider_key.lower()
-        defaults = _PROVIDER_DEFAULTS.get(provider_key, _PROVIDER_DEFAULTS["openai"])
-
-        resolved_url = base_url or os.environ.get(
-            f"{provider_key.upper()}_BASE_URL", defaults["base_url"]
-        )
-        resolved_env = api_key_env or defaults["api_key_env"]
-        resolved_path = chat_path or defaults["chat_path"]
-
-        api_key = ""
-        if resolved_env:
-            api_key = os.environ.get(resolved_env, "")
-        if not api_key:
-            api_key = os.environ.get("LLM_API_KEY", "")
-
-        headers = {"Content-Type": "application/json"}
-        hdr_name = auth_header or defaults["auth_header"]
-        if hdr_name and api_key:
-            hdr_prefix = (
-                auth_prefix if "auth_prefix" in cfg else defaults["auth_prefix"]
-            )
-            headers[hdr_name] = f"{hdr_prefix}{api_key}"
-
-        body: dict = {"model": model, "messages": messages}
-        if tool_defs:
-            body["tools"] = tool_defs
-        if response_format:
-            body["response_format"] = response_format
-        if temperature is not None:
-            body["temperature"] = temperature
-        if max_tokens is not None:
-            body["max_tokens"] = max_tokens
-
-        async with httpx.AsyncClient(timeout=120) as client:
-            t0 = time.monotonic()
-            resp = await client.post(
-                f"{resolved_url}{resolved_path}",
-                headers=headers,
-                json={**body, "stream": False},
-            )
-            resp.raise_for_status()
-            data = resp.json()
-
+        harness = Harness.from_config(cfg, default_provider=LLM.DEFAULT_PROVIDER)
         tracer = getattr(ctx, "tracer", None)
         if tracer is not None:
-            from draf.trace import _ms
+            async def on_llm(provider, model, prompt, completion, duration):
+                tracer.llm(provider, model, prompt, completion, duration)
 
-            prompt, completion = _extract_usage(data)
-            tracer.llm(provider_key, model, prompt, completion, _ms(t0))
+            harness.on_llm = on_llm
 
-        msg = _extract_message(data)
+        reply = await harness.call(messages, tools=tool_defs or None)
 
         result: dict = {}
-        tool_calls = msg.get("tool_calls")
+        tool_calls = reply.message.get("tool_calls")
 
         if tool_calls:
-            tc = tool_calls[0]
-            fn = tc.get("function", {})
-            result[tool_call_key] = fn.get("name", "")
-            result["_tool_call_id"] = tc.get("id", "")
-            raw_args = fn.get("arguments", "{}")
-            if isinstance(raw_args, dict):
-                raw_args = json.dumps(raw_args)
-            result["_tool_call_args"] = raw_args
-            messages.append(msg)
+            calls: list[dict] = []
+            for tc in tool_calls:
+                fn = tc.get("function", {})
+                raw = fn.get("arguments", "{}")
+                if isinstance(raw, dict):
+                    raw = json.dumps(raw)
+                calls.append(
+                    {
+                        "id": tc.get("id", ""),
+                        "name": fn.get("name", ""),
+                        "args": raw,
+                    }
+                )
+            result[tool_call_key] = "pending"
+            result["_tool_calls"] = calls
+            messages.append(reply.message)
         else:
-            content = msg.get("content", "")
-            parsed = _parse_text_tool_call(content) if tool_defs else None
+            content = reply.content
+            parsed = parse_text_tool_call(content) if tool_defs else None
             if parsed:
                 name, args = parsed
-                result[tool_call_key] = name
-                result["_tool_call_id"] = f"call_{len(messages)}"
-                result["_tool_call_args"] = json.dumps(args)
-                messages.append(msg)
+                result[tool_call_key] = "pending"
+                result["_tool_calls"] = [
+                    {
+                        "id": f"call_{len(messages)}",
+                        "name": name,
+                        "args": json.dumps(args),
+                    }
+                ]
+                messages.append({"role": "assistant", "content": content})
             else:
                 result[output_key] = content
                 result[tool_call_key] = ""
+                result["_tool_calls"] = []
                 messages.append({"role": "assistant", "content": content})
 
         result[messages_key] = messages
@@ -212,12 +166,20 @@ class ReActAgent(Node):
 
 
 class ToolExec(Node):
-    """Executes a tool signalled by ``ReActAgent`` and feeds the result
-    back into the conversation history.
+    """Executes tools signalled by :class:`ReActAgent` in parallel and feeds
+    the results back into the conversation history.
+
+    Handles multiple tool calls per round: the agent writes the whole
+    ``_tool_calls`` list, which is executed concurrently and appended as
+    ``tool`` messages in one go.  Falls back to the legacy single-call
+    signals (``_tool_call_name`` / ``_tool_call_args`` / ``_tool_call_id``).
 
     Parameters:
         messages_key: State key for messages (default ``"messages"``).
         tool_call_key: Signal key (default ``"_tool_call_name"``).
+        tool_error_mode: ``"message"`` (default) or ``"raise"`` — when
+            ``"raise"``, a tool failure propagates to the graph error path
+            (e.g. an ``__error__`` edge) instead of becoming a tool message.
     """
 
     type = "tool_exec"
@@ -228,11 +190,13 @@ class ToolExec(Node):
         *,
         messages_key: str = "messages",
         tool_call_key: str = "_tool_call_name",
+        tool_error_mode: str = "message",
         **kwargs,
     ):
         merged = {
             "messages_key": messages_key,
             "tool_call_key": tool_call_key,
+            "tool_error_mode": tool_error_mode,
             **(config or {}),
             **kwargs,
         }
@@ -241,37 +205,34 @@ class ToolExec(Node):
     async def execute(self, ctx, state: dict) -> dict:
         messages_key = self.config.get("messages_key", "messages")
         tool_call_key = self.config.get("tool_call_key", "_tool_call_name")
+        tool_error_mode = self.config.get("tool_error_mode", "message")
 
-        name = state.get(tool_call_key, "")
-        args_raw = state.get("_tool_call_args", "{}")
-        call_id = state.get("_tool_call_id", "")
+        calls = list(state.get("_tool_calls") or [])
+        if not calls and state.get(tool_call_key):
+            calls = [
+                {
+                    "id": state.get("_tool_call_id", ""),
+                    "name": state.get(tool_call_key, ""),
+                    "args": state.get("_tool_call_args", "{}"),
+                }
+            ]
 
-        try:
-            args = json.loads(args_raw) if args_raw else {}
-        except json.JSONDecodeError:
-            args = {}
-
-        tool = ctx.tools.get(name)
-        if tool:
-            try:
-                result = await tool.arun(**coerce_args(tool, args))
-            except Exception as e:
-                result = f"Error calling '{name}': {e}"
-        else:
-            result = f"Error: unknown tool '{name}'"
+        results = await execute_tool_calls(calls, ctx.tools, tool_error_mode)
 
         messages = list(state.get(messages_key, []))
-        messages.append(
-            {
-                "role": "tool",
-                "tool_call_id": call_id,
-                "content": str(result) if result is not None else "",
-            }
-        )
+        for call, res in zip(calls, results):
+            messages.append(
+                {
+                    "role": "tool",
+                    "tool_call_id": call.get("id", ""),
+                    "content": str(res) if res is not None else "",
+                }
+            )
 
         return {
             messages_key: messages,
             tool_call_key: "",
+            "_tool_calls": [],
             "_tool_call_args": "",
             "_tool_call_id": "",
         }

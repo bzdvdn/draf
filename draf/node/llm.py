@@ -1,134 +1,24 @@
 """LLM chat node — multi-provider, tool calling, structured output."""
 
-import os
 import json
-import re
-import time
-import inspect
 import typing
 
-import httpx
-
+from draf.harness import (
+    Harness,
+    execute_tool_calls,
+    extract_usage as _extract_usage,  # noqa: F401  (re-export for tests)
+    parse_text_tool_call as _parse_text_tool_call,
+    tool_to_schema,
+)
 from draf.node.node import Node
 from draf.prompt import render_template
-from draf.tool.tool import Tool, coerce_args
+from draf.tool.tool import Tool
 from draf.stream import StreamEvent
 from draf.schema import (
-    extract_json_object,
     json_schema_from_type,
     parse_json_object,
     validate_json,
 )
-
-_PROVIDER_DEFAULTS = {
-    "openai": {
-        "base_url": "https://api.openai.com/v1",
-        "auth_header": "Authorization",
-        "auth_prefix": "Bearer ",
-        "api_key_env": "OPENAI_API_KEY",
-        "chat_path": "/chat/completions",
-    },
-    "anthropic": {
-        "base_url": "https://api.anthropic.com/v1",
-        "auth_header": "x-api-key",
-        "auth_prefix": "",
-        "api_key_env": "ANTHROPIC_API_KEY",
-        "chat_path": "/messages",
-    },
-    "deepseek": {
-        "base_url": "https://api.deepseek.com/v1",
-        "auth_header": "Authorization",
-        "auth_prefix": "Bearer ",
-        "api_key_env": "DEEPSEEK_API_KEY",
-        "chat_path": "/chat/completions",
-    },
-    "ollama": {
-        "base_url": "http://localhost:11434",
-        "auth_header": "",
-        "auth_prefix": "",
-        "api_key_env": "",
-        "chat_path": "/api/chat",
-    },
-    "mistral": {
-        "base_url": "https://api.mistral.ai/v1",
-        "auth_header": "Authorization",
-        "auth_prefix": "Bearer ",
-        "api_key_env": "MISTRAL_API_KEY",
-        "chat_path": "/chat/completions",
-    },
-}
-
-
-def _extract_message(data: dict) -> dict:
-    """Normalise response formats to ``{role, content, tool_calls}``.
-
-    Handles OpenAI (``data["choices"][0]["message"]``) and
-    Ollama (``data["message"]`` at root).
-    """
-    msg = data.get("choices", [{}])[0].get("message", {})
-    if not msg and "message" in data:
-        msg = data["message"]
-    return msg
-
-
-def _parse_text_tool_call(content: str) -> tuple[str, dict] | None:
-    """Parse a tool call embedded in plain text content.
-
-    Local models sometimes emit ``{"name": "rag", "parameters": {...}}``
-    or ``{"name": "rag", "arguments": {...}}`` as text instead of using
-    the structured ``tool_calls`` field. Returns ``(name, args)`` if found.
-    """
-    m = re.search(r'"name"\s*:\s*"([^"]+)"', content)
-    if not m:
-        return None
-    name = m.group(1)
-    for key in ("parameters", "arguments"):
-        idx = content.find(f'"{key}"')
-        if idx == -1:
-            continue
-        brace = content.find("{", content.find(":", idx))
-        if brace == -1:
-            continue
-        obj = extract_json_object(content, brace)
-        if obj is None:
-            continue
-        try:
-            args = json.loads(obj)
-        except json.JSONDecodeError:
-            args = {}
-        return name, args
-    return name, {}
-
-
-_JSON_TYPE_MAP = {
-    str: "string",
-    int: "integer",
-    float: "number",
-    bool: "boolean",
-    list: "array",
-    dict: "object",
-    type(None): "null",
-}
-
-
-def _py_type_to_json(tp: type) -> str:
-    return _JSON_TYPE_MAP.get(tp, "string")
-
-
-def _extract_usage(data: dict) -> tuple[int, int]:
-    """Extract ``(prompt_tokens, completion_tokens)`` from an LLM response.
-
-    Handles both OpenAI-style (``data["usage"]``) and Ollama-style
-    (``data["prompt_eval_count"]`` / ``data["eval_count"]``) formats.
-    """
-    usage = data.get("usage") or {}
-    prompt = usage.get("prompt_tokens")
-    completion = usage.get("completion_tokens")
-    if prompt is None:
-        prompt = data.get("prompt_eval_count", 0)
-    if completion is None:
-        completion = data.get("eval_count", 0)
-    return int(prompt or 0), int(completion or 0)
 
 
 class StructuredOutputError(ValueError):
@@ -273,29 +163,6 @@ class LLM(Node):
     async def execute(self, ctx, state: dict) -> dict:
         cfg = self.config
         provider_key = self._resolve_provider(cfg)
-        defaults = _PROVIDER_DEFAULTS.get(provider_key, _PROVIDER_DEFAULTS["openai"])
-
-        base_url = cfg.get("base_url") or ""
-        chat_path = cfg.get("chat_path") or ""
-        api_key_env = cfg.get("api_key_env") or ""
-
-        resolved_url = base_url or os.environ.get(
-            f"{provider_key.upper()}_BASE_URL", defaults["base_url"]
-        )
-        resolved_env = api_key_env or defaults["api_key_env"]
-        resolved_path = chat_path or defaults["chat_path"]
-
-        api_key = ""
-        if resolved_env:
-            api_key = os.environ.get(resolved_env, "")
-        if not api_key:
-            api_key = os.environ.get("LLM_API_KEY", "")
-
-        headers = {"Content-Type": "application/json"}
-        hdr_name = cfg.get("auth_header") or defaults["auth_header"]
-        if hdr_name and api_key:
-            hdr_prefix = cfg.get("auth_prefix") or defaults["auth_prefix"]
-            headers[hdr_name] = f"{hdr_prefix}{api_key}"
 
         has_messages_key = cfg.get("messages_key") and state.get(cfg["messages_key"])
         if has_messages_key:
@@ -321,17 +188,7 @@ class LLM(Node):
         tool_defs: list[dict] = list(cfg.get("tools", []))
         if cfg.get("use_tools", False):
             for t in ctx.tools.values():
-                tool_defs.append(self._tool_to_schema(t))
-
-        body: dict = {"model": cfg["model"], "messages": messages}
-        if tool_defs:
-            body["tools"] = tool_defs
-        if cfg.get("response_format"):
-            body["response_format"] = cfg["response_format"]
-        if cfg.get("temperature") is not None:
-            body["temperature"] = cfg["temperature"]
-        if cfg.get("max_tokens") is not None:
-            body["max_tokens"] = cfg["max_tokens"]
+                tool_defs.append(tool_to_schema(t))
 
         has_tools = bool(tool_defs)
         output_key = cfg.get("output_key", "output")
@@ -340,11 +197,14 @@ class LLM(Node):
         structured = schema is not None
         parse_only = bool(cfg.get("parse", False)) and not structured
 
+        harness = Harness.from_config(cfg, default_provider=self.DEFAULT_PROVIDER)
+        harness.on_llm = self._record_llm_cb(ctx, cfg, provider_key)
+
         if structured and not cfg.get("response_format"):
             if provider_key == "ollama":
-                body["format"] = "json"
+                harness._body_extra["format"] = "json"
             else:
-                body["response_format"] = {"type": "json_object"}
+                harness._body_extra["response_format"] = {"type": "json_object"}
 
         graph_stream = getattr(ctx, "emit", None) is not None
         content: str | dict = ""
@@ -353,37 +213,29 @@ class LLM(Node):
             and not has_tools
             and not structured
         ):
-            content = await self._post_llm_stream(
-                resolved_url,
-                resolved_path,
-                headers,
-                body,
-                self._token_sink(ctx, cfg, provider_key),
-            )
+            harness.on_token = self._token_sink(ctx, cfg, provider_key)
+            content = (await harness.call(messages, stream=True)).content
         else:
             max_retries = int(cfg.get("max_retries", 2))
-            rounds = self._MAX_TOOL_ROUNDS if has_tools else 1
+            rounds = harness.max_rounds if has_tools else 1
             if structured:
                 rounds = max(rounds, max_retries + 1)
             attempts = 0
             for _round in range(rounds):
-                t0 = time.monotonic()
-                data = await self._post_llm(resolved_url, resolved_path, headers, body)
-                await self._record_llm(ctx, cfg, provider_key, data, t0)
-                msg = _extract_message(data)
-                content = self._extract_content(
-                    data,
-                    provider_key,
-                    cfg.get("response_path", ""),
-                    msg.get("content", ""),
+                reply = await harness.call(
+                    messages,
+                    tools=tool_defs or None,
+                    content_path=cfg.get("response_path", ""),
                 )
+                content = reply.content
+                msg = reply.message
                 tool_calls = msg.get("tool_calls")
 
-                if has_tools and not tool_calls:
+                if has_tools and not tool_calls and harness.parse_text_tool_calls:
                     parsed = _parse_text_tool_call(content)
                     if parsed:
                         name, args = parsed
-                        call_id = f"call_{len(body['messages'])}"
+                        call_id = f"call_{len(messages)}"
                         tool_calls = [
                             {
                                 "id": call_id,
@@ -397,14 +249,16 @@ class LLM(Node):
                         msg = {**msg, "tool_calls": tool_calls}
 
                 if has_tools and tool_calls:
-                    body["messages"].append(msg)
-                    for tc in tool_calls:
-                        tc_result = await self._execute_tool_call(tc, ctx)
-                        body["messages"].append(
+                    messages.append(msg)
+                    results = await execute_tool_calls(
+                        tool_calls, ctx.tools, harness.tool_error_mode
+                    )
+                    for tc, res in zip(tool_calls, results):
+                        messages.append(
                             {
                                 "role": "tool",
                                 "tool_call_id": tc["id"],
-                                "content": tc_result,
+                                "content": res,
                             }
                         )
                     continue
@@ -425,8 +279,8 @@ class LLM(Node):
                             errors=error,
                             attempts=attempts,
                         )
-                    body["messages"].append({"role": "assistant", "content": content})
-                    body["messages"].append(
+                    messages.append({"role": "assistant", "content": content})
+                    messages.append(
                         {
                             "role": "user",
                             "content": (
@@ -463,6 +317,34 @@ class LLM(Node):
             return p.lower()
         detected = cfg.get("model", "gpt-4").split("-")[0].split("/")[0]
         return detected.lower()
+
+    def _record_llm_cb(self, ctx, cfg: dict, provider_key: str):
+        """Build the ``on_llm`` callback recording usage + ``llm`` events."""
+
+        async def record(
+            provider: str, model: str, prompt: int, completion: int, duration: float
+        ) -> None:
+            tracer = getattr(ctx, "tracer", None)
+            if tracer is not None:
+                tracer.llm(provider, model, prompt, completion, duration)
+            emit = getattr(ctx, "emit", None)
+            if emit is not None:
+                await emit(
+                    StreamEvent(
+                        "llm",
+                        node_id=ctx.node_id,
+                        node_type=ctx.node_type,
+                        data={
+                            "provider": provider,
+                            "model": model,
+                            "prompt_tokens": prompt,
+                            "completion_tokens": completion,
+                            "duration_ms": duration,
+                        },
+                    )
+                )
+
+        return record
 
     def _resolve_schema(self, cfg: dict) -> dict | None:
         """Return the JSON Schema for structured output, if configured."""
@@ -507,40 +389,10 @@ class LLM(Node):
                 )
             )
 
-    async def _record_llm(
-        self, ctx, cfg: dict, provider_key: str, data: dict, t0: float
-    ) -> None:
-        """Record an LLM call's token usage and emit an ``llm`` stream event."""
-        from draf.trace import _ms
-
-        prompt, completion = _extract_usage(data)
-        duration = _ms(t0)
-        tracer = getattr(ctx, "tracer", None)
-        if tracer is not None:
-            tracer.llm(
-                provider_key, str(cfg.get("model", "")), prompt, completion, duration
-            )
-        emit = getattr(ctx, "emit", None)
-        if emit is not None:
-            await emit(
-                StreamEvent(
-                    "llm",
-                    node_id=ctx.node_id,
-                    node_type=ctx.node_type,
-                    data={
-                        "provider": provider_key,
-                        "model": str(cfg.get("model", "")),
-                        "prompt_tokens": prompt,
-                        "completion_tokens": completion,
-                        "duration_ms": duration,
-                    },
-                )
-            )
-
     def _token_sink(
         self, ctx, cfg: dict, provider_key: str
     ) -> typing.Callable[[str], typing.Any]:
-        """Build the per-token callback for ``_post_llm_stream``.
+        """Build the per-token callback for streaming.
 
         Forwards each token to the node's ``on_token`` config and, when
         running under ``graph.stream()``, emits a ``token`` :class:`StreamEvent`.
@@ -567,146 +419,7 @@ class LLM(Node):
 
         return sink
 
-    async def _post_llm(
-        self, base_url: str, path: str, headers: dict, body: dict
-    ) -> dict:
-        async with httpx.AsyncClient(timeout=120) as client:
-            response = await client.post(
-                f"{base_url}{path}", headers=headers, json={**body, "stream": False}
-            )
-            response.raise_for_status()
-            return response.json()
-
-    async def _post_llm_stream(
-        self,
-        base_url: str,
-        path: str,
-        headers: dict,
-        body: dict,
-        on_token: typing.Callable[[str], None] | None = None,
-    ) -> str:
-        body = {**body, "stream": True}
-        content = ""
-        async with httpx.AsyncClient(timeout=120) as client:
-            async with client.stream(
-                "POST", f"{base_url}{path}", headers=headers, json=body
-            ) as resp:
-                resp.raise_for_status()
-                async for line in resp.aiter_lines():
-                    if line.startswith("data: "):
-                        data = line[6:].strip()
-                    elif line.startswith("{"):
-                        data = line.strip()
-                    else:
-                        continue
-                    if data == "[DONE]":
-                        break
-                    if not data:
-                        continue
-                    try:
-                        chunk = json.loads(data)
-                    except json.JSONDecodeError:
-                        continue
-                    delta = chunk.get("choices", [{}])[0].get("delta", {})
-                    token = delta.get("content", "")
-                    if not token:
-                        token = (chunk.get("message") or {}).get("content", "")
-                    if token:
-                        content += token
-                        if on_token:
-                            result = on_token(token)
-                            if inspect.isawaitable(result):
-                                await result
-        return content
-
-    async def _execute_tool_call(self, tc: dict, ctx) -> str:
-        fn = tc.get("function", {})
-        name = fn.get("name", "")
-        raw_args = fn.get("arguments", "{}")
-        try:
-            args = json.loads(raw_args) if isinstance(raw_args, str) else raw_args
-        except json.JSONDecodeError:
-            return f"Error: invalid JSON arguments for tool '{name}'"
-
-        tool = ctx.tools.get(name)
-        if tool is None:
-            return f"Error: unknown tool '{name}'"
-
-        try:
-            result = await tool.arun(**coerce_args(tool, args))
-        except Exception as e:
-            return f"Error calling '{name}': {e}"
-        return str(result) if result is not None else ""
-
-    def _extract_content(
-        self, data: dict, provider: str, path: str = "", fallback: str = ""
-    ) -> str:
-        if path:
-            parts = path.split(".")
-            val = data
-            for p in parts:
-                if p.isdigit():
-                    val = val[int(p)]
-                else:
-                    val = val.get(p, "")
-            return str(val) if val else ""
-
-        if provider == "anthropic":
-            for block in data.get("content", []):
-                if block.get("type") == "text":
-                    return block.get("text", "")
-            return ""
-
-        if provider == "ollama":
-            return data.get("message", {}).get("content", "")
-
-        return fallback
-
     @staticmethod
     def _tool_to_schema(tool: Tool) -> dict:
-        provider_schema = tool.schema
-        if isinstance(provider_schema, dict):
-            return {
-                "type": "function",
-                "function": {
-                    "name": tool.name,
-                    "description": tool.description or "",
-                    "parameters": provider_schema,
-                },
-            }
-        run_method = tool.run
-        if type(tool).run is Tool.run and type(tool).arun is not Tool.arun:
-            run_method = tool.arun
-        sig = inspect.signature(run_method)
-        try:
-            hints = typing.get_type_hints(run_method)
-        except Exception:
-            hints = {}
-
-        properties: dict = {}
-        required: list[str] = []
-
-        for pname, param in sig.parameters.items():
-            if pname in ("self", "kwargs", "args"):
-                continue
-            json_type = _py_type_to_json(hints.get(pname, str))
-            prop: dict = {"type": json_type}
-            if param.default is not inspect.Parameter.empty:
-                if param.default is not None:
-                    prop["default"] = param.default
-            else:
-                required.append(pname)
-            properties[pname] = prop
-
-        return {
-            "type": "function",
-            "function": {
-                "name": tool.name,
-                "description": tool.description or "",
-                "parameters": {
-                    "type": "object",
-                    "properties": properties,
-                    "required": required,
-                },
-            },
-        }
+        """Alias of :func:`draf.harness.tool_to_schema` (backward compat)."""
+        return tool_to_schema(tool)

@@ -340,6 +340,59 @@ steps:
       json_schema: {type: object, properties: {city: {type: string}, temp: {type: number}}, required: [city, temp]}
 ```
 
+## Agents (ReAct loop)
+
+Build a tool-calling agent loop with `flow.react()` — the LLM and tool
+executor stay visible as graph topology, so the loop is inspectable and can
+be followed by more nodes:
+
+```python
+from draf import Flow
+from draf.node import Transform
+from draf.tool import Tool
+
+class Search(Tool):
+    name = "search"
+    description = "Search a local index"
+    def run(self, query: str = "") -> str:   # type: ignore[override]
+        return f"results for {query}"
+
+flow = Flow("agent")
+flow.react(model="gpt-4", system="Answer using tools.", input_key="query", output_key="answer")
+flow.step(Transform(action="uppercase", input_key="answer", output_key="result"))
+
+graph = flow.compile()
+result = await graph.run({"query": "draf"}, tools=[Search()], max_iterations=10)
+```
+
+The agent calls the model; if it requests tools, the executor runs them
+**all in parallel** in one round (`asyncio.gather`) and loops back.  When
+the model answers without a tool call, the response lands at `output_key`
+and execution continues with whatever is chained after.  `max_iterations`
+on `graph.run()` caps the loop.
+
+`flow.harness()` is the full API (an alias, `flow.react()` is kept for
+backwards compatibility).  It accepts extra knobs:
+
+- `max_tool_rounds` — max model calls per graph visit (default 10).
+- `tool_error_mode` — `"message"` (default: a failed tool becomes a `tool`
+  message the model can react to) or `"raise"` (the failure propagates, so
+  you can route it with a low-level `Graph` `__error__` edge to a fallback).
+- `parse_text_tool_calls` — decode tool calls embedded in plain text, for
+  local models that skip the structured `tool_calls` field (default True).
+- `temperature` / `max_tokens` / `response_format` — sampling knobs.
+
+```python
+flow.harness(
+    model="llama3.1:8b",
+    input_key="query",
+    output_key="answer",
+    max_tool_rounds=5,
+    tool_error_mode="raise",
+    temperature=0.2,
+)
+```
+
 ## MCP tools
 
 Connect any [Model Context Protocol](https://modelcontextprotocol.io) server
@@ -399,6 +452,7 @@ The CLI exposes the same report: `draf -f workflow.yaml --trace`.
 | [map_repair_plans](examples/map_repair_plans/) | Dynamic fan-out (`Map`) + `{key}` prompt templates + typed `State` |
 | [human_in_loop](examples/human_in_loop/) | Approve/Edit LLM output via `Interrupt` + `loop()` + resume (Python and YAML) |
 | [react_agent](examples/react_agent/) | ReAct agent loop |
+| [harness_agent](examples/harness_agent/) | `flow.harness()` — parallel tool calls in one round + `__error__` fallback |
 | [mcp](examples/mcp/) | ReAct agent calling tools from an MCP server (stdio) |
 | [streaming](examples/streaming/) | Live LLM tokens + graph events via `graph.stream()` |
 | [structured_output](examples/structured_output/) | Schema-validated LLM JSON via `output_type`/`json_schema` |

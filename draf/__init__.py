@@ -24,6 +24,7 @@ from draf.node import (
 from draf.tool import Tool, ToolRegistry, default_tool_registry, tool
 from draf.graph import Graph, Edge
 from draf.flow import Flow, Case, SubFlow
+from draf.harness import Harness
 from draf.schema import json_schema_from_type, validate_json
 from draf.rag import VectorStore, Embedder, Chunker, RAGTool
 from draf.rag.stores import (

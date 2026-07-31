@@ -352,7 +352,7 @@ class Flow:
         self._last_added = done_last
         return self
 
-    def react(
+    def harness(
         self,
         model: str,
         system: str = "",
@@ -360,16 +360,26 @@ class Flow:
         input_key: str = "input",
         output_key: str = "output",
         messages_key: str = "messages",
+        max_tool_rounds: int = 10,
+        tool_error_mode: str = "message",
+        parse_text_tool_calls: bool = True,
+        temperature: float | None = None,
+        max_tokens: int | None = None,
+        response_format: dict | None = None,
         **config,
     ) -> "Flow":
-        """Build a ReAct agent loop (LLM ↔ tool) inside this flow.
+        """Build a ReAct-style agent loop (LLM ↔ tools) inside this flow.
 
-        Creates two nodes: an LLM agent and a tool executor, wired in a
-        cycle.  The agent calls the LLM; if the LLM requests a tool, the
-        signal ``_tool_call_name`` is set and execution passes to the
-        tool executor, which runs the tool and loops back to the agent.
-        When the LLM responds without a tool call, the output is stored
-        at *output_key* and the graph terminates.
+        Creates an agent node and a tool executor wired in a cycle.  The
+        agent calls the LLM; if the LLM requests tools, they are signalled
+        to the executor, which runs them **all in parallel** and loops back
+        to the agent.  When the LLM answers without a tool call, the output
+        is stored at *output_key* and execution continues after the loop
+        (any node chained with ``step()``/``branch()`` after this call).
+
+        Multiple tools can be requested in a single round (e.g. read from
+        RAG *and* compute at once); the executor fans them out with
+        ``asyncio.gather``.
 
         Args:
             model: LLM model name (e.g. ``gpt-4``).
@@ -377,8 +387,13 @@ class Flow:
             input_key: State key for user input (default ``"input"``).
             output_key: State key for final response (default ``"output"``).
             messages_key: State key for conversation (default ``"messages"``).
-            **config: Extra kwargs passed to :class:`ReActAgent` config
-                (temperature, max_tokens, response_format, provider, etc.).
+            max_tool_rounds: Max model calls per graph visit.
+            tool_error_mode: ``"message"`` (default) or ``"raise"`` — when
+                ``"raise"`` a tool failure routes to the graph's error path.
+            parse_text_tool_calls: Decode tool calls embedded in plain text.
+            temperature / max_tokens / response_format: Sampling knobs.
+            **config: Extra kwargs passed to :class:`ReActAgent` /
+                :class:`ToolExec` config.
 
         Remember to pass ``max_iterations`` to ``graph.run()``::
 
@@ -392,15 +407,22 @@ class Flow:
             "input_key": input_key,
             "output_key": output_key,
             "messages_key": messages_key,
+            "max_tool_rounds": max_tool_rounds,
+            "parse_text_tool_calls": parse_text_tool_calls,
+            "temperature": temperature,
+            "max_tokens": max_tokens,
+            "response_format": response_format,
             **config,
         }
         agent = ReActAgent(**agent_cfg)
+        tool_exec = ToolExec(
+            messages_key=messages_key, tool_error_mode=tool_error_mode, **config
+        )
 
         self._nodes.append(agent)
         agent_id = self._next_id(agent)
         self._node_ids.append(agent_id)
 
-        tool_exec = ToolExec(messages_key=messages_key)
         self._nodes.append(tool_exec)
         tool_id = self._next_id(tool_exec)
         self._node_ids.append(tool_id)
@@ -412,7 +434,29 @@ class Flow:
             self._edges.append(Edge(self._last_added, agent_id))
 
         self._last_added = agent_id
+        self._branch_point = None
+        self._branch_ends = []
         return self
+
+    def react(
+        self,
+        model: str,
+        system: str = "",
+        *,
+        input_key: str = "input",
+        output_key: str = "output",
+        messages_key: str = "messages",
+        **config,
+    ) -> "Flow":
+        """Alias for :meth:`harness` (ReAct agent loop)."""
+        return self.harness(
+            model,
+            system,
+            input_key=input_key,
+            output_key=output_key,
+            messages_key=messages_key,
+            **config,
+        )
 
     def compile(self) -> Graph:
         """Compile the flow into a ``Graph`` ready for execution.
