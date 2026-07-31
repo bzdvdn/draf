@@ -10,6 +10,7 @@ import typing
 import httpx
 
 from draf.node.node import Node
+from draf.prompt import render_template
 from draf.tool.tool import Tool, coerce_args
 
 _PROVIDER_DEFAULTS = {
@@ -154,7 +155,11 @@ class LLM(Node):
 
     Parameters:
         model: Model name (e.g. ``gpt-4``, ``llama3.1:8b``).
-        system: System prompt.
+        system: System prompt.  Supports ``{key}`` placeholders rendered
+            from state (see :func:`draf.prompt.render_template`).
+        prompt: User prompt template.  Supports ``{key}`` placeholders
+            rendered from state, e.g. ``"составь план для ремонта {type} "
+            "на сумму {summ}"``.  Overrides *input_key* when set.
         input_key: State key for user message (default: whole state).
         output_key: State key for the response (default ``"output"``).
         provider: Provider name (``"openai"``, ``"ollama"``, etc.).
@@ -190,6 +195,7 @@ class LLM(Node):
         *,
         model: str = "gpt-4",
         system: str = "",
+        prompt: str | None = None,
         input_key: str | None = None,
         output_key: str = "output",
         provider: str | None = None,
@@ -212,6 +218,7 @@ class LLM(Node):
         merged = {
             "model": model,
             "system": system,
+            "prompt": prompt,
             "input_key": input_key,
             "output_key": output_key,
             "provider": provider,
@@ -266,12 +273,20 @@ class LLM(Node):
         if has_messages_key:
             messages = list(state[cfg["messages_key"]])
         else:
+            prompt = cfg.get("prompt")
             input_key = cfg.get("input_key")
-            user_message = str(state.get(input_key, "")) if input_key else str(state)
+            if prompt:
+                user_message = render_template(prompt, state)
+            elif input_key:
+                user_message = str(state.get(input_key, ""))
+            else:
+                user_message = str(state)
             messages = []
             system = cfg.get("system", "")
             if system:
-                messages.append({"role": "system", "content": system})
+                messages.append(
+                    {"role": "system", "content": render_template(system, state)}
+                )
             if user_message:
                 messages.append({"role": "user", "content": user_message})
 

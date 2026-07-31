@@ -157,6 +157,53 @@ For a full end-to-end demo with LLM calls, see
 an LLM merges the summaries into a report file, and a final LLM reviews it
 (`VERDICT: pass/fail`). Requires local Ollama.
 
+## Prompt templates
+
+LLM nodes read *multiple* state keys into one prompt with `{key}` templates
+(also supported in `system`)::
+
+```python
+node = LLM(
+    model="llama3.1:8b",
+    system="Ты инженер по ремонту.",
+    prompt="Составь план для ремонта {type} на сумму {summ} рублей.",
+    output_key="plan",
+)
+# state {"type": "кухни", "summ": 150000} -> user message:
+# "Составь план для ремонта кухни на сумму 150000 рублей."
+```
+
+Values are stringified; a placeholder referencing a missing state key raises
+`KeyError`. The underlying helper is `draf.prompt.render_template`.
+
+## Dynamic fan-out (Map)
+
+`Flow.map()` fans a state *list* out into parallel branches at runtime —
+branch count is derived from the data, not declared up front. The processor
+reads the same keys the Map fans out, so no glue node is needed::
+
+```python
+flow = Flow("repair-plans").map(
+    LLM(
+        model="llama3.1:8b",
+        prompt="Составь план для ремонта {type} на сумму {summ} рублей.",
+        output_key="plan",
+    ),
+    input_keys=["type", "summ"],   # lists zipped per index
+    output_key="plans",            # list of per-item results
+    max_concurrency=2,
+)
+result = await flow.compile().run(state={
+    "type": ["кухни", "санузел"], "summ": [150000, 80000],
+})
+# -> {"plans": ["план для кухни...", "план для санузла..."]}
+```
+
+`chunk_size` batches items per branch, `max_concurrency` caps simultaneous
+branches, and `result_key` overrides which per-item key to collect. Full demo:
+`examples/map_repair_plans/` (Python with typed `State`, plus the same
+workflow as YAML for `draf -f workflow.yaml`).
+
 ## Observability (telemetry)
 
 Pass a `RunTracer` to `graph.run()` to collect a JSON-serialisable event log:
@@ -182,6 +229,7 @@ The CLI exposes the same report: `draf -f workflow.yaml --trace`.
 | [basic_pipeline](examples/basic_pipeline/) | Minimal YAML pipeline, no API keys |
 | [branching](examples/branching/) | Conditional edges + Flow API |
 | [parallel](examples/parallel/) | Concurrent branches + typed `State` reducers |
+| [map_repair_plans](examples/map_repair_plans/) | Dynamic fan-out (`Map`) + `{key}` prompt templates + typed `State` |
 | [react_agent](examples/react_agent/) | ReAct agent loop |
 | [rag_search](examples/rag_search/) | RAG over a local CSV, in-memory store |
 | [rag_stores](examples/rag_stores/) | Same RAG agent on every vector store |

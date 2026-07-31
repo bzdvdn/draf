@@ -57,6 +57,61 @@ class TestLLMNode:
         assert result["greeting"] == "hi there"
 
     @pytest.mark.asyncio
+    async def test_prompt_template_renders_state_keys(self, monkeypatch):
+        from draf.node import LLM
+        from draf.node import ExecContext
+
+        monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
+
+        captured = {}
+
+        async def mock_post(*a, **kw):
+            captured["body"] = kw.get("json")
+
+            class MockResponse:
+                def raise_for_status(self):
+                    pass
+
+                def json(self):
+                    return {"choices": [{"message": {"content": "plan"}}]}
+
+            return MockResponse()
+
+        import httpx
+
+        monkeypatch.setattr(httpx.AsyncClient, "post", mock_post)
+
+        node = LLM(
+            {
+                "model": "gpt-4",
+                "system": "Вы инженер",
+                "prompt": "составь план для ремонта {type} на сумму {summ}",
+                "output_key": "plan",
+            }
+        )
+        ctx = ExecContext(state={}, tools={})
+        result = await node.execute(ctx, {"type": "кухни", "summ": 15000})
+        assert result["plan"] == "plan"
+
+        messages = captured["body"]["messages"]
+        assert messages[0]["role"] == "system"
+        assert messages[0]["content"] == "Вы инженер"
+        assert messages[1]["role"] == "user"
+        assert messages[1]["content"] == "составь план для ремонта кухни на сумму 15000"
+
+    @pytest.mark.asyncio
+    async def test_prompt_template_missing_key_raises(self, monkeypatch):
+        from draf.node import LLM
+        from draf.node import ExecContext
+
+        monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
+
+        node = LLM({"model": "gpt-4", "prompt": "ремонт {type} на {summ}"})
+        ctx = ExecContext(state={}, tools={})
+        with pytest.raises(KeyError, match="unknown state key"):
+            await node.execute(ctx, {"type": "кухни"})
+
+    @pytest.mark.asyncio
     async def test_structured_output_json_mode(self, monkeypatch):
         from draf.node import LLM
         from draf.node import ExecContext

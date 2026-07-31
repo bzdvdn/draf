@@ -5,6 +5,7 @@ from draf.graph import Graph, Edge
 from draf.flow.case import Case
 from draf.flow.sub_flow import SubFlow
 from draf.node.parallel import Parallel
+from draf.node.map import Map
 
 
 class Flow:
@@ -108,6 +109,45 @@ class Flow:
         if isinstance(branch, Flow):
             return [SubFlow(graph=branch.compile())]
         return list(branch)
+
+    def map(
+        self,
+        processor: Node | list[Node],
+        *,
+        input_keys: str | list[str] = "",
+        output_key: str = "",
+        chunk_size: int | None = None,
+        max_concurrency: int | None = None,
+        **kwargs,
+    ) -> "Flow":
+        """Dynamically fan a state list out across parallel branches.
+
+        Runs *processor* concurrently over each item of the list(s) at
+        *input_keys*, gathering the per-item results into a list at
+        *output_key*.  Branch count is derived from the data at runtime
+        (see :class:`~draf.node.map.Map`)::
+
+            flow.map(
+                LLM(model="llama3.1:8b", input_key="chunk", output_key="summary"),
+                input_keys=["chunks"],
+                output_key="summaries",
+            )
+        """
+        node = Map(
+            processor,
+            input_keys=input_keys,
+            output_key=output_key,
+            chunk_size=chunk_size,
+            max_concurrency=max_concurrency,
+            **kwargs,
+        )
+        self._nodes.append(node)
+        nid = self._next_id(node)
+        self._node_ids.append(nid)
+        if self._last_added is not None:
+            self._edges.append(Edge(source_id=self._last_added, target_id=nid))
+        self._last_added = nid
+        return self
 
     def branch(self, key: str, *cases: "Case", default: Node | None = None) -> "Flow":
         """Add conditional branching from the last added node.
