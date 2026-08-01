@@ -139,6 +139,148 @@ class TestStep:
         assert r["out"] == "HI"
 
 
+class TestFlowLLM:
+    def test_llm_accepts_config(self):
+        from draf.flow import Flow
+        from draf.node import LLM
+
+        flow = Flow("t").llm(model="gpt-4", system="s", output_key="answer")
+        g = flow.compile()
+        assert g.entry_point == "llm_chat_1"
+        node = g.nodes["llm_chat_1"]
+        assert isinstance(node, LLM)
+        assert node.config["model"] == "gpt-4"
+        assert node.config["output_key"] == "answer"
+
+    def test_llm_accepts_instance(self):
+        from draf.flow import Flow
+        from draf.node import LLM
+
+        node = LLM(model="gpt-4", output_key="answer")
+        flow = Flow("t").llm(node)
+        g = flow.compile()
+        assert g.nodes["llm_chat_1"] is node
+
+    def test_llm_rejects_non_llm(self):
+        from draf.flow import Flow
+
+        with pytest.raises(TypeError, match="LLM instance"):
+            Flow("t").llm("gpt-4")  # type: ignore[arg-type]
+
+    def test_llm_rejects_instance_plus_config(self):
+        from draf.flow import Flow
+        from draf.node import LLM
+
+        with pytest.raises(TypeError, match="not both"):
+            Flow("t").llm(LLM(model="gpt-4"), output_key="x")
+
+
+class TestFlowTransform:
+    def test_transform_accepts_config(self):
+        from draf.flow import Flow
+        from draf.node import Transform
+
+        flow = Flow("t").transform(action="uppercase", input_key="t", output_key="out")
+        g = flow.compile()
+        assert g.entry_point == "transform_1"
+        assert isinstance(g.nodes["transform_1"], Transform)
+
+    def test_transform_accepts_instance(self):
+        from draf.flow import Flow
+        from draf.node import Transform
+
+        node = Transform(action="uppercase", input_key="t", output_key="out")
+        flow = Flow("t").transform(node)
+        g = flow.compile()
+        assert g.nodes["transform_1"] is node
+
+    def test_transform_rejects_non_transform(self):
+        from draf.flow import Flow
+
+        with pytest.raises(TypeError, match="Transform instance"):
+            Flow("t").transform("uppercase")  # type: ignore[arg-type]
+
+    def test_transform_rejects_instance_plus_config(self):
+        from draf.flow import Flow
+        from draf.node import Transform
+
+        with pytest.raises(TypeError, match="not both"):
+            Flow("t").transform(Transform(action="uppercase"), action="lowercase")
+
+    def test_transform_runs(self):
+        from draf.flow import Flow
+        import asyncio
+
+        flow = (
+            Flow("t")
+            .transform(action="trim", input_key="text", output_key="t")
+            .transform(action="uppercase", input_key="t", output_key="out")
+        )
+        g = flow.compile()
+        r = asyncio.run(g.run(state={"text": "  hi  "}))
+        assert r["out"] == "HI"
+
+
+class TestReActAgentOverride:
+    def test_react_accepts_agent_instance(self):
+        from draf.flow import Flow
+        from draf.node.agent import ReActAgent
+
+        agent = ReActAgent(model="gpt-4", system="custom")
+        flow = Flow("t").react(agent=agent)
+        g = flow.compile()
+        assert g.nodes[g.entry_point] is agent
+
+    def test_react_accepts_agent_subclass(self):
+        from draf.flow import Flow
+        from draf.node.agent import ReActAgent
+
+        class MyAgent(ReActAgent):
+            pass
+
+        flow = Flow("t").react(model="gpt-4", agent=MyAgent)
+        g = flow.compile()
+        node = g.nodes[g.entry_point]
+        assert isinstance(node, MyAgent)
+        assert node.config["model"] == "gpt-4"
+        assert node.config["system"] == ""
+
+    def test_react_agent_instance_ignores_model(self):
+        from draf.flow import Flow
+        from draf.node.agent import ReActAgent
+
+        agent = ReActAgent(model="llama3.1:8b")
+        flow = Flow("t").react(agent=agent, model="gpt-4")  # type: ignore[arg-type]
+        g = flow.compile()
+        assert g.nodes[g.entry_point] is agent
+        assert agent.config["model"] == "llama3.1:8b"
+
+    def test_react_requires_model_without_agent(self):
+        from draf.flow import Flow
+
+        with pytest.raises(TypeError, match="requires a model"):
+            Flow("t").react()
+
+    def test_react_rejects_wrong_agent_type(self):
+        from draf.flow import Flow
+        from draf.node import LLM
+
+        with pytest.raises(TypeError, match="ReActAgent"):
+            Flow("t").react(agent=LLM(model="gpt-4"))
+        with pytest.raises(TypeError, match="ReActAgent"):
+            Flow("t").react(agent=dict)  # type: ignore[arg-type]
+
+    def test_react_agent_keeps_tool_exec_cycle(self):
+        from draf.flow import Flow
+        from draf.node.agent import ReActAgent
+
+        flow = Flow("t").react(model="gpt-4", agent=ReActAgent(model="gpt-4"))
+        g = flow.compile()
+        edges = {(e.source_id, e.target_id, e.condition) for e in g.edges}
+        assert g.nodes[g.entry_point].type == "react_agent"
+        assert ("tool_exec_2", "react_agent_1", None) in edges
+
+
 class TestSubFlow:
     def test_subflow_basic(self):
         from draf.flow import Flow

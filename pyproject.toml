@@ -56,8 +56,13 @@ tools = [
 mcp = [
     "mcp>=1.0",
 ]
+fastapi = [
+    "fastapi>=0.115",
+    "uvicorn>=0.30",
+    "sse-starlette>=2.0",
+]
 all = [
-    "draf[embedding,tools,mcp,rag-pdf,rag-excel,pg-checkpoint]",
+    "draf[embedding,tools,mcp,rag-pdf,rag-excel,pg-checkpoint,fastapi]",
 ]
 
 [tool.pytest.ini_options]

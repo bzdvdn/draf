@@ -1,6 +1,9 @@
 """Fluid flow builder for constructing graphs."""
 
 from draf.node.node import Node
+from draf.node.llm import LLM
+from draf.node.transform import Transform
+from draf.node.agent import ReActAgent
 from draf.graph import Graph, Edge
 from draf.flow.case import Case
 from draf.flow.sub_flow import SubFlow
@@ -58,6 +61,54 @@ class Flow:
             self._edges.append(Edge(source_id=self._last_added, target_id=nid))
         self._last_added = nid
         return self
+
+    def llm(self, node: LLM | None = None, **config) -> "Flow":
+        """Add an :class:`~draf.node.llm.LLM` chat node.
+
+        Pass a pre-built ``LLM`` instance to reuse a shared node, or give
+        keyword config that is forwarded to the ``LLM`` constructor::
+
+            flow.llm(model="gpt-4", system="You are helpful", output_key="answer")
+            flow.llm(LLM(model="gpt-4", parse=True, output_key="data"))
+
+        Passing both an instance and config kwargs raises ``TypeError``.
+
+        Returns ``self`` for chaining.
+        """
+        if node is None:
+            node = LLM(**config)
+        else:
+            if config:
+                raise TypeError(
+                    "llm() accepts either an LLM instance or config kwargs, not both"
+                )
+            if not isinstance(node, LLM):
+                raise TypeError("llm() expects an LLM instance")
+        return self.step(node)
+
+    def transform(self, node: Transform | None = None, **config) -> "Flow":
+        """Add a :class:`~draf.node.transform.Transform` node.
+
+        Pass a pre-built ``Transform`` instance or keyword config that is
+        forwarded to the ``Transform`` constructor::
+
+            flow.transform(action="uppercase", input_key="text", output_key="shout")
+            flow.transform(Transform(action="value", value="done", output_key="status"))
+
+        Passing both an instance and config kwargs raises ``TypeError``.
+
+        Returns ``self`` for chaining.
+        """
+        if node is None:
+            node = Transform(**config)
+        else:
+            if config:
+                raise TypeError(
+                    "transform() accepts either a Transform instance or config kwargs, not both"
+                )
+            if not isinstance(node, Transform):
+                raise TypeError("transform() expects a Transform instance")
+        return self.step(node)
 
     def add_flow(self, flow: "Flow", **kw) -> "Flow":
         """Embed a sub-flow as a single node (SubFlow).
@@ -354,9 +405,10 @@ class Flow:
 
     def harness(
         self,
-        model: str,
+        model: str | None = None,
         system: str = "",
         *,
+        agent: ReActAgent | type[ReActAgent] | None = None,
         input_key: str = "input",
         output_key: str = "output",
         messages_key: str = "messages",
@@ -384,9 +436,23 @@ class Flow:
         RAG *and* compute at once); the executor fans them out with
         ``asyncio.gather``.
 
+        The agent node is a :class:`~draf.node.agent.ReActAgent`.  Pass a
+        pre-built instance or a subclass to override its behaviour::
+
+            flow.react(agent=MyAgent(model="gpt-4", system="..."))
+            flow.react(agent=MyAgentClass, model="gpt-4", system="...")
+
+        With an instance, *model*/*system* and the other agent knobs are
+        ignored (the instance is used as-is); with a subclass they are
+        forwarded to its constructor.  When *agent* is omitted the
+        ``ReActAgent`` class is used and *model* is required.
+
         Args:
-            model: LLM model name (e.g. ``gpt-4``).
+            model: LLM model name (e.g. ``gpt-4``).  Required unless
+                *agent* is given.
             system: Optional system prompt.
+            agent: A ``ReActAgent`` instance or subclass to use instead of
+                building the default one.
             input_key: State key for user input (default ``"input"``).
             output_key: State key for final response (default ``"output"``).
             messages_key: State key for conversation (default ``"messages"``).
@@ -411,7 +477,7 @@ class Flow:
 
             result = await graph.run(state, tools=tools, max_iterations=20)
         """
-        from draf.node.agent import ReActAgent, ToolExec
+        from draf.node.agent import ToolExec
 
         agent_cfg = {
             "model": model,
@@ -429,7 +495,24 @@ class Flow:
             "skill_dir": skill_dir,
             **config,
         }
-        agent = ReActAgent(**agent_cfg)
+        if agent is None:
+            if model is None:
+                raise TypeError(
+                    "harness() requires a model when no agent instance is given"
+                )
+            agent_node: ReActAgent = ReActAgent(**agent_cfg)
+        elif isinstance(agent, type):
+            if not issubclass(agent, ReActAgent):
+                raise TypeError(
+                    "harness() agent must be a ReActAgent instance or subclass"
+                )
+            agent_node = agent(**agent_cfg)
+        else:
+            if not isinstance(agent, ReActAgent):
+                raise TypeError(
+                    "harness() agent must be a ReActAgent instance or subclass"
+                )
+            agent_node = agent
         tool_exec = ToolExec(
             messages_key=messages_key,
             tool_error_mode=tool_error_mode,
@@ -439,8 +522,8 @@ class Flow:
             **config,
         )
 
-        self._nodes.append(agent)
-        agent_id = self._next_id(agent)
+        self._nodes.append(agent_node)
+        agent_id = self._next_id(agent_node)
         self._node_ids.append(agent_id)
 
         self._nodes.append(tool_exec)
@@ -460,9 +543,10 @@ class Flow:
 
     def react(
         self,
-        model: str,
+        model: str | None = None,
         system: str = "",
         *,
+        agent: ReActAgent | type[ReActAgent] | None = None,
         input_key: str = "input",
         output_key: str = "output",
         messages_key: str = "messages",
@@ -472,6 +556,7 @@ class Flow:
         return self.harness(
             model,
             system,
+            agent=agent,
             input_key=input_key,
             output_key=output_key,
             messages_key=messages_key,
