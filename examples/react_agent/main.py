@@ -35,6 +35,9 @@ async def main():
         "Use the calculator tool when you need to compute something.",
         input_key="query",
         output_key="answer",
+        # Stream the final text token-by-token (tool calls still run normally).
+        stream=True,
+        on_token=lambda token: print(token, end="", flush=True),
     )
 
     graph = flow.compile()
@@ -44,6 +47,7 @@ async def main():
         tools=[Calculator()],
         max_iterations=10,
     )
+    print("\n---")
     print("Answer:", result["answer"])
     print("Messages:", len(result["messages"]))
 

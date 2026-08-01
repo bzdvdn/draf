@@ -9,16 +9,28 @@ loop stays visible as topology).  Tools are ordinary
 :class:`~draf.tool.Tool` instances keyed by name, so MCP tools and
 built-in tools work unchanged.
 
-Behaviour can be parameterised through the constructor / ``from_config``:
+    Behaviour can be parameterised through the constructor / ``from_config``:
 
-- ``max_rounds`` — stop the ``run()`` loop after this many model calls.
-- ``stop_when(messages)`` — extra termination predicate.
-- ``parse_text_tool_calls`` — decode tool calls embedded in plain text
-  (local models often skip the structured ``tool_calls`` field).
-- ``tool_error_mode`` — ``"message"`` (default, errors become tool
-  messages) or ``"raise"`` (a tool failure propagates, e.g. into an
-  ``__error__`` edge).
-- ``on_step`` / ``on_llm`` / ``on_token`` — observability hooks.
+    - ``max_rounds`` — stop the ``run()`` loop after this many model calls.
+    - ``stop_when(messages)`` — extra termination predicate.
+    - ``parse_text_tool_calls`` — decode tool calls embedded in plain text
+      (local models often skip the structured ``tool_calls`` field).
+    - ``tool_error_mode`` — ``"message"`` (default, errors become tool
+      messages) or ``"raise"`` (a tool failure propagates, e.g. into an
+      ``__error__`` edge).
+    - ``tool_timeout`` — per-tool execution timeout in seconds.
+    - ``tool_retries`` — extra attempts per tool call after a failure.
+    - ``max_retries`` — retry failed HTTP requests (429/5xx/timeouts).
+    - ``retry_on`` — status codes / error types worth retrying.
+    - ``fallbacks`` — list of fallback model names used when the primary
+      transport fails (provider failover).
+    - ``max_total_tokens`` — stop the loop once total prompt+completion
+      tokens exceed this budget.
+    - ``max_context_tokens`` / ``max_context_messages`` — trim the
+      conversation history before each model call to fit these limits.
+    - ``on_tool_call`` — async hook ``(name, args) -> Awaitable[None]``
+      invoked before each tool executes (approval/auditing).
+    - ``on_step`` / ``on_llm`` / ``on_token`` — observability hooks.
 """
 
 from __future__ import annotations
@@ -35,7 +47,7 @@ from dataclasses import dataclass, field
 
 import httpx
 
-from draf.schema import extract_json_object
+from draf.schema import extract_json_object, _py_to_schema
 from draf.tool.tool import Tool, coerce_args
 
 PROVIDER_DEFAULTS = {
@@ -92,8 +104,43 @@ def _ms(start: float) -> float:
     return (time.monotonic() - start) * 1000.0
 
 
+def _opt_float(value: typing.Any) -> float | None:
+    """Parse *value* as ``float`` or return ``None`` when empty."""
+    if value is None:
+        return None
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _opt_int(value: typing.Any) -> int | None:
+    """Parse *value* as ``int`` or return ``None`` when empty."""
+    if value is None:
+        return None
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
+
+
 def _py_type_to_json(tp: type) -> str:
     return _JSON_TYPE_MAP.get(tp, "string")
+
+
+def _py_type_to_schema(tp: typing.Any) -> dict:
+    """Convert a Python type hint to a (possibly nested) JSON Schema.
+
+    Falls back to a flat ``{"type": ...}`` mapping for types the
+    schema builder does not understand.
+    """
+    try:
+        schema = _py_to_schema(tp)
+    except Exception:
+        schema = {}
+    if isinstance(schema, dict) and schema:
+        return schema
+    return {"type": _py_type_to_json(tp)}
 
 
 def tool_to_schema(tool: Tool) -> dict:
@@ -101,6 +148,8 @@ def tool_to_schema(tool: Tool) -> dict:
 
     Uses the tool's ``schema`` attribute when set (e.g. by MCP tools);
     otherwise infers ``parameters`` from the ``run``/``arun`` signature.
+    Nested type hints (``list[dict]``, ``dict[str, str]``, dataclasses,
+    ``TypedDict``) expand to nested JSON Schemas.
     """
     provider_schema = tool.schema
     if isinstance(provider_schema, dict):
@@ -126,8 +175,7 @@ def tool_to_schema(tool: Tool) -> dict:
     for pname, param in sig.parameters.items():
         if pname in ("self", "kwargs", "args"):
             continue
-        json_type = _py_type_to_json(hints.get(pname, str))
-        prop: dict = {"type": json_type}
+        prop: dict = _py_type_to_schema(hints.get(pname, str))
         if param.default is not inspect.Parameter.empty:
             if param.default is not None:
                 prop["default"] = param.default
@@ -265,40 +313,188 @@ def _tool_call_parts(tc: dict) -> tuple[str, str, str]:
     return tc.get("name", ""), raw, tc.get("id", "")
 
 
+# ---------------------------------------------------------------------------
+# Context management
+# ---------------------------------------------------------------------------
+
+
+def _content_tokens(content: typing.Any) -> int:
+    """Rough token estimate for a message payload (~4 chars per token)."""
+    if isinstance(content, str):
+        return max(1, len(content) // 4)
+    try:
+        return max(1, len(json.dumps(content)) // 4)
+    except TypeError:
+        return 1
+
+
+def _estimate_tokens(messages: list[dict]) -> int:
+    """Estimate total tokens for a message list."""
+    total = 0
+    for msg in messages:
+        content = msg.get("content", "")
+        total += _content_tokens(content)
+        if isinstance(msg.get("content"), list):
+            for block in msg["content"]:
+                total += _content_tokens(block.get("text", ""))
+    return total
+
+
+def trim_messages(
+    messages: list[dict],
+    max_tokens: int | None = None,
+    max_messages: int | None = None,
+) -> list[dict]:
+    """Trim *messages* down to fit context limits.
+
+    The leading ``system`` message (if any) is always preserved; older
+    messages are dropped from the front of the conversation until the
+    estimated token count and message count fit the limits.
+
+    Args:
+        messages: The conversation history.
+        max_tokens: Maximum estimated tokens to keep.
+        max_messages: Maximum number of messages to keep.
+
+    Returns:
+        A new list of messages, trimmed from the front (system kept).
+    """
+    if not messages:
+        return []
+    if max_messages is not None and max_messages <= 0:
+        return messages
+    if max_tokens is not None and max_tokens <= 0:
+        return messages
+
+    system: list[dict] = []
+    body: list[dict] = []
+    for msg in messages:
+        if msg.get("role") == "system":
+            system.append(msg)
+        else:
+            body.append(msg)
+
+    if max_messages is not None and len(body) > max_messages:
+        body = body[-max_messages:]
+    if max_tokens is not None and _estimate_tokens(messages) > max_tokens:
+        while body and _estimate_tokens(system + body) > max_tokens:
+            body.pop(0)
+    return system + body
+
+
+class ContextLimitError(RuntimeError):
+    """Raised when a conversation cannot fit the configured context limits."""
+
+
+async def resolve_approval(approver: typing.Any, name: str, args: dict) -> str:
+    """Resolve a tool-approval decision for one tool call.
+
+    *approver* may be:
+
+    - ``"auto"`` (or ``None``) → ``"approve"``
+    - ``"deny"`` → ``"deny"`` (no call ever runs)
+    - ``"interactive"`` → prompt the operator on stdin
+    - a callable ``(name, args) -> str | bool`` (sync or async)
+      returning ``"approve"``/``"deny"``/``"pause"`` (or ``True``/``False``).
+
+    Returns one of ``"approve"``, ``"deny"``, ``"pause"``.
+    """
+    if approver is None or approver == "auto":
+        return "approve"
+    if approver == "deny":
+        return "deny"
+    if approver == "interactive":
+        import sys
+
+        sys.stderr.write(
+            f"\n[draf] approve tool call '{name}' with args {json.dumps(args)}? [y/N] "
+        )
+        sys.stderr.flush()
+        answer = input().strip().lower()
+        return "approve" if answer in ("y", "yes") else "deny"
+    if callable(approver):
+        result = approver(name, args)
+        if inspect.isawaitable(result):
+            result = await result
+        if isinstance(result, bool):
+            return "approve" if result else "deny"
+        return str(result).lower()
+    return "approve"
+
+
 async def _run_one_tool_call(
-    tc: dict, tools: Mapping[str, Tool], tool_error_mode: str
+    tc: dict,
+    tools: Mapping[str, Tool],
+    tool_error_mode: str,
+    timeout: float | None = None,
+    tool_retries: int = 0,
+    approver: typing.Any = None,
 ) -> str:
     name, raw_args, _call_id = _tool_call_parts(tc)
     try:
         args = json.loads(raw_args) if raw_args else {}
     except json.JSONDecodeError:
         return f"Error: invalid JSON arguments for tool '{name}'"
+    if approver is not None and approver != "auto":
+        decision = await resolve_approval(approver, name, args)
+        if decision != "approve":
+            return f"Tool call '{name}' was not approved ({decision})"
     tool = tools.get(name) if tools else None
     if tool is None:
         return f"Error: unknown tool '{name}'"
-    try:
-        result = await tool.arun(**coerce_args(tool, args))
-    except Exception as exc:
-        if tool_error_mode == "raise":
-            raise
-        return f"Error calling '{name}': {exc}"
-    return str(result) if result is not None else ""
+
+    attempts = tool_retries + 1
+    for attempt in range(attempts):
+        try:
+            coro = tool.arun(**coerce_args(tool, args))
+            if timeout and timeout > 0:
+                coro = asyncio.wait_for(coro, timeout=timeout)
+            result = await coro
+            return str(result) if result is not None else ""
+        except asyncio.TimeoutError:
+            return f"Error calling '{name}': timed out after {timeout}s"
+        except Exception as exc:
+            if tool_error_mode == "raise" or attempt == attempts - 1:
+                if tool_error_mode == "raise":
+                    raise
+                return f"Error calling '{name}': {exc}"
+    return f"Error calling '{name}': failed"
 
 
 async def execute_tool_calls(
     tool_calls: list[dict],
     tools: Mapping[str, Tool],
     tool_error_mode: str = "message",
+    timeout: float | None = None,
+    tool_retries: int = 0,
+    approver: typing.Any = None,
 ) -> list[str]:
     """Execute *tool_calls* against *tools* in parallel.
 
     Each call resolves to a result string (errors become ``"Error ..."``
-    messages unless *tool_error_mode* is ``"raise"``).
+    messages unless *tool_error_mode* is ``"raise"``).  Each call is
+    retried up to *tool_retries* times on failure and bounded by *timeout*
+    seconds when set.  An optional *approver* gates each call before it
+    runs (see :func:`resolve_approval`); non-``"approve"`` decisions
+    short-circuit the call with a "not approved" message.
+
+    Args:
+        tool_calls: List of tool-call dicts.
+        tools: Tool registry (name -> ``Tool``).
+        tool_error_mode: ``"message"`` or ``"raise"``.
+        timeout: Per-tool timeout in seconds (``None`` = no limit).
+        tool_retries: Extra attempts per tool call after a failure.
+        approver: Approval policy (string or callable).
     """
     if not tool_calls:
         return []
     return await asyncio.gather(
-        *(_run_one_tool_call(tc, tools, tool_error_mode) for tc in tool_calls)
+        *(
+            _run_one_tool_call(
+                tc, tools, tool_error_mode, timeout, tool_retries, approver
+            )
+            for tc in tool_calls
+        )
     )
 
 
@@ -365,10 +561,20 @@ class Harness:
         max_rounds: int = 10,
         parse_text_tool_calls: bool = True,
         tool_error_mode: str = "message",
+        tool_timeout: float | None = None,
+        tool_retries: int = 0,
+        max_retries: int = 2,
+        retry_on: tuple[int, ...] = (429, 500, 502, 503, 504),
+        fallbacks: list[str] | None = None,
+        tool_approval: typing.Any = None,
+        max_total_tokens: int | None = None,
+        max_context_tokens: int | None = None,
+        max_context_messages: int | None = None,
         stop_when: Callable[[list[dict]], bool] | None = None,
         on_step: Callable[[Step], Awaitable[None]] | None = None,
         on_llm: Callable[[str, str, int, int, float], Awaitable[None]] | None = None,
         on_token: Callable[[str], Awaitable[None]] | None = None,
+        on_tool_call: Callable[[str, dict], Awaitable[None]] | None = None,
         temperature: float | None = None,
         max_tokens: int | None = None,
         response_format: dict | None = None,
@@ -380,10 +586,20 @@ class Harness:
         self.max_rounds = max_rounds
         self.parse_text_tool_calls = parse_text_tool_calls
         self.tool_error_mode = tool_error_mode
+        self.tool_timeout = tool_timeout
+        self.tool_retries = tool_retries
+        self.max_retries = max_retries
+        self.retry_on = tuple(retry_on or ())
+        self.fallbacks = list(fallbacks or [])
+        self._tool_approval = tool_approval
+        self.max_total_tokens = max_total_tokens
+        self.max_context_tokens = max_context_tokens
+        self.max_context_messages = max_context_messages
         self.stop_when = stop_when
         self.on_step = on_step
         self.on_llm = on_llm
         self.on_token = on_token
+        self.on_tool_call = on_tool_call
         self.stream = stream
 
         self.provider_key = resolve_provider(model, provider, default_provider)
@@ -418,6 +634,37 @@ class Harness:
         if response_format is not None:
             self._body_extra["response_format"] = response_format
 
+        # Provider failover: build fallback transports lazily.  Each
+        # fallback is described by (model, url, headers) and tried in
+        # order when the primary request fails after all retries.
+        self._fallback_transports: list[tuple[str, str, dict]] = []
+        for fb_model in self.fallbacks:
+            fb_provider = resolve_provider(fb_model, default_provider=default_provider)
+            fb_defaults = PROVIDER_DEFAULTS.get(
+                fb_provider, PROVIDER_DEFAULTS["openai"]
+            )
+            fb_url = base_url or os.environ.get(
+                f"{fb_provider.upper()}_BASE_URL", fb_defaults["base_url"]
+            )
+            fb_env = api_key_env or fb_defaults["api_key_env"]
+            fb_path = chat_path or fb_defaults["chat_path"]
+            fb_key = ""
+            if fb_env:
+                fb_key = os.environ.get(fb_env, "")
+            if not fb_key:
+                fb_key = os.environ.get("LLM_API_KEY", "")
+            fb_headers = {"Content-Type": "application/json"}
+            fb_hdr = auth_header or fb_defaults["auth_header"]
+            if fb_hdr and fb_key:
+                fb_prefix = auth_prefix or fb_defaults["auth_prefix"]
+                fb_headers[fb_hdr] = f"{fb_prefix}{fb_key}"
+            self._fallback_transports.append(
+                (fb_model, f"{fb_url}{fb_path}", fb_headers)
+            )
+
+        # Token budget tracking across calls.
+        self.total_tokens = 0
+
     @classmethod
     def from_config(
         cls, cfg: dict, *, default_provider: str | None = None
@@ -426,7 +673,10 @@ class Harness:
 
         Recognises the transport keys shared by ``LLM`` and
         ``ReActAgent`` plus the loop knobs ``max_tool_rounds``,
-        ``tool_error_mode`` and ``parse_text_tool_calls``.
+        ``tool_error_mode``, ``parse_text_tool_calls``, ``tool_timeout``,
+        ``tool_retries``, ``max_retries``, ``fallbacks``,
+        ``max_total_tokens``, ``max_context_tokens`` and
+        ``max_context_messages``.
         """
         return cls(
             model=str(cfg.get("model", "gpt-4")),
@@ -436,14 +686,25 @@ class Harness:
             chat_path=cfg.get("chat_path") or "",
             auth_header=cfg.get("auth_header") or "",
             auth_prefix=cfg.get("auth_prefix") or "",
-            timeout=float(cfg.get("timeout", 120)),
-            max_rounds=int(cfg.get("max_tool_rounds", 10)),
+            timeout=float(cfg.get("timeout") or 120),
+            max_rounds=int(cfg.get("max_tool_rounds") or 10),
             parse_text_tool_calls=bool(cfg.get("parse_text_tool_calls", True)),
             tool_error_mode=str(cfg.get("tool_error_mode", "message")),
+            tool_timeout=_opt_float(cfg.get("tool_timeout")),
+            tool_retries=int(cfg.get("tool_retries") or 0),
+            max_retries=int(cfg.get("max_retries") or 2),
+            retry_on=tuple(int(x) for x in cfg.get("retry_on") or ())
+            or (429, 500, 502, 503, 504),
+            fallbacks=cfg.get("fallbacks"),
+            tool_approval=cfg.get("tool_approval"),
+            max_total_tokens=_opt_int(cfg.get("max_total_tokens")),
+            max_context_tokens=_opt_int(cfg.get("max_context_tokens")),
+            max_context_messages=_opt_int(cfg.get("max_context_messages")),
             stop_when=cfg.get("stop_when"),
             on_step=cfg.get("on_step"),
             on_llm=cfg.get("on_llm"),
             on_token=cfg.get("on_token"),
+            on_tool_call=cfg.get("on_tool_call"),
             temperature=cfg.get("temperature"),
             max_tokens=cfg.get("max_tokens"),
             response_format=cfg.get("response_format"),
@@ -457,21 +718,73 @@ class Harness:
             body["tools"] = tools
         return body
 
-    async def _post(self, body: dict) -> dict:
-        async with httpx.AsyncClient(timeout=self.timeout) as client:
-            response = await client.post(
-                self._url, headers=self._headers, json={**body, "stream": False}
-            )
-            response.raise_for_status()
-            return response.json()
+    def _is_retryable(self, exc: Exception) -> bool:
+        """Whether an HTTP exception should be retried per *retry_on*."""
+        if isinstance(exc, (httpx.TransportError, httpx.TimeoutException)):
+            return True
+        status = getattr(exc, "response", None)
+        code = getattr(status, "status_code", None)
+        return code is not None and code in self.retry_on
 
-    async def _post_stream(self, body: dict) -> str:
-        body = {**body, "stream": True}
+    async def _post_with_retries(
+        self, url: str, headers: dict, body: dict, *, allow_fallback: bool = True
+    ) -> dict:
+        """POST *body* with retries + backoff, then fail over on repeated errors."""
+        last_exc: Exception | None = None
+        async with httpx.AsyncClient(timeout=self.timeout) as client:
+            for attempt in range(self.max_retries + 1):
+                try:
+                    response = await client.post(url, headers=headers, json=body)
+                    response.raise_for_status()
+                    return response.json()
+                except Exception as exc:  # noqa: BLE001 — retry policy drives handling
+                    last_exc = exc
+                    if not self._is_retryable(exc) or attempt >= self.max_retries:
+                        break
+                    await asyncio.sleep(min(4.0, 0.5 * (2**attempt)))
+        # Primary transport exhausted — try fallback models (once).
+        if allow_fallback and last_exc is not None and self._fallback_transports:
+            for fb_model, fb_url, fb_headers in self._fallback_transports:
+                try:
+                    return await self._post_with_retries(
+                        fb_url,
+                        fb_headers,
+                        {**body, "model": fb_model},
+                        allow_fallback=False,
+                    )
+                except Exception as exc:  # noqa: BLE001
+                    last_exc = exc
+        assert last_exc is not None
+        raise last_exc
+
+    async def _post_stream_with_retries(
+        self, url: str, headers: dict, body: dict, *, allow_fallback: bool = True
+    ) -> str:
+        """Stream a POST response with retries + backoff + failover."""
+        last_exc: Exception | None = None
+        for attempt in range(self.max_retries + 1):
+            try:
+                return await self._stream_once(url, headers, body)
+            except Exception as exc:  # noqa: BLE001
+                last_exc = exc
+                if not self._is_retryable(exc) or attempt >= self.max_retries:
+                    break
+                await asyncio.sleep(min(4.0, 0.5 * (2**attempt)))
+        if allow_fallback and last_exc is not None and self._fallback_transports:
+            for fb_model, fb_url, fb_headers in self._fallback_transports:
+                try:
+                    return await self._stream_once(
+                        fb_url, fb_headers, {**body, "model": fb_model}
+                    )
+                except Exception as exc:  # noqa: BLE001
+                    last_exc = exc
+        assert last_exc is not None
+        raise last_exc
+
+    async def _stream_once(self, url: str, headers: dict, body: dict) -> str:
         content = ""
         async with httpx.AsyncClient(timeout=self.timeout) as client:
-            async with client.stream(
-                "POST", self._url, headers=self._headers, json=body
-            ) as resp:
+            async with client.stream("POST", url, headers=headers, json=body) as resp:
                 resp.raise_for_status()
                 async for line in resp.aiter_lines():
                     if line.startswith("data: "):
@@ -499,6 +812,15 @@ class Harness:
                             if inspect.isawaitable(result):
                                 await result
         return content
+
+    async def _post(self, body: dict) -> dict:
+        return await self._post_with_retries(
+            self._url, self._headers, {**body, "stream": False}
+        )
+
+    async def _post_stream(self, body: dict) -> str:
+        body = {**body, "stream": True}
+        return await self._post_stream_with_retries(self._url, self._headers, body)
 
     async def call(
         self,
@@ -540,6 +862,9 @@ class Harness:
                 await self.on_llm(
                     self.provider_key, self.model, prompt, completion, _ms(t0)
                 )
+        self.total_tokens += int(usage.get("prompt", 0)) + int(
+            usage.get("completion", 0)
+        )
         return ModelReply(
             data=data,
             message=msg,
@@ -554,8 +879,11 @@ class Harness:
         """One iteration: call the model, execute requested tools, feed back.
 
         Returns a :class:`Step` whose ``messages`` is the updated history
-        (assistant message plus any ``tool`` responses).
+        (assistant message plus any ``tool`` responses).  History is
+        trimmed to *max_context_tokens* / *max_context_messages* before
+        the call.
         """
+        messages = self.manage_context(messages)
         tool_defs = [tool_to_schema(t) for t in tools.values()] if tools else []
         reply = await self.call(messages, tools=tool_defs or None)
         tool_calls = reply.message.get("tool_calls")
@@ -579,9 +907,24 @@ class Harness:
 
         new_messages = list(messages)
         if tool_calls:
+            if self.on_tool_call is not None:
+                for tc in tool_calls:
+                    name, raw, _ = _tool_call_parts(tc)
+                    try:
+                        args = json.loads(raw) if raw else {}
+                    except json.JSONDecodeError:
+                        args = {}
+                    result = self.on_tool_call(name, args)
+                    if inspect.isawaitable(result):
+                        await result
             new_messages.append(reply.message)
             results = await execute_tool_calls(
-                tool_calls, tools or {}, self.tool_error_mode
+                tool_calls,
+                tools or {},
+                self.tool_error_mode,
+                self.tool_timeout,
+                self.tool_retries,
+                self._tool_approval,
             )
             for tc, res in zip(tool_calls, results):
                 new_messages.append(
@@ -604,10 +947,25 @@ class Harness:
             await self.on_step(step)
         return step
 
-    async def run(
-        self, messages: list[dict], tools: Mapping[str, Tool] | None
-    ) -> Step:
+    def manage_context(self, messages: list[dict]) -> list[dict]:
+        """Trim *messages* to the configured context limits.
+
+        Applies ``max_context_tokens`` / ``max_context_messages``
+        (whichever is set).  The leading ``system`` message is preserved.
+        """
+        if self.max_context_tokens is None and self.max_context_messages is None:
+            return messages
+        return trim_messages(
+            messages,
+            max_tokens=self.max_context_tokens,
+            max_messages=self.max_context_messages,
+        )
+
+    async def run(self, messages: list[dict], tools: Mapping[str, Tool] | None) -> Step:
         """Loop :meth:`step` until a final answer, *stop_when*, or *max_rounds*.
+
+        Stops early when the cumulative token budget (*max_total_tokens*)
+        is exceeded.
 
         Returns the final :class:`Step` (its ``content`` holds the answer;
         ``messages`` holds the full history).
@@ -617,6 +975,11 @@ class Harness:
             if not step.wants_tool:
                 break
             if self.stop_when is not None and self.stop_when(step.messages):
+                break
+            if (
+                self.max_total_tokens is not None
+                and self.total_tokens >= self.max_total_tokens
+            ):
                 break
             step = await self.step(step.messages, tools)
         return step

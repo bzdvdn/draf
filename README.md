@@ -241,6 +241,11 @@ The answer lands in `state["approved"]` and execution continues past the
 interrupt.  Interrupts require a `checkpointer`; the resume value for an
 already-paused run is requested again if `resume` is missing.
 
+The same pause/resume mechanics gate risky tool calls on an agent: a
+`tool_approval` callable that returns `"pause"` raises a `GraphInterrupt`
+mid-round, and resuming with `resume={"tool_approval": "approve"}` lets the
+approved call through (see [agent_approval](examples/agent_approval/)).
+
 ### Revision loop
 
 To re-ask on rejection, wire a cycle with `Flow.loop()` — a conditional
@@ -383,6 +388,20 @@ backwards compatibility).  It accepts extra knobs:
 - `parse_text_tool_calls` — decode tool calls embedded in plain text, for
   local models that skip the structured `tool_calls` field (default True).
 - `temperature` / `max_tokens` / `response_format` — sampling knobs.
+- `tool_timeout` / `tool_retries` — bound each tool call with a timeout and
+  re-attempt it on failure.
+- `tool_approval` — gate risky tools.  A callable (or `"interactive"`) can
+  `approve` / `deny` a call; returning `"pause"` raises a `GraphInterrupt`
+  so a human can sign off and resume with `resume={"tool_approval": value}`
+  (see [agent_approval](examples/agent_approval/)).
+- `max_retries` / `fallbacks` / `retry_on` — retry failed model calls with
+  backoff and fail over to backup models (see
+  [agent_resilience](examples/agent_resilience/)).
+- `max_total_tokens` — stop the agent once the token budget is spent.
+- `max_context_tokens` / `trim_messages` — trim the conversation before each
+  model call to stay under a context limit.
+- `stream` / `on_token` — stream LLM tokens (nodes without tools stream
+  automatically in `graph.stream()` mode).
 
 ```python
 flow.harness(
@@ -392,6 +411,10 @@ flow.harness(
     max_tool_rounds=5,
     tool_error_mode="raise",
     temperature=0.2,
+    tool_timeout=30,
+    tool_approval="interactive",
+    max_retries=3,
+    fallbacks=["llama3.1:8b"],
 )
 ```
 
@@ -639,8 +662,10 @@ The CLI exposes the same report: `draf -f workflow.yaml --trace`.
 | [parallel](examples/parallel/) | Concurrent branches + typed `State` reducers |
 | [map_repair_plans](examples/map_repair_plans/) | Dynamic fan-out (`Map`) + `{key}` prompt templates + typed `State` |
 | [human_in_loop](examples/human_in_loop/) | Approve/Edit LLM output via `Interrupt` + `loop()` + resume (Python and YAML) |
-| [react_agent](examples/react_agent/) | ReAct agent loop |
+| [react_agent](examples/react_agent/) | ReAct agent loop with a calculator tool and live token streaming |
 | [harness_agent](examples/harness_agent/) | `flow.harness()` — parallel tool calls in one round + `__error__` fallback |
+| [agent_approval](examples/agent_approval/) | Tool approval (HITL) — every tool call pauses for human sign-off and resumes |
+| [agent_resilience](examples/agent_resilience/) | Retries, model failover, context trimming and a token budget (mocked, no API key) |
 | [skills](examples/skills/) | Skills folder (`SKILL.md`) — instructions + tool scoping on a harness agent |
 | [pdf_agent](examples/pdf_agent/) | Skill with its own tools — vendored `pdf` skill whose bundled scripts run via the shell tool; mounted on both a harness and a plain `LLM` node |
 | [mcp](examples/mcp/) | ReAct agent calling tools from an MCP server (stdio) |

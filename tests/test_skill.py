@@ -38,7 +38,9 @@ def test_load_skill_defaults_name_to_folder(tmp_path):
 
     d = tmp_path / "writer"
     d.mkdir()
-    (d / "SKILL.md").write_text("---\ndescription: Writes\n---\n\nWrite well.", encoding="utf-8")
+    (d / "SKILL.md").write_text(
+        "---\ndescription: Writes\n---\n\nWrite well.", encoding="utf-8"
+    )
     s = load_skill(d)
     assert s.name == "writer"
     assert s.allowed_tools is None
@@ -60,16 +62,14 @@ def test_load_skill_accepts_skill_md_path(analyst_skill):
 
 
 def test_resolve_skills_accepts_names_paths_and_objects(tmp_path, analyst_skill):
-    from draf.skill import Skill, load_skill, resolve_skills
+    from draf.skill import Skill, resolve_skills
 
     (tmp_path / "other").mkdir()
     (tmp_path / "other" / "SKILL.md").write_text(
         "---\n---\n\nPlain body.", encoding="utf-8"
     )
 
-    skills = resolve_skills(
-        {"skills": [analyst_skill, "other"], "skill_dir": tmp_path}
-    )
+    skills = resolve_skills({"skills": [analyst_skill, "other"], "skill_dir": tmp_path})
     assert [s.name for s in skills] == ["analyst", "other"]
 
     skills = resolve_skills({"skills": [Skill(name="inline", instructions="x")]})
@@ -149,7 +149,9 @@ def test_scope_tools_disallowed_removes(analyst_skill):
 
 class TestSkillIntegration:
     @pytest.mark.asyncio
-    async def test_llm_merges_instructions_and_scopes_tools(self, monkeypatch, tmp_path):
+    async def test_llm_merges_instructions_and_scopes_tools(
+        self, monkeypatch, tmp_path
+    ):
         from draf.node import ExecContext, LLM
 
         monkeypatch.setenv("OPENAI_API_KEY", "sk-test")

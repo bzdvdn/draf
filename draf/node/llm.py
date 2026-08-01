@@ -22,6 +22,16 @@ from draf.schema import (
 )
 
 
+def _opt_float_cfg(value: typing.Any) -> float | None:
+    """Parse *value* as ``float`` or return ``None`` when empty."""
+    if value is None:
+        return None
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
 class StructuredOutputError(ValueError):
     """Raised when an LLM response fails structured-output parsing/validation.
 
@@ -85,6 +95,15 @@ class LLM(Node):
         parse: If ``True`` without a schema, parse the response as a JSON
             object and store the dict under *output_key* (no validation).
         max_retries: How many times to re-ask after a validation failure.
+        tool_timeout: Per-tool execution timeout in seconds.
+        tool_retries: Extra attempts per tool call after a failure.
+        tool_approval: Gate on tool execution — ``"auto"`` (default),
+            ``"deny"``, or a callable ``(name, args) -> bool | str``
+            (sync or async).  ``"pause"`` is treated as ``"deny"`` in the
+            internal multi-round loop (use a :class:`~draf.node.agent.ToolExec`
+            node for pause/resume).
+        http_max_retries: HTTP request retries (429/5xx/timeouts).
+        fallbacks: Fallback model names for provider failover.
         base_url: Custom base URL (overrides provider default).
         chat_path: Custom API path (overrides provider default).
         auth_header: Custom auth header name.
@@ -128,6 +147,11 @@ class LLM(Node):
         output_type: typing.Type[typing.Any] | None = None,
         parse: bool = False,
         max_retries: int = 2,
+        tool_timeout: float | None = None,
+        tool_retries: int = 0,
+        tool_approval: typing.Any = None,
+        http_max_retries: int = 2,
+        fallbacks: list[str] | None = None,
         base_url: str | None = None,
         chat_path: str | None = None,
         auth_header: str | None = None,
@@ -157,6 +181,11 @@ class LLM(Node):
             "output_type": output_type,
             "parse": parse,
             "max_retries": max_retries,
+            "tool_timeout": tool_timeout,
+            "tool_retries": tool_retries,
+            "tool_approval": tool_approval,
+            "http_max_retries": http_max_retries,
+            "fallbacks": fallbacks,
             "base_url": base_url,
             "chat_path": chat_path,
             "auth_header": auth_header,
@@ -217,6 +246,10 @@ class LLM(Node):
         parse_only = bool(cfg.get("parse", False)) and not structured
 
         harness = Harness.from_config(cfg, default_provider=self.DEFAULT_PROVIDER)
+        if cfg.get("http_max_retries") is not None:
+            harness.max_retries = int(cfg.get("http_max_retries", 2))
+        if cfg.get("fallbacks") is not None:
+            harness.fallbacks = [str(f) for f in cfg["fallbacks"]]
         harness.on_llm = self._record_llm_cb(ctx, cfg, provider_key)
 
         if structured and not cfg.get("response_format"):
@@ -269,8 +302,15 @@ class LLM(Node):
 
                 if has_tools and tool_calls:
                     messages.append(msg)
+                    tool_timeout = _opt_float_cfg(cfg.get("tool_timeout"))
+                    tool_retries = int(cfg.get("tool_retries", 0))
                     results = await execute_tool_calls(
-                        tool_calls, scoped_tools, harness.tool_error_mode
+                        tool_calls,
+                        scoped_tools,
+                        harness.tool_error_mode,
+                        tool_timeout,
+                        tool_retries,
+                        cfg.get("tool_approval"),
                     )
                     for tc, res in zip(tool_calls, results):
                         messages.append(

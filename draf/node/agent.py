@@ -1,16 +1,20 @@
 """ReAct agent: graph-visible tool-calling loop."""
 
 import json
+import typing
 
 from draf.harness import (
     Harness,
     execute_tool_calls,
     parse_text_tool_call,
+    resolve_approval,
     tool_to_schema,
 )
+from draf.node.interrupt import GraphInterrupt
 from draf.node.node import Node
 from draf.node.llm import LLM
 from draf.skill import resolve_skills, scope_tools, skills_instructions
+from draf.stream import StreamEvent
 
 
 class ReActAgent(Node):
@@ -48,6 +52,17 @@ class ReActAgent(Node):
         max_tool_rounds: Round limit used by the harness loop.
         parse_text_tool_calls: Decode text-embedded tool calls.
         tool_error_mode: ``"message"`` (default) or ``"raise"``.
+        tool_timeout: Per-tool execution timeout in seconds.
+        tool_retries: Extra attempts per tool call after a failure.
+        max_retries: HTTP request retries (429/5xx/timeouts).
+        fallbacks: Fallback model names for provider failover.
+        tool_approval: Gate on tool execution — ``"auto"`` (default),
+            ``"deny"``, ``"interactive"`` (ask on stdin), or a callable
+            ``(name, args) -> bool | str``.  ``"pause"`` decisions pause
+            the run as a :class:`~draf.node.interrupt.GraphInterrupt`.
+        stream: Stream the final assistant text (tokens forwarded to
+            ``on_token`` and stream events).
+        on_token: Callback ``(token: str) -> None`` for streaming.
     """
 
     type = "react_agent"
@@ -74,6 +89,16 @@ class ReActAgent(Node):
         use_tools: bool | list[str] = True,
         skills: list | None = None,
         skill_dir: str = "skills",
+        max_tool_rounds: int | None = None,
+        parse_text_tool_calls: bool | None = None,
+        tool_error_mode: str | None = None,
+        tool_timeout: float | None = None,
+        tool_retries: int = 0,
+        max_retries: int = 2,
+        fallbacks: list[str] | None = None,
+        tool_approval: typing.Any = None,
+        stream: bool = False,
+        on_token: typing.Callable[[str], None] | None = None,
         **kwargs,
     ):
         merged = {
@@ -95,6 +120,16 @@ class ReActAgent(Node):
             "use_tools": use_tools,
             "skills": skills,
             "skill_dir": skill_dir,
+            "max_tool_rounds": max_tool_rounds,
+            "parse_text_tool_calls": parse_text_tool_calls,
+            "tool_error_mode": tool_error_mode,
+            "tool_timeout": tool_timeout,
+            "tool_retries": tool_retries,
+            "max_retries": max_retries,
+            "fallbacks": fallbacks,
+            "tool_approval": tool_approval,
+            "stream": stream,
+            "on_token": on_token,
             **(config or {}),
             **kwargs,
         }
@@ -128,12 +163,41 @@ class ReActAgent(Node):
         harness = Harness.from_config(cfg, default_provider=LLM.DEFAULT_PROVIDER)
         tracer = getattr(ctx, "tracer", None)
         if tracer is not None:
+
             async def on_llm(provider, model, prompt, completion, duration):
                 tracer.llm(provider, model, prompt, completion, duration)
 
             harness.on_llm = on_llm
 
-        reply = await harness.call(messages, tools=tool_defs or None)
+        emit = getattr(ctx, "emit", None)
+        on_token_cfg = cfg.get("on_token")
+
+        async def token_sink(token: str) -> None:
+            if on_token_cfg is not None:
+                on_token_cfg(token)
+            if emit is not None:
+                await emit(
+                    StreamEvent(
+                        "token",
+                        node_id=ctx.node_id,
+                        node_type=ctx.node_type,
+                        data={
+                            "token": token,
+                            "provider": harness.provider_key,
+                            "model": str(cfg.get("model", "")),
+                        },
+                    )
+                )
+
+        want_stream = bool(cfg.get("stream", False))
+        if want_stream and not tool_defs:
+            harness.on_token = token_sink
+
+        reply = await harness.call(
+            messages,
+            tools=tool_defs or None,
+            stream=want_stream and not tool_defs,
+        )
 
         result: dict = {}
         tool_calls = reply.message.get("tool_calls")
@@ -194,6 +258,13 @@ class ToolExec(Node):
         tool_error_mode: ``"message"`` (default) or ``"raise"`` — when
             ``"raise"``, a tool failure propagates to the graph error path
             (e.g. an ``__error__`` edge) instead of becoming a tool message.
+        tool_timeout: Per-tool execution timeout in seconds.
+        tool_retries: Extra attempts per tool call after a failure.
+        tool_approval: Gate on tool execution — ``"auto"`` (default),
+            ``"deny"``, ``"interactive"`` (ask on stdin), or a callable
+            ``(name, args) -> bool | str`` (sync or async).  A ``"pause"``
+            decision pauses the run as a :class:`GraphInterrupt`; ``"deny"``
+            short-circuits the call with a "denied" tool message.
     """
 
     type = "tool_exec"
@@ -205,6 +276,9 @@ class ToolExec(Node):
         messages_key: str = "messages",
         tool_call_key: str = "_tool_call_name",
         tool_error_mode: str = "message",
+        tool_timeout: float | None = None,
+        tool_retries: int = 0,
+        tool_approval: typing.Any = None,
         use_tools: bool | list[str] = True,
         skills: list | None = None,
         skill_dir: str = "skills",
@@ -214,6 +288,9 @@ class ToolExec(Node):
             "messages_key": messages_key,
             "tool_call_key": tool_call_key,
             "tool_error_mode": tool_error_mode,
+            "tool_timeout": tool_timeout,
+            "tool_retries": tool_retries,
+            "tool_approval": tool_approval,
             "use_tools": use_tools,
             "skills": skills,
             "skill_dir": skill_dir,
@@ -226,6 +303,9 @@ class ToolExec(Node):
         messages_key = self.config.get("messages_key", "messages")
         tool_call_key = self.config.get("tool_call_key", "_tool_call_name")
         tool_error_mode = self.config.get("tool_error_mode", "message")
+        tool_timeout = self.config.get("tool_timeout")
+        tool_retries = int(self.config.get("tool_retries", 0))
+        approver = self.config.get("tool_approval")
 
         calls = list(state.get("_tool_calls") or [])
         if not calls and state.get(tool_call_key):
@@ -239,15 +319,59 @@ class ToolExec(Node):
 
         skills = resolve_skills(self.config)
         scoped = scope_tools(ctx.tools, self.config, skills)
-        results = await execute_tool_calls(calls, scoped, tool_error_mode)
+
+        # After a pause/interrupt, the operator's decision comes back in the
+        # resume payload under the interrupt key; use it instead of re-asking.
+        resumed = state.get("tool_approval")
+        resumed = resumed if resumed in ("approve", "deny") else None
+
+        to_run = calls
+        denied: list[tuple[str, str, str]] = []
+        if approver is not None and approver != "auto" and calls:
+            to_run = []
+            for call in calls:
+                name = call.get("name", "")
+                try:
+                    args = (
+                        json.loads(call.get("args", "{}")) if call.get("args") else {}
+                    )
+                except json.JSONDecodeError:
+                    args = {}
+                if resumed is not None:
+                    decision = resumed
+                else:
+                    decision = await resolve_approval(approver, name, args)
+                if decision == "pause":
+                    raise GraphInterrupt(
+                        key="tool_approval",
+                        prompt=(
+                            f"Approve tool call '{name}' with args {json.dumps(args)}?"
+                        ),
+                    )
+                if decision != "approve":
+                    denied.append((name, call.get("id", ""), decision))
+                else:
+                    to_run.append(call)
+
+        results = await execute_tool_calls(
+            to_run, scoped, tool_error_mode, tool_timeout, tool_retries
+        )
 
         messages = list(state.get(messages_key, []))
-        for call, res in zip(calls, results):
+        for call, res in zip(to_run, results):
             messages.append(
                 {
                     "role": "tool",
                     "tool_call_id": call.get("id", ""),
                     "content": str(res) if res is not None else "",
+                }
+            )
+        for name, call_id, decision in denied:
+            messages.append(
+                {
+                    "role": "tool",
+                    "tool_call_id": call_id,
+                    "content": f"Tool call '{name}' was not approved ({decision})",
                 }
             )
 

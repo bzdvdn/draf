@@ -192,7 +192,9 @@ class TestParallelToolExecution:
             async def arun(self, **kwargs):  # type: ignore[override]
                 async with lock:
                     tracker["active"] += 1
-                    tracker["max_active"] = max(tracker["max_active"], tracker["active"])
+                    tracker["max_active"] = max(
+                        tracker["max_active"], tracker["active"]
+                    )
                 await asyncio.sleep(0.05)
                 async with lock:
                     tracker["active"] -= 1
@@ -279,7 +281,9 @@ class TestParallelToolExecution:
             async def arun(self, **kwargs):  # type: ignore[override]
                 async with lock:
                     tracker["active"] += 1
-                    tracker["max_active"] = max(tracker["max_active"], tracker["active"])
+                    tracker["max_active"] = max(
+                        tracker["max_active"], tracker["active"]
+                    )
                 await asyncio.sleep(0.1)
                 async with lock:
                     tracker["active"] -= 1

@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import json
 import re
+import types
 import typing
 from typing import Any, get_args, get_origin, get_type_hints
 
@@ -129,17 +130,8 @@ def _py_to_schema(tp: Any) -> dict:
         return _py_to_schema(args[0])
     if origin is typing.Literal:
         return {"enum": list(args)}
-    if origin is typing.Union:
-        non_null = [a for a in args if a is not type(None)]
-        if len(non_null) == 1:
-            schema = _py_to_schema(non_null[0])
-            if len(non_null) != len(args):
-                schema = {"oneOf": [{"type": "null"}, schema]}
-            return schema
-        choices = [_py_to_schema(a) for a in non_null]
-        if len(non_null) != len(args):
-            choices.append({"type": "null"})
-        return {"oneOf": choices}
+    if origin is typing.Union or origin is types.UnionType:
+        return _union_to_schema(args)
     if origin is list:
         items = _py_to_schema(args[0]) if args else {}
         return {"type": "array", "items": items}
@@ -165,6 +157,21 @@ def _py_to_schema(tp: Any) -> dict:
                 "required": list(hints.keys()),
             }
     return {}
+
+
+def _union_to_schema(args: tuple[Any, ...]) -> dict:
+    """Build a JSON Schema for a union of types (``typing.Union`` /
+    ``types.UnionType``), special-casing optional single types."""
+    non_null = [a for a in args if a is not type(None)]
+    if len(non_null) == 1:
+        schema = _py_to_schema(non_null[0])
+        if len(non_null) != len(args):
+            schema = {"oneOf": [{"type": "null"}, schema]}
+        return schema
+    choices = [_py_to_schema(a) for a in non_null]
+    if len(non_null) != len(args):
+        choices.append({"type": "null"})
+    return {"oneOf": choices}
 
 
 # ---------------------------------------------------------------------------
