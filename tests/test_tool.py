@@ -155,6 +155,495 @@ class TestBuiltinTools:
         assert rt.run(path=path) == "hello there"
 
 
+class TestExtendedBuiltinTools:
+    @pytest.mark.asyncio
+    async def test_web_fetch_empty_url(self):
+        from draf.tool.builtin import WebFetchTool
+
+        with pytest.raises(ValueError, match="url"):
+            await WebFetchTool().arun()
+
+    @pytest.mark.asyncio
+    async def test_web_fetch_missing_bs4(self, monkeypatch):
+        from draf.tool.builtin import WebFetchTool
+
+        import builtins
+        import httpx
+
+        real_import = builtins.__import__
+
+        def fake_import(name, *args, **kwargs):
+            if name == "bs4":
+                raise ImportError("no beautifulsoup4")
+            return real_import(name, *args, **kwargs)
+
+        monkeypatch.setattr(builtins, "__import__", fake_import)
+
+        class FakeResponse:
+            text = "<html><body>hello <b>world</b></body></html>"
+
+            def raise_for_status(self):
+                pass
+
+        class FakeClient:
+            def __init__(self, *a, **k):
+                pass
+
+            async def __aenter__(self):
+                return self
+
+            async def __aexit__(self, *a):
+                return False
+
+            async def get(self, url, headers=None):
+                return FakeResponse()
+
+        monkeypatch.setattr(httpx, "AsyncClient", lambda **kw: FakeClient())
+        with pytest.raises(ImportError, match="beautifulsoup4"):
+            await WebFetchTool().arun(url="http://example.com")
+
+    def test_pdf_read_requires_path(self):
+        from draf.tool.builtin import PDFReadTool
+
+        with pytest.raises(ValueError, match="path"):
+            PDFReadTool().run()
+
+    def test_pdf_read_missing_pypdf(self, monkeypatch):
+        from draf.tool.builtin import PDFReadTool
+
+        import builtins
+
+        real_import = builtins.__import__
+
+        def fake_import(name, *args, **kwargs):
+            if name == "pypdf":
+                raise ImportError("no pypdf")
+            return real_import(name, *args, **kwargs)
+
+        monkeypatch.setattr(builtins, "__import__", fake_import)
+        import tempfile
+
+        with tempfile.NamedTemporaryFile(suffix=".pdf") as f:
+            with pytest.raises(ImportError, match="pypdf"):
+                PDFReadTool().run(path=f.name)
+
+    def test_s3_list_requires_bucket(self):
+        from draf.tool.builtin import S3Tool
+
+        with pytest.raises(ValueError, match="bucket"):
+            S3Tool().run()
+
+    def test_s3_get_requires_key(self):
+        from draf.tool.builtin import S3GetTool
+
+        with pytest.raises(ValueError, match="key"):
+            S3GetTool({"bucket": "b"}).run()
+
+    def test_s3_put_requires_key(self):
+        from draf.tool.builtin import S3PutTool
+
+        with pytest.raises(ValueError, match="key"):
+            S3PutTool({"bucket": "b"}).run()
+
+    def test_s3_missing_boto3(self, monkeypatch):
+        from draf.tool.builtin import S3Tool
+
+        import builtins
+
+        real_import = builtins.__import__
+
+        def fake_import(name, *args, **kwargs):
+            if name == "boto3":
+                raise ImportError("no boto3")
+            return real_import(name, *args, **kwargs)
+
+        monkeypatch.setattr(builtins, "__import__", fake_import)
+        with pytest.raises(ImportError, match="boto3"):
+            S3Tool({"bucket": "b"}).run()
+
+    def test_slack_requires_token(self):
+        from draf.tool.builtin import SlackSendTool
+
+        with pytest.raises(ValueError, match="token"):
+            SlackSendTool().run(text="hi")
+
+    def test_slack_requires_channel(self):
+        from draf.tool.builtin import SlackSendTool
+
+        with pytest.raises(ValueError, match="channel"):
+            SlackSendTool({"token": "x"}).run(text="hi")
+
+    def test_slack_missing_sdk(self, monkeypatch):
+        from draf.tool.builtin import SlackSendTool
+
+        import builtins
+
+        real_import = builtins.__import__
+
+        def fake_import(name, *args, **kwargs):
+            if name == "slack_sdk":
+                raise ImportError("no slack-sdk")
+            return real_import(name, *args, **kwargs)
+
+        monkeypatch.setattr(builtins, "__import__", fake_import)
+        with pytest.raises(ImportError, match="slack-sdk"):
+            SlackSendTool({"token": "x", "channel": "#c"}).run(text="hi")
+
+    def test_sql_query_sqlite_select(self, tmp_path):
+        from draf.tool.builtin import SQLQueryTool
+        import sqlite3
+
+        db = tmp_path / "test.db"
+        conn = sqlite3.connect(str(db))
+        conn.execute("CREATE TABLE users (id INTEGER, name TEXT)")
+        conn.executemany(
+            "INSERT INTO users VALUES (?, ?)",
+            [(1, "alice"), (2, "bob"), (3, "carol")],
+        )
+        conn.commit()
+        conn.close()
+
+        tool = SQLQueryTool({"db_type": "sqlite", "path": str(db)})
+        result = tool.run(query="SELECT id, name FROM users WHERE id > 1 ORDER BY id")
+        assert "bob" in result
+        assert "carol" in result
+        assert "alice" not in result
+
+    def test_sql_query_sqlite_requires_path(self):
+        from draf.tool.builtin import SQLQueryTool
+
+        with pytest.raises(ValueError, match="path"):
+            SQLQueryTool({"db_type": "sqlite"}).run(query="SELECT 1")
+
+    def test_sql_query_rejects_writes(self, tmp_path):
+        from draf.tool.builtin import SQLQueryTool
+
+        with pytest.raises(ValueError, match="read-only"):
+            SQLQueryTool({"db_type": "sqlite", "path": str(tmp_path / "x.db")}).run(
+                query="INSERT INTO users VALUES (1, 'x')"
+            )
+
+    def test_sql_query_requires_query(self):
+        from draf.tool.builtin import SQLQueryTool
+
+        with pytest.raises(ValueError, match="query"):
+            SQLQueryTool().run()
+
+    def test_sql_query_postgres_missing_psycopg(self, monkeypatch):
+        from draf.tool.builtin import SQLQueryTool
+
+        import builtins
+
+        real_import = builtins.__import__
+
+        def fake_import(name, *args, **kwargs):
+            if name == "psycopg":
+                raise ImportError("no psycopg")
+            return real_import(name, *args, **kwargs)
+
+        monkeypatch.setattr(builtins, "__import__", fake_import)
+        with pytest.raises(ImportError, match="psycopg"):
+            SQLQueryTool({"db_type": "postgres", "dsn": "postgresql://x"}).run(
+                query="SELECT 1"
+            )
+
+    def test_registered_in_default_registry(self):
+        from draf.tool.registry import default_tool_registry
+
+        for name in (
+            "fetch_url",
+            "read_pdf",
+            "s3_list",
+            "s3_get",
+            "s3_put",
+            "slack_send",
+            "sql_query",
+            "sql_list_tables",
+            "sql_describe",
+            "list_dir",
+            "glob",
+            "getenv",
+            "current_time",
+            "json_parse",
+            "yaml_parse",
+            "kv_store",
+            "python_eval",
+            "http_request",
+            "send_email",
+            "send_telegram",
+        ):
+            assert name in default_tool_registry.list(), f"{name} not registered"
+
+
+class TestFsEnvTools:
+    def test_list_dir(self, tmp_path):
+        from draf.tool.builtin import ListDirTool
+
+        (tmp_path / "a.txt").write_text("x")
+        (tmp_path / "sub").mkdir()
+        result = ListDirTool().run(path=str(tmp_path))
+        assert "a.txt" in result
+        assert "sub" in result
+
+    def test_list_dir_recursive(self, tmp_path):
+        from draf.tool.builtin import ListDirTool
+
+        (tmp_path / "sub").mkdir()
+        (tmp_path / "sub" / "b.txt").write_text("x")
+        result = ListDirTool().run(path=str(tmp_path), recursive=True)
+        assert "b.txt" in result
+
+    def test_list_dir_not_a_directory(self, tmp_path):
+        from draf.tool.builtin import ListDirTool
+
+        with pytest.raises(ValueError, match="not a directory"):
+            ListDirTool().run(path=str(tmp_path / "nope"))
+
+    def test_glob(self, tmp_path):
+        from draf.tool.builtin import GlobTool
+
+        (tmp_path / "one.txt").write_text("x")
+        (tmp_path / "two.md").write_text("x")
+        result = GlobTool().run(pattern=str(tmp_path / "*.txt"))
+        assert "one.txt" in result
+        assert "two.md" not in result
+
+    def test_glob_requires_pattern(self):
+        from draf.tool.builtin import GlobTool
+
+        with pytest.raises(ValueError, match="pattern"):
+            GlobTool().run()
+
+    def test_getenv(self, monkeypatch):
+        from draf.tool.builtin import GetEnvTool
+
+        monkeypatch.setenv("DRAF_TEST_VAR", "hello")
+        assert GetEnvTool().run(name="DRAF_TEST_VAR") == "hello"
+        assert GetEnvTool().run(name="DRAF_MISSING") == "not set"
+
+    def test_getenv_masks_secrets(self, monkeypatch):
+        from draf.tool.builtin import GetEnvTool
+
+        monkeypatch.setenv("MY_API_KEY", "supersecret")
+        assert GetEnvTool().run(name="MY_API_KEY") == "***"
+        assert (
+            GetEnvTool({"mask_secrets": False}).run(name="MY_API_KEY") == "supersecret"
+        )
+
+    def test_getenv_requires_name(self):
+        from draf.tool.builtin import GetEnvTool
+
+        with pytest.raises(ValueError, match="name"):
+            GetEnvTool().run()
+
+    def test_current_time(self):
+        from draf.tool.builtin import CurrentTimeTool
+
+        result = CurrentTimeTool().run()
+        assert "T" in result
+
+    def test_current_time_unknown_tz(self):
+        from draf.tool.builtin import CurrentTimeTool
+
+        with pytest.raises(ValueError, match="timezone"):
+            CurrentTimeTool().run(timezone="Not/AZone")
+
+
+class TestDataTools:
+    def test_json_parse(self):
+        from draf.tool.builtin import JsonParseTool
+
+        assert JsonParseTool().run(text='{"a": 1}') == '{\n  "a": 1\n}'
+
+    def test_json_parse_invalid(self):
+        from draf.tool.builtin import JsonParseTool
+
+        with pytest.raises(ValueError, match="invalid JSON"):
+            JsonParseTool().run(text="{bad}")
+
+    def test_yaml_parse(self):
+        from draf.tool.builtin import YamlParseTool
+
+        result = YamlParseTool().run(text="a: 1\nb:\n  - x\n  - y")
+        assert '"a": 1' in result
+        assert '"x"' in result
+
+    def test_kv_store_roundtrip(self, tmp_path):
+        from draf.tool.builtin import KVStoreTool
+
+        path = str(tmp_path / "kv.json")
+        tool = KVStoreTool({"path": path})
+        assert tool.run(action="set", key="name", value='"alice"') == "set name"
+        assert tool.run(action="get", key="name") == '"alice"'
+        assert "name" in tool.run(action="list")
+        assert tool.run(action="delete", key="name") == "deleted name"
+        assert tool.run(action="get", key="name") == "not found"
+
+    def test_kv_store_unknown_action(self, tmp_path):
+        from draf.tool.builtin import KVStoreTool
+
+        with pytest.raises(ValueError, match="action"):
+            KVStoreTool({"path": str(tmp_path / "kv.json")}).run(action="bogus")
+
+    def test_python_eval_arithmetic(self):
+        from draf.tool.builtin import PythonEvalTool
+
+        tool = PythonEvalTool()
+        assert tool.run(expression="2 + 3 * 4") == "14"
+        assert tool.run(expression="10 / 2") == "5.0"
+        assert tool.run(expression="len([1, 2, 3])") == "3"
+        assert tool.run(expression="math.sqrt(16)") == "4.0"
+        assert tool.run(expression="2 ** 10") == "1024"
+
+    def test_python_eval_rejects_unsafe(self):
+        from draf.tool.builtin import PythonEvalTool
+
+        tool = PythonEvalTool()
+        with pytest.raises(ValueError, match="not allowed"):
+            tool.run(expression="__import__('os')")
+        with pytest.raises(ValueError, match="not allowed"):
+            tool.run(expression="os.system('ls')")
+
+
+class TestHttpTool:
+    @pytest.mark.asyncio
+    async def test_http_request(self, monkeypatch):
+        from draf.tool.builtin import HttpRequestTool
+
+        import httpx
+
+        class FakeResponse:
+            status_code = 200
+            text = "hello"
+
+            @property
+            def headers(self):
+                return {"Content-Type": "text/plain"}
+
+        class FakeClient:
+            def __init__(self, *a, **k):
+                pass
+
+            async def __aenter__(self):
+                return self
+
+            async def __aexit__(self, *a):
+                return False
+
+            async def request(self, *a, **k):
+                return FakeResponse()
+
+        monkeypatch.setattr(httpx, "AsyncClient", lambda **kw: FakeClient())
+        result = await HttpRequestTool().arun(url="http://x")
+        assert "200" in result
+        assert "hello" in result
+
+    @pytest.mark.asyncio
+    async def test_http_request_requires_url(self):
+        from draf.tool.builtin import HttpRequestTool
+
+        with pytest.raises(ValueError, match="url"):
+            await HttpRequestTool().arun()
+
+
+class TestSQLSchemaTools:
+    def test_sql_list_tables(self, tmp_path):
+        from draf.tool.builtin import SQLListTablesTool
+        import sqlite3
+
+        db = tmp_path / "db.sqlite"
+        conn = sqlite3.connect(str(db))
+        conn.execute("CREATE TABLE users (id INTEGER, name TEXT)")
+        conn.execute("CREATE TABLE orders (id INTEGER)")
+        conn.commit()
+        conn.close()
+
+        result = SQLListTablesTool({"db_type": "sqlite", "path": str(db)}).run()
+        assert "users" in result
+        assert "orders" in result
+
+    def test_sql_describe(self, tmp_path):
+        from draf.tool.builtin import SQLDescribeTool
+        import sqlite3
+
+        db = tmp_path / "db.sqlite"
+        conn = sqlite3.connect(str(db))
+        conn.execute("CREATE TABLE users (id INTEGER PRIMARY KEY, name TEXT)")
+        conn.commit()
+        conn.close()
+
+        result = SQLDescribeTool({"db_type": "sqlite", "path": str(db)}).run(
+            table="users"
+        )
+        assert "id" in result
+        assert "name" in result
+
+    def test_sql_describe_requires_table(self):
+        from draf.tool.builtin import SQLDescribeTool
+
+        with pytest.raises(ValueError, match="table"):
+            SQLDescribeTool().run()
+
+
+class TestNotifyTools:
+    def test_send_email_requires_host(self):
+        from draf.tool.builtin import SendEmailTool
+
+        with pytest.raises(ValueError, match="host"):
+            SendEmailTool().run(to="a@b.c", subject="hi", body="x")
+
+    def test_send_email_requires_from(self):
+        from draf.tool.builtin import SendEmailTool
+
+        with pytest.raises(ValueError, match="from_addr"):
+            SendEmailTool({"host": "smtp.example.com"}).run(
+                to="a@b.c", subject="hi", body="x"
+            )
+
+    @pytest.mark.asyncio
+    async def test_send_telegram_requires_token(self):
+        from draf.tool.builtin import SendTelegramTool
+
+        with pytest.raises(ValueError, match="token"):
+            await SendTelegramTool().arun(text="hi")
+
+    @pytest.mark.asyncio
+    async def test_send_telegram_requires_chat_id(self):
+        from draf.tool.builtin import SendTelegramTool
+
+        with pytest.raises(ValueError, match="chat_id"):
+            await SendTelegramTool({"token": "x"}).arun(text="hi")
+
+    @pytest.mark.asyncio
+    async def test_send_telegram(self, monkeypatch):
+        from draf.tool.builtin import SendTelegramTool
+
+        import httpx
+
+        class FakeResponse:
+            def raise_for_status(self):
+                pass
+
+        class FakeClient:
+            def __init__(self, *a, **k):
+                pass
+
+            async def __aenter__(self):
+                return self
+
+            async def __aexit__(self, *a):
+                return False
+
+            async def post(self, *a, **k):
+                return FakeResponse()
+
+        monkeypatch.setattr(httpx, "AsyncClient", lambda **kw: FakeClient())
+        result = await SendTelegramTool({"token": "x", "chat_id": "123"}).arun(
+            text="hello"
+        )
+        assert "123" in result
+
+
 class TestShellSandbox:
     @pytest.mark.asyncio
     async def test_blocked_commands(self):

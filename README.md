@@ -17,7 +17,8 @@ runtime magic.
 ```bash
 pip install draf
 # extras: draf[embedding] for RAG stores, draf[pg-checkpoint] for PostgreSQL
-# checkpoints, draf[mcp] for MCP server tools, draf[tools] for more tools
+# checkpoints, draf[mcp] for MCP server tools, draf[tools] for built-in tools
+# (web fetch, PDF, S3, Slack, SQL, email, Telegram, …), draf[all] for everything
 ```
 
 Python >= 3.11. Core runtime depends only on `httpx`, `pyyaml`, and `typer`.
@@ -99,6 +100,7 @@ asyncio.run(main())
 - **Graph** — nodes + edges, including conditional edges, branches, and
   `__error__` fallbacks. The graph owns routing and resilience.
 - **Tools** — implement `Tool` or use the `@tool` decorator; shareable across nodes.
+  A set of built-in tools ships in `draf[tools]` (see [Built-in tools](#built-in-tools)).
 - **RAG** — `RAGTool` over pluggable vector stores (`InMemoryVectorStore`,
   `SQLite`, `Chroma`, `Qdrant`, `PGVector`).
 
@@ -435,6 +437,62 @@ A mounted skill:
 Bare names resolve against `skill_dir`; you can also pass skill paths or
 already-loaded `Skill` objects.  `use_tools` gives the same per-node scope
 without skills: `True` (all), `False` (none), or a list of names.
+
+## Built-in tools
+
+A library of ready-made `Tool` subclasses registers itself when `draf.tool.builtin`
+is imported (the `load_workflow` YAML helper and the examples do this for you).
+Most are dependency-free; the marked ones need `pip install draf[tools]`.
+
+| Tool | Name | Dependencies | What it does |
+|------|------|--------------|--------------|
+| CalculatorTool | `calculator` | — | AST-based safe math evaluation |
+| ShellTool | `shell` | — | Run shell commands with a blocklist/whitelist sandbox |
+| ReadFileTool | `read_file` | — | Read a file's contents |
+| WriteFileTool | `write_file` | — | Write content to a file |
+| EditFileTool | `edit_file` | — | Replace text in a file |
+| WebSearchTool | `web_search` | — | DuckDuckGo search, no API key |
+| WebFetchTool | `fetch_url` | `beautifulsoup4` | Fetch a URL and extract its text |
+| PDFReadTool | `read_pdf` | `pypdf` | Extract text from a PDF, page by page |
+| S3Tool | `s3_list` | `boto3` | List objects in an S3 bucket |
+| S3GetTool | `s3_get` | `boto3` | Download an object from S3 |
+| S3PutTool | `s3_put` | `boto3` | Upload content to S3 |
+| SlackSendTool | `slack_send` | `slack-sdk` | Send a message to a Slack channel |
+| SQLQueryTool | `sql_query` | sqlite3 / `psycopg` | Read-only SELECT against SQLite or PostgreSQL |
+| SQLListTablesTool | `sql_list_tables` | sqlite3 / `psycopg` | List tables in a database |
+| SQLDescribeTool | `sql_describe` | sqlite3 / `psycopg` | Describe a table's columns and types |
+| ListDirTool | `list_dir` | — | List files and directories (optionally recursive) |
+| GlobTool | `glob` | — | Find files matching a glob pattern |
+| GetEnvTool | `getenv` | — | Read an env var (secret values masked) |
+| CurrentTimeTool | `current_time` | — | Current date/time in an IANA timezone |
+| JsonParseTool | `json_parse` | — | Parse and pretty-print JSON |
+| YamlParseTool | `yaml_parse` | — | Parse YAML, dump as JSON |
+| KVStoreTool | `kv_store` | — | Persistent JSON key-value store |
+| PythonEvalTool | `python_eval` | — | Safe AST-whitelist evaluation of Python expressions |
+| HttpRequestTool | `http_request` | httpx | Arbitrary HTTP requests (method, headers, body) |
+| SendEmailTool | `send_email` | smtplib | Send email via SMTP |
+| SendTelegramTool | `send_telegram` | httpx | Send a message via a Telegram bot |
+
+Tools are configured through the registry — either a constructor that accepts a
+config dict (like `SQLQueryTool({"db_type": "postgres", "dsn": "…"})`), or a
+keyword constructor with attributes set from the YAML `config:` block:
+
+```yaml
+tools:
+  - type: sql_query
+    config: {db_type: sqlite, path: ./vectors.db}
+  - type: shell
+    config: {root_dir: /tmp, allowed_commands: [echo, ls]}
+  - type: s3_list
+    config: {bucket: my-bucket, region: eu-central-1, verify: false}
+```
+
+Security notes: `shell` enforces a blocklist of dangerous commands plus an
+optional whitelist; `getenv` masks values whose names hint at credentials
+(`TOKEN`, `API_KEY`, `PASSWORD`, `DSN`, …) unless configured with
+`mask_secrets: false`; `sql_query` and the other SQL tools are read-only and
+reject `INSERT`/`UPDATE`/`DELETE`/DDL; `python_eval` only allows a whitelisted
+AST subset (`math.*`, builtins like `len`/`abs`/`sum`, comparisons).
 
 ## MCP tools
 
