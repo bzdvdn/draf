@@ -1,6 +1,14 @@
 import pytest
 
 
+class _FakeEmbedder:
+    async def embed(self, text: str) -> list[float]:
+        return [1.0, 0.0, 0.0, 0.0]
+
+    async def embed_many(self, texts: list[str]) -> list[list[float]]:
+        return [[1.0, 0.0, 0.0, 0.0] for _ in texts]
+
+
 class TestVectorStore:
     @pytest.mark.asyncio
     async def test_abc_enforces_contract(self):
@@ -31,6 +39,89 @@ class TestVectorStore:
         results = await store.search([1, 0, 0, 0], k=5)
         assert results == []
 
+    def test_match_filter_semantics(self):
+        from draf.rag.base import match_filter
+
+        meta = {"category": "news", "tags": ["a", "b"], "views": 3}
+        assert match_filter(meta, None)
+        assert match_filter(meta, {})
+        assert match_filter(meta, {"category": "news"})
+        assert not match_filter(meta, {"category": "tech"})
+        assert match_filter(meta, {"views": 3})
+        assert not match_filter(meta, {"views": 4})
+        assert not match_filter(meta, {"missing": "x"})
+        assert match_filter(meta, {"tags": ["a"]})
+        assert not match_filter(meta, {"tags": ["x"]})
+        assert match_filter(meta, {"$and": [{"category": "news"}, {"views": 3}]})
+        assert not match_filter(meta, {"$and": [{"category": "news"}, {"views": 4}]})
+        assert match_filter(meta, {"$or": [{"category": "tech"}, {"views": 3}]})
+        assert not match_filter(meta, {"$or": [{"category": "tech"}, {"views": 4}]})
+        assert match_filter(
+            meta,
+            {"$and": [{"category": "news"}, {"$or": [{"views": 4}, {"views": 3}]}]},
+        )
+
+    @pytest.mark.asyncio
+    async def test_inmemory_filter_search(self):
+        from draf.rag.stores import InMemoryVectorStore
+
+        store = InMemoryVectorStore(dim=4)
+        await store.add(
+            [
+                ("d1", [1, 0, 0, 0], {"category": "news", "text": "a"}),
+                ("d2", [0.9, 0.1, 0, 0], {"category": "tech", "text": "b"}),
+                ("d3", [0.8, 0.2, 0, 0], {"category": "news", "text": "c"}),
+            ]
+        )
+        res = await store.search([1, 0, 0, 0], k=5, filter={"category": "news"})
+        assert {r[0] for r in res} == {"d1", "d3"}
+        res = await store.search(
+            [1, 0, 0, 0],
+            k=5,
+            filter={"$or": [{"category": "news"}, {"category": "tech"}]},
+        )
+        assert len(res) == 3
+
+    @pytest.mark.asyncio
+    async def test_inmemory_hybrid_ranking(self):
+        from draf.rag.stores import InMemoryVectorStore
+
+        store = InMemoryVectorStore(dim=4)
+        await store.add(
+            [
+                ("d1", [1, 0, 0, 0], {"text": "a recipe for sourdough bread"}),
+                ("d2", [0.99, 0.01, 0, 0], {"text": "python python python"}),
+            ]
+        )
+        plain = await store.search([1, 0, 0, 0], k=5)
+        assert plain[0][0] == "d1"
+        hybrid = await store.search([1, 0, 0, 0], k=5, hybrid=True, query_text="python")
+        assert hybrid[0][0] == "d2"
+
+    @pytest.mark.asyncio
+    async def test_inmemory_extended_ops(self):
+        from draf.rag.stores import InMemoryVectorStore
+
+        store = InMemoryVectorStore(dim=4)
+        await store.add(
+            [
+                ("a", [1, 0, 0, 0], {"category": "x"}),
+                ("b", [0, 1, 0, 0], {"category": "y"}),
+                ("c", [0, 0, 1, 0], {"category": "z"}),
+            ]
+        )
+        assert await store.count() == 3
+        lst = await store.entries(limit=2, offset=1)
+        assert len(lst) == 2
+        got = await store.get(["a", "nope"])
+        assert [i for i, _ in got] == ["a"]
+        await store.update_metadata("a", {"extra": 1})
+        got = await store.get(["a"])
+        assert got[0][1] == {"category": "x", "extra": 1}
+        await store.clear()
+        assert await store.count() == 0
+        assert await store.search([1, 0, 0, 0], k=5) == []
+
 
 class TestEmbedder:
     def test_ollama_needs_no_api_key(self):
@@ -47,6 +138,62 @@ class TestEmbedder:
         monkeypatch.delenv("OPENAI_BASE_URL", raising=False)
         with pytest.raises(ValueError, match="API key"):
             Embedder(provider="openai")
+
+    @pytest.mark.parametrize(
+        "provider,env,model",
+        [
+            ("mistral", "MISTRAL_API_KEY", "mistral-embed"),
+            ("voyage", "VOYAGE_API_KEY", "voyage-3"),
+            ("jina", "JINA_API_KEY", "jina-embeddings-v3"),
+            (
+                "together",
+                "TOGETHER_API_KEY",
+                "togethercomputer/m2-bert-80M-8k-retrieval",
+            ),
+            ("groq", "GROQ_API_KEY", "nomic-embed-text-v1.5"),
+        ],
+    )
+    def test_new_provider_defaults(self, monkeypatch, provider, env, model):
+        from draf.rag import Embedder
+
+        monkeypatch.delenv(f"{provider.upper()}_API_KEY", raising=False)
+        monkeypatch.delenv(f"{provider.upper()}_BASE_URL", raising=False)
+        monkeypatch.setenv(env, "test-key")
+        e = Embedder(provider=provider)
+        assert e.model == model
+        assert e._api_key == "test-key"
+
+    @pytest.mark.parametrize(
+        "provider,env",
+        [
+            ("mistral", "MISTRAL_API_KEY"),
+            ("voyage", "VOYAGE_API_KEY"),
+            ("jina", "JINA_API_KEY"),
+            ("together", "TOGETHER_API_KEY"),
+            ("groq", "GROQ_API_KEY"),
+        ],
+    )
+    def test_new_provider_requires_api_key(self, monkeypatch, provider, env):
+        from draf.rag import Embedder
+
+        monkeypatch.delenv(f"{provider.upper()}_API_KEY", raising=False)
+        monkeypatch.delenv(env, raising=False)
+        monkeypatch.delenv(f"{provider.upper()}_BASE_URL", raising=False)
+        with pytest.raises(ValueError, match="API key"):
+            Embedder(provider=provider)
+
+    def test_rag_tool_config_resolves_default_model(self, monkeypatch):
+        from draf.rag import RAGTool
+
+        monkeypatch.setenv("MISTRAL_API_KEY", "test-key")
+        rag = RAGTool(
+            {
+                "embedder": {"provider": "mistral"},
+                "store": {"type": "in_memory", "dim": 8},
+            }
+        )
+        assert rag.embedder.model == "mistral-embed"
+        assert rag.embedder.provider == "mistral"
 
 
 class TestSQLiteVectorStore:
@@ -97,6 +244,67 @@ class TestSQLiteVectorStore:
         await s.add([("d1", [1.0, 0, 0], {})])
         await s.delete(["d1"])
         assert await s.search([1.0, 0, 0], k=5) == []
+        s.close()
+
+    @pytest.mark.asyncio
+    async def test_filter_search(self, tmp_path):
+        from draf.rag.stores import SQLiteVectorStore
+
+        s = SQLiteVectorStore(path=str(tmp_path / "v.db"), dim=4)
+        await s.add(
+            [
+                ("d1", [1, 0, 0, 0], {"category": "news", "text": "alpha"}),
+                ("d2", [0.9, 0.1, 0, 0], {"category": "tech", "text": "beta"}),
+            ]
+        )
+        res = await s.search([1, 0, 0, 0], k=5, filter={"category": "news"})
+        assert [r[0] for r in res] == ["d1"]
+        res = await s.search([1, 0, 0, 0], k=5, filter={"category": ["tech", "sports"]})
+        assert [r[0] for r in res] == ["d2"]
+        res = await s.search(
+            [1, 0, 0, 0],
+            k=5,
+            filter={"$or": [{"category": "news"}, {"category": "tech"}]},
+        )
+        assert len(res) == 2
+        s.close()
+
+    @pytest.mark.asyncio
+    async def test_hybrid_search(self, tmp_path):
+        from draf.rag.stores import SQLiteVectorStore
+
+        s = SQLiteVectorStore(path=str(tmp_path / "v.db"), dim=4)
+        await s.add(
+            [
+                ("d1", [1, 0, 0, 0], {"text": "a recipe for sourdough bread"}),
+                ("d2", [0.99, 0.01, 0, 0], {"text": "python python python"}),
+            ]
+        )
+        plain = await s.search([1, 0, 0, 0], k=5)
+        assert plain[0][0] == "d1"
+        hybrid = await s.search([1, 0, 0, 0], k=5, hybrid=True, query_text="python")
+        assert hybrid[0][0] == "d2"
+        s.close()
+
+    @pytest.mark.asyncio
+    async def test_extended_ops(self, tmp_path):
+        from draf.rag.stores import SQLiteVectorStore
+
+        s = SQLiteVectorStore(path=str(tmp_path / "v.db"), dim=3)
+        await s.add(
+            [
+                ("a", [1, 0, 0], {"category": "x"}),
+                ("b", [0, 1, 0], {"category": "y"}),
+            ]
+        )
+        assert await s.count() == 2
+        assert [i for i, _ in await s.entries(limit=1, offset=0)] == ["a"]
+        assert [i for i, _ in await s.get(["a", "b", "z"])] == ["a", "b"]
+        await s.update_metadata("a", {"extra": 1})
+        got = await s.get(["a"])
+        assert got[0][1] == {"category": "x", "extra": 1}
+        await s.clear()
+        assert await s.count() == 0
         s.close()
 
     def test_rag_tool_with_sqlite_store(self, tmp_path):
@@ -157,6 +365,229 @@ class TestSQLiteVectorStore:
             }
         )
         assert type(rag.store).__name__ == "SQLiteVectorStore"
+
+
+class TestFAISSVectorStore:
+    def test_import_or_skip(self):
+        pytest.importorskip("faiss")
+
+    @pytest.mark.asyncio
+    async def test_search_filter_and_extended_ops(self, tmp_path):
+        pytest.importorskip("faiss")
+        from draf.rag.stores import FAISSVectorStore
+
+        store = FAISSVectorStore(dim=4, path=str(tmp_path / "idx.bin"))
+        await store.add(
+            [
+                ("a", [1, 0, 0, 0], {"category": "news", "text": "alpha"}),
+                ("b", [0, 1, 0, 0], {"category": "tech", "text": "beta"}),
+                ("c", [0.8, 0.2, 0, 0], {"category": "news", "text": "gamma"}),
+            ]
+        )
+        res = await store.search([1, 0, 0, 0], k=5)
+        assert res[0][0] == "a"
+        assert res[0][1] > 0.99
+        res = await store.search([1, 0, 0, 0], k=5, filter={"category": "news"})
+        assert {r[0] for r in res} == {"a", "c"}
+        hybrid = await store.search([0, 1, 0, 0], k=5, hybrid=True, query_text="beta")
+        assert hybrid[0][0] == "b"
+        assert await store.count() == 3
+        assert {i for i, _ in await store.entries()} == {"a", "b", "c"}
+        assert [i for i, _ in await store.get(["a", "z"])] == ["a"]
+        await store.update_metadata("a", {"topic": "x"})
+        got = await store.get(["a"])
+        assert got[0][1]["topic"] == "x"
+        await store.delete(["b"])
+        assert [i for i, _ in await store.get(["b"])] == []
+        await store.clear()
+        assert await store.count() == 0
+
+    @pytest.mark.asyncio
+    async def test_persists_across_instances(self, tmp_path):
+        pytest.importorskip("faiss")
+        from draf.rag.stores import FAISSVectorStore
+
+        path = str(tmp_path / "idx.bin")
+        s1 = FAISSVectorStore(dim=3, path=path)
+        await s1.add([("d1", [1.0, 0, 0], {"text": "hello"})])
+
+        s2 = FAISSVectorStore(dim=3, path=path)
+        results = await s2.search([1.0, 0, 0], k=1)
+        assert results[0][0] == "d1"
+        assert results[0][2]["text"] == "hello"
+
+    @pytest.mark.asyncio
+    async def test_dim_mismatch_raises(self):
+        pytest.importorskip("faiss")
+        from draf.rag.stores import FAISSVectorStore
+
+        store = FAISSVectorStore(dim=3)
+        with pytest.raises(ValueError, match="dim"):
+            await store.add([("d1", [1.0, 0], {})])
+
+
+class TestLanceVectorStore:
+    def test_import_or_skip(self):
+        pytest.importorskip("lancedb")
+
+    @pytest.mark.asyncio
+    async def test_search_filter_and_extended_ops(self, tmp_path):
+        pytest.importorskip("lancedb")
+        from draf.rag.stores import LanceVectorStore
+
+        store = LanceVectorStore(path=str(tmp_path / "lance"), table="vectors", dim=4)
+        await store.add(
+            [
+                ("a", [1, 0, 0, 0], {"category": "news", "text": "alpha"}),
+                ("b", [0, 1, 0, 0], {"category": "tech", "text": "beta"}),
+                ("c", [0.8, 0.2, 0, 0], {"category": "news", "text": "gamma"}),
+            ]
+        )
+        res = await store.search([1, 0, 0, 0], k=5)
+        assert res[0][0] == "a"
+        assert res[0][1] > 0.99
+        res = await store.search([1, 0, 0, 0], k=5, filter={"category": "news"})
+        assert {r[0] for r in res} == {"a", "c"}
+        hybrid = await store.search([0, 1, 0, 0], k=5, hybrid=True, query_text="beta")
+        assert hybrid[0][0] == "b"
+        assert await store.count() == 3
+        assert {i for i, _ in await store.entries()} == {"a", "b", "c"}
+        assert [i for i, _ in await store.get(["a", "z"])] == ["a"]
+        await store.update_metadata("a", {"topic": "x"})
+        got = await store.get(["a"])
+        assert got[0][1]["topic"] == "x"
+        await store.delete(["b"])
+        assert [i for i, _ in await store.get(["b"])] == []
+        await store.clear()
+        assert await store.count() == 0
+
+    @pytest.mark.asyncio
+    async def test_dim_mismatch_raises(self, tmp_path):
+        pytest.importorskip("lancedb")
+        from draf.rag.stores import LanceVectorStore
+
+        store = LanceVectorStore(path=str(tmp_path / "lance"), dim=3)
+        with pytest.raises(ValueError, match="dim"):
+            await store.add([("d1", [1.0, 0], {})])
+
+
+class TestMilvusVectorStore:
+    def test_import_or_skip(self):
+        pytest.importorskip("pymilvus")
+        try:
+            import milvus_lite  # noqa: F401
+        except ImportError:
+            pytest.skip("milvus-lite not installed")
+
+    @pytest.mark.asyncio
+    async def test_search_filter_and_extended_ops(self, tmp_path):
+        pytest.importorskip("pymilvus")
+        try:
+            import milvus_lite  # noqa: F401
+        except ImportError:
+            pytest.skip("milvus-lite not installed")
+        from draf.rag.stores import MilvusVectorStore
+
+        store = MilvusVectorStore(
+            uri=str(tmp_path / "milvus.db"),
+            collection="test",
+            dim=4,
+        )
+        await store.clear()
+        await store.add(
+            [
+                ("a", [1, 0, 0, 0], {"category": "news", "text": "alpha"}),
+                ("b", [0, 1, 0, 0], {"category": "tech", "text": "beta"}),
+                ("c", [0.8, 0.2, 0, 0], {"category": "news", "text": "gamma"}),
+            ]
+        )
+        res = await store.search([1, 0, 0, 0], k=5)
+        assert res[0][0] == "a"
+        res = await store.search([1, 0, 0, 0], k=5, filter={"category": "news"})
+        assert {r[0] for r in res} == {"a", "c"}
+        hybrid = await store.search([0, 1, 0, 0], k=5, hybrid=True, query_text="beta")
+        assert hybrid[0][0] == "b"
+        assert await store.count() == 3
+        assert {i for i, _ in await store.entries()} == {"a", "b", "c"}
+        assert [i for i, _ in await store.get(["a", "z"])] == ["a"]
+        await store.update_metadata("a", {"topic": "x"})
+        got = await store.get(["a"])
+        assert got[0][1]["topic"] == "x"
+        await store.delete(["b"])
+        assert [i for i, _ in await store.get(["b"])] == []
+        await store.clear()
+        assert await store.count() == 0
+
+
+class TestWeaviatePineconeConfig:
+    def test_pinecone_missing_api_key_raises(self, monkeypatch):
+        pytest.importorskip("pinecone")
+        from draf.rag.stores import PineconeVectorStore
+
+        monkeypatch.delenv("PINECONE_API_KEY", raising=False)
+        with pytest.raises(ValueError, match="API key"):
+            PineconeVectorStore(api_key="")
+
+    def test_new_store_types_mapped_in_config(self, monkeypatch):
+        from draf.rag import RAGTool
+
+        monkeypatch.setattr(
+            "draf.rag.stores.FAISSVectorStore", lambda **kw: "faiss-store"
+        )
+        monkeypatch.setattr(
+            "draf.rag.stores.LanceVectorStore", lambda **kw: "lance-store"
+        )
+        monkeypatch.setattr(
+            "draf.rag.stores.MilvusVectorStore", lambda **kw: "milvus-store"
+        )
+        monkeypatch.setattr(
+            "draf.rag.stores.WeaviateVectorStore", lambda **kw: "weaviate-store"
+        )
+        monkeypatch.setattr(
+            "draf.rag.stores.PineconeVectorStore", lambda **kw: "pinecone-store"
+        )
+
+        embedder = {"provider": "ollama", "model": "nomic-embed-text"}
+        for stype, expected in [
+            ("faiss", "faiss-store"),
+            ("lance", "lance-store"),
+            ("lancedb", "lance-store"),
+            ("milvus", "milvus-store"),
+            ("weaviate", "weaviate-store"),
+            ("pinecone", "pinecone-store"),
+        ]:
+            rag = RAGTool({"embedder": embedder, "store": {"type": stype, "dim": 8}})
+            assert rag.store == expected
+
+
+class TestChromaVectorStore:
+    def test_import_or_skip(self):
+        pytest.importorskip("chromadb")
+
+    @pytest.mark.asyncio
+    async def test_filter_search_and_extended_ops(self, tmp_path):
+        from draf.rag.stores import ChromaVectorStore
+
+        store = ChromaVectorStore(path=str(tmp_path / "chroma"), collection="test")
+        await store.add(
+            [
+                ("a", [1, 0, 0, 0], {"category": "news", "text": "alpha"}),
+                ("b", [0, 1, 0, 0], {"category": "tech", "text": "beta"}),
+            ]
+        )
+        res = await store.search([1, 0, 0, 0], k=5, filter={"category": "news"})
+        assert [r[0] for r in res] == ["a"]
+        res = await store.search([1, 0, 0, 0], k=5, filter={"category": ["tech"]})
+        assert [r[0] for r in res] == ["b"]
+        assert await store.count() == 2
+        assert {i for i, _ in await store.entries()} == {"a", "b"}
+        assert [i for i, _ in await store.get(["a", "z"])] == ["a"]
+        await store.update_metadata("a", {"topic": "x"})
+        got = await store.get(["a"])
+        assert got[0][1]["category"] == "news"
+        assert got[0][1]["topic"] == "x"
+        await store.clear()
+        assert await store.count() == 0
 
 
 class TestRAGTool:
@@ -303,6 +734,151 @@ class TestRAGTool:
                     "documents": [{"type": "nope", "path": "x"}],
                 }
             )
+
+    def test_config_rag_options(self):
+        from draf.rag import RAGTool
+
+        cfg = {
+            "embedder": {"provider": "ollama", "model": "nomic-embed-text"},
+            "store": {"type": "in_memory", "dim": 8},
+            "filters": {"topic": "a"},
+            "similarity_threshold": 0.7,
+            "max_tokens": 512,
+            "hybrid": True,
+            "parent_chunks": True,
+            "parent_retrieval": True,
+        }
+        rag = RAGTool(cfg)
+        assert rag._filters == {"topic": "a"}
+        assert rag._threshold == 0.7
+        assert rag._max_tokens == 512
+        assert rag._hybrid is True
+        assert rag._parent_chunks is True
+        assert rag._parent_retrieval is True
+
+    def test_constructor_options(self):
+        from draf.rag import RAGTool
+        from draf.rag.stores import InMemoryVectorStore
+
+        rag = RAGTool(
+            store=InMemoryVectorStore(4),
+            embedder=None,
+            filter={"t": "a"},
+            similarity_threshold=0.5,
+            max_tokens=100,
+            hybrid=True,
+            parent_chunks=True,
+            parent_retrieval=True,
+        )
+        assert rag._filters == {"t": "a"}
+        assert rag._threshold == 0.5
+        assert rag._max_tokens == 100
+        assert rag._hybrid and rag._parent_chunks and rag._parent_retrieval
+
+    def test_arun_similarity_threshold(self):
+        import asyncio
+
+        from draf.rag import RAGTool, Chunker
+        from draf.rag.stores import InMemoryVectorStore
+
+        store = InMemoryVectorStore(dim=4)
+        rag = RAGTool(
+            store=store,
+            embedder=_FakeEmbedder(),
+            chunker=Chunker(strategy="fixed", chunk_size=50),
+        )
+        asyncio.run(rag.add_document("hello world", {"id": "d1"}))
+        assert asyncio.run(rag.arun("find this", k=5, similarity_threshold=1.5)) == ""
+        res = asyncio.run(rag.arun("find this", k=5, similarity_threshold=0.5))
+        assert "hello world" in res
+
+    def test_arun_max_tokens(self):
+        import asyncio
+
+        from draf.rag import RAGTool, Chunker
+        from draf.rag.stores import InMemoryVectorStore
+
+        store = InMemoryVectorStore(dim=4)
+        rag = RAGTool(
+            store=store,
+            embedder=_FakeEmbedder(),
+            chunker=Chunker(strategy="fixed", chunk_size=1000),
+        )
+        asyncio.run(rag.add_document("x" * 400, {"id": "d1"}))
+        res = asyncio.run(rag.arun("q", k=5, max_tokens=10))
+        assert ("x" * 40) in res
+        assert ("x" * 41) not in res
+
+    def test_arun_uses_configured_filter(self):
+        import asyncio
+
+        from draf.rag import RAGTool, Chunker
+        from draf.rag.stores import InMemoryVectorStore
+
+        store = InMemoryVectorStore(dim=4)
+        rag = RAGTool(
+            store=store,
+            embedder=_FakeEmbedder(),
+            chunker=Chunker(strategy="fixed", chunk_size=1000),
+            filter={"topic": "a"},
+        )
+        asyncio.run(
+            rag.add_documents(
+                [
+                    ("doc one", {"id": "d1", "topic": "a"}),
+                    ("doc two", {"id": "d2", "topic": "b"}),
+                ]
+            )
+        )
+        res = asyncio.run(rag.arun("doc", k=5))
+        assert "doc one" in res and "doc two" not in res
+        res2 = asyncio.run(rag.arun("doc", k=5, filter={"topic": "b"}))
+        assert "doc two" in res2 and "doc one" not in res2
+
+    def test_parent_chunks_and_retrieval(self):
+        import asyncio
+
+        from draf.rag import RAGTool, Chunker
+        from draf.rag.stores import InMemoryVectorStore
+
+        store = InMemoryVectorStore(dim=4)
+        rag = RAGTool(
+            store=store,
+            embedder=_FakeEmbedder(),
+            chunker=Chunker(strategy="fixed", chunk_size=10),
+            parent_chunks=True,
+        )
+        asyncio.run(rag.add_document("parent content here", {"id": "d1"}))
+        res = asyncio.run(rag.arun("q", k=5, parent_retrieval=True))
+        assert "parent content here" in res
+        res2 = asyncio.run(rag.arun("q", k=5))
+        assert "parent content here" not in res2
+        assert "parent con" in res2 or "tent here" in res2
+
+    def test_arun_hybrid_ranking(self):
+        import asyncio
+
+        from draf.rag import RAGTool, Chunker
+        from draf.rag.stores import InMemoryVectorStore
+
+        store = InMemoryVectorStore(dim=4)
+        rag = RAGTool(
+            store=store,
+            embedder=_FakeEmbedder(),
+            chunker=Chunker(strategy="fixed", chunk_size=1000),
+            hybrid=True,
+        )
+        asyncio.run(
+            rag.add_documents(
+                [
+                    ("a recipe for sourdough bread", {"id": "d1"}),
+                    ("python python python", {"id": "d2"}),
+                ]
+            )
+        )
+        res = asyncio.run(rag.arun("python", k=5))
+        assert "python python python" in res
+        assert res.index("python python python") < res.index("sourdough")
 
 
 class TestDocumentLoaders:

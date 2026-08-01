@@ -6,8 +6,9 @@ assembled from code instead of loaded from workflow.yaml.
 Usage:
     uv run python examples/rag_stores/flow.py [store]
 
-Supported stores: in_memory, sqlite, chroma, qdrant, pgvector
-(default: in_memory). See each store's README for install steps.
+Supported stores: in_memory, sqlite, chroma, qdrant, pgvector, faiss,
+lance, milvus, weaviate, pinecone (default: in_memory). See each store's
+README for install steps.
 """
 
 import asyncio
@@ -45,6 +46,36 @@ STORE_CONFIGS = {
         "type": "pgvector",
         "dsn": "postgresql://postgres:postgres@localhost:5433/postgres",
         "table": "draf_vectors",
+    },
+    "faiss": {
+        "type": "faiss",
+        "path": os.path.join(_HERE, "faiss", "index.bin"),
+        "dim": 768,
+    },
+    "lance": {
+        "type": "lance",
+        "path": os.path.join(_HERE, "lance", "db"),
+        "table": "vectors",
+        "dim": 768,
+    },
+    "milvus": {
+        "type": "milvus",
+        "uri": os.path.join(_HERE, "milvus", "milvus.db"),
+        "collection": "draf",
+        "dim": 768,
+    },
+    "weaviate": {
+        "type": "weaviate",
+        "collection": "draf",
+        "embedded": True,
+        "dim": 768,
+    },
+    "pinecone": {
+        # Set PINECONE_API_KEY and create an index named "draf" first.
+        "type": "pinecone",
+        "index_name": "draf",
+        "namespace": "",
+        "dim": 768,
     },
 }
 

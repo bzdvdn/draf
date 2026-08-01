@@ -8,14 +8,23 @@ every vector store draf supports. Pick the one that fits your needs.
 | `in_memory` | none (core)                | no              | no             | demos, tests, small workloads     |
 | `sqlite`    | none (stdlib `sqlite3`)    | no              | yes (file)     | small collections, file storage   |
 | `chroma`    | `draf[embedding]`          | no (local dir)  | yes (directory)| local ANN search, no server       |
+| `faiss`     | `draf[embedding]`          | no              | yes (files)    | fast flat index, in-process       |
+| `lance`     | `draf[embedding]`          | no              | yes (directory)| embedded columnar store           |
+| `milvus`    | `draf[embedding]`          | no (Milvus Lite)| yes (file)     | local/remote Milvus, scaling path  |
+| `weaviate`  | `draf[embedding]`          | no (embedded)   | in-memory      | local ANN search, embedded server |
 | `qdrant`    | `draf[embedding]`          | yes (Docker)    | yes            | production scale, multi-tenant    |
 | `pgvector`  | `draf[embedding]`          | yes (PostgreSQL)| yes            | vectors alongside your SQL data   |
+| `pinecone`  | `draf[embedding]`          | yes (cloud)     | yes            | managed, hosted vector search     |
 
 Each subdirectory has its own README with the exact install steps:
 
 - [in_memory](in_memory/README.md)
 - [sqlite](sqlite/README.md)
 - [chroma](chroma/README.md)
+- [faiss](faiss/README.md)
+- [lance](lance/README.md)
+- [milvus](milvus/README.md)
+- [weaviate](weaviate/README.md)
 - [qdrant](qdrant/README.md)
 - [pgvector](pgvector/README.md)
 
@@ -52,6 +61,10 @@ Two entry points — same agent, same documents:
 uv run python examples/rag_stores/run.py examples/rag_stores/in_memory/workflow.yaml
 uv run python examples/rag_stores/run.py examples/rag_stores/sqlite/workflow.yaml
 uv run python examples/rag_stores/run.py examples/rag_stores/chroma/workflow.yaml
+uv run python examples/rag_stores/run.py examples/rag_stores/faiss/workflow.yaml
+uv run python examples/rag_stores/run.py examples/rag_stores/lance/workflow.yaml
+uv run python examples/rag_stores/run.py examples/rag_stores/milvus/workflow.yaml
+uv run python examples/rag_stores/run.py examples/rag_stores/weaviate/workflow.yaml
 uv run python examples/rag_stores/run.py examples/rag_stores/qdrant/workflow.yaml
 uv run python examples/rag_stores/run.py examples/rag_stores/pgvector/workflow.yaml
 ```
@@ -63,6 +76,15 @@ type as an argument):
 uv run python examples/rag_stores/flow.py in_memory
 uv run python examples/rag_stores/flow.py sqlite
 uv run python examples/rag_stores/flow.py chroma
+uv run python examples/rag_stores/flow.py faiss
+uv run python examples/rag_stores/flow.py lance
+uv run python examples/rag_stores/flow.py milvus
+uv run python examples/rag_stores/flow.py weaviate
 uv run python examples/rag_stores/flow.py qdrant
 uv run python examples/rag_stores/flow.py pgvector
+uv run python examples/rag_stores/flow.py pinecone
 ```
+
+`pinecone` has no subdirectory: it needs a hosted index, so configure it
+in `flow.py` and set `PINECONE_API_KEY` (plus create an index named
+`draf`) before running.

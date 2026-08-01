@@ -43,4 +43,8 @@ Thumbs.db
 *.sqlite3
 checkpoints/
 chroma_db/
+examples/rag_stores/faiss/index.bin
+examples/rag_stores/faiss/index.bin.meta.json
+examples/rag_stores/lance/db/
+examples/rag_stores/milvus/milvus.db/
 examples/parallel/rag_report.md

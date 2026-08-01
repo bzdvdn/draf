@@ -1,6 +1,8 @@
 """In-memory vector store — zero dependencies."""
 
-from draf.rag.base import VectorStore, cosine_similarity
+from __future__ import annotations
+
+from draf.rag.base import VectorStore, cosine_similarity, finalize_results
 
 
 class InMemoryVectorStore(VectorStore):
@@ -24,16 +26,45 @@ class InMemoryVectorStore(VectorStore):
             self._metadatas[vid] = meta
 
     async def search(
-        self, query: list[float], k: int = 10
+        self,
+        query: list[float],
+        k: int = 10,
+        filter: dict | None = None,
+        hybrid: bool = False,
+        query_text: str | None = None,
     ) -> list[tuple[str, float, dict]]:
-        scores = []
-        for vid, vec in self._vectors.items():
-            sim = cosine_similarity(query, vec)
-            scores.append((vid, sim, self._metadatas.get(vid, {})))
-        scores.sort(key=lambda x: x[1], reverse=True)
-        return scores[:k]
+        candidates = [
+            (vid, cosine_similarity(query, vec), self._metadatas.get(vid, {}))
+            for vid, vec in self._vectors.items()
+        ]
+        return finalize_results(candidates, k, filter, hybrid, query_text)
 
     async def delete(self, ids: list[str]) -> None:
         for vid in ids:
             self._vectors.pop(vid, None)
             self._metadatas.pop(vid, None)
+
+    async def count(self) -> int:
+        return len(self._vectors)
+
+    async def entries(
+        self, limit: int = 100, offset: int = 0
+    ) -> list[tuple[str, dict]]:
+        items = sorted(self._vectors)
+        return [
+            (vid, self._metadatas.get(vid, {}))
+            for vid in items[offset : offset + limit]
+        ]
+
+    async def get(self, ids: list[str]) -> list[tuple[str, dict]]:
+        return [
+            (vid, self._metadatas.get(vid, {})) for vid in ids if vid in self._vectors
+        ]
+
+    async def update_metadata(self, id: str, metadata: dict) -> None:
+        if id in self._vectors:
+            self._metadatas[id] = {**self._metadatas.get(id, {}), **metadata}
+
+    async def clear(self) -> None:
+        self._vectors.clear()
+        self._metadatas.clear()

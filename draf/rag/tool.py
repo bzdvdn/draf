@@ -3,6 +3,7 @@
 import csv
 import glob
 import os
+import uuid
 from typing import Callable
 
 from draf.tool.tool import Tool
@@ -113,6 +114,18 @@ _DOCUMENT_LOADERS: dict[str, Callable[..., list[tuple[str, dict]]]] = {
 }
 
 
+def _estimate_tokens(text: str) -> int:
+    """Rough token estimate (~4 characters per token)."""
+    return max(1, (len(text) + 3) // 4)
+
+
+def _truncate_to_tokens(text: str, tokens: int) -> str:
+    """Truncate *text* to an approximate token budget."""
+    if _estimate_tokens(text) <= tokens:
+        return text
+    return text[: tokens * 4]
+
+
 class RAGTool(Tool):
     """Tool that searches a vector store and returns ranked results.
 
@@ -137,15 +150,31 @@ class RAGTool(Tool):
             {"type": "pdf", "path": "manual.pdf"},
             {"type": "excel", "path": "table.xlsx", "text_column": "content"},
           ],
+          "filter": {"topic": "news"},        # metadata filter (DSL below)
+          "similarity_threshold": 0.5,         # drop low-score hits
+          "max_tokens": 1024,                  # context token budget
+          "hybrid": true,                      # keyword + semantic blend
+          "parent_chunks": true,               # keep full parent text per chunk
+          "parent_retrieval": true,            # return whole parent documents
         }
 
     Supported document types (loaders): ``csv``, ``txt`` (glob), ``pdf``
     (``draf[rag-pdf]``), ``excel`` (``draf[rag-excel]``). Supported store
     types: ``in_memory`` (default), ``sqlite`` (stdlib file persistence),
-    ``chroma`` / ``qdrant`` / ``pgvector`` (via ``draf[embedding]``).
+    ``faiss``, ``lance``, ``chroma``, ``qdrant``, ``milvus``, ``weaviate``,
+    ``pgvector``, ``pinecone`` (via ``draf[embedding]``).
     ``documents`` may also be a bare path (CSV shorthand) or a list of
     inline ``{"id": ..., "text": ...}`` dicts. Documents are embedded
     lazily on the first search.
+
+    Filter DSL: ``{"category": "news"}`` (equality), ``{"category":
+    ["news", "tech"]}`` (membership), plus ``"$and"`` / ``"$or"`` keys
+    combining sub-filters.
+
+    ``parent_chunks`` stores each chunk with a ``parent_id`` and the full
+    ``parent_text``; with ``parent_retrieval`` enabled, search returns
+    whole parent documents (deduplicated) instead of individual chunks —
+    the "small-to-big" pattern.
     """
 
     name = "rag"
@@ -160,14 +189,38 @@ class RAGTool(Tool):
         chunker: Chunker | None = None,
         documents: list[tuple[str, dict]] | None = None,
         name: str | None = None,
+        filter: dict | None = None,
+        similarity_threshold: float | None = None,
+        max_tokens: int | None = None,
+        hybrid: bool = False,
+        parent_chunks: bool = False,
+        parent_retrieval: bool = False,
     ):
         self.store = store
         self.embedder = embedder
         self.chunker = chunker or Chunker()
         self._documents: list[tuple[str, dict]] = list(documents or [])
         self._seeded = False
+        self._filters: dict | None = None
+        self._threshold: float | None = None
+        self._max_tokens: int | None = None
+        self._hybrid = False
+        self._parent_chunks = False
+        self._parent_retrieval = False
         if isinstance(config, dict):
             self._apply_config(config)
+        if filter is not None:
+            self._filters = filter
+        if similarity_threshold is not None:
+            self._threshold = similarity_threshold
+        if max_tokens is not None:
+            self._max_tokens = max_tokens
+        if hybrid:
+            self._hybrid = True
+        if parent_chunks:
+            self._parent_chunks = True
+        if parent_retrieval:
+            self._parent_retrieval = True
         if name is not None:
             self.name = name
 
@@ -175,9 +228,10 @@ class RAGTool(Tool):
         if config.get("name"):
             self.name = config["name"]
         emb = config.get("embedder") or {}
+        provider = emb.get("provider", "ollama")
         self.embedder = Embedder(
-            provider=emb.get("provider", "ollama"),
-            model=emb.get("model", "nomic-embed-text"),
+            provider=provider,
+            model=emb.get("model") or "",
             base_url=emb.get("base_url"),
         )
 
@@ -216,12 +270,68 @@ class RAGTool(Tool):
                 dsn=store_cfg.get("dsn", ""),
                 table=store_cfg.get("table", "draf_vectors"),
             )
+        elif store_type == "faiss":
+            from draf.rag.stores import FAISSVectorStore
+
+            self.store = FAISSVectorStore(
+                dim=store_cfg.get("dim", 1536),
+                path=store_cfg.get("path"),
+            )
+        elif store_type in ("lance", "lancedb"):
+            from draf.rag.stores import LanceVectorStore
+
+            self.store = LanceVectorStore(
+                path=store_cfg.get("path", "./lance"),
+                table=store_cfg.get("table", "vectors"),
+                dim=store_cfg.get("dim"),
+            )
+        elif store_type == "milvus":
+            from draf.rag.stores import MilvusVectorStore
+
+            self.store = MilvusVectorStore(
+                uri=store_cfg.get("uri", "./milvus.db"),
+                token=store_cfg.get("token", ""),
+                collection=store_cfg.get("collection", "draf"),
+                dim=store_cfg.get("dim"),
+            )
+        elif store_type == "weaviate":
+            from draf.rag.stores import WeaviateVectorStore
+
+            self.store = WeaviateVectorStore(
+                collection=store_cfg.get("collection", "draf"),
+                embedded=bool(store_cfg.get("embedded", False)),
+                host=store_cfg.get("host", "localhost"),
+                http_port=store_cfg.get("http_port", 8080),
+                http_secure=bool(store_cfg.get("http_secure", False)),
+                grpc_port=store_cfg.get("grpc_port", 50051),
+                grpc_secure=bool(store_cfg.get("grpc_secure", False)),
+                api_key=store_cfg.get("api_key", ""),
+                headers=store_cfg.get("headers"),
+                dim=store_cfg.get("dim"),
+            )
+        elif store_type == "pinecone":
+            from draf.rag.stores import PineconeVectorStore
+
+            self.store = PineconeVectorStore(
+                index_name=store_cfg.get("index_name", "draf"),
+                api_key=store_cfg.get("api_key", ""),
+                host=store_cfg.get("host", ""),
+                namespace=store_cfg.get("namespace", ""),
+                dim=store_cfg.get("dim"),
+            )
         else:
             msg = f"unsupported store type: {store_type}"
             raise ValueError(msg)
 
         if config.get("chunker"):
             self.chunker = Chunker(**config["chunker"])
+
+        self._filters = config.get("filter") or config.get("filters")
+        self._threshold = config.get("similarity_threshold")
+        self._max_tokens = config.get("max_tokens")
+        self._hybrid = bool(config.get("hybrid", False))
+        self._parent_chunks = bool(config.get("parent_chunks", False))
+        self._parent_retrieval = bool(config.get("parent_retrieval", False))
 
         documents = config.get("documents", [])
         if isinstance(documents, str):
@@ -252,19 +362,79 @@ class RAGTool(Tool):
             await self.add_documents(self._documents)
         self._seeded = True
 
-    async def arun(self, query: str = "", k: int = 5) -> str:  # type: ignore[override]
-        """Search documents and return formatted results."""
+    async def arun(  # type: ignore[override]
+        self,
+        query: str = "",
+        k: int = 5,
+        filter: dict | None = None,
+        similarity_threshold: float | None = None,
+        max_tokens: int | None = None,
+        parent_retrieval: bool | None = None,
+    ) -> str:
+        """Search documents and return formatted results.
+
+        Any optional argument overrides the value from the config for
+        this call; ``None`` falls back to the configured default.
+        """
         await self._ensure_seeded()
         assert self.embedder is not None
         assert self.store is not None
+
+        eff_filter = filter if filter is not None else self._filters
+        eff_threshold = (
+            similarity_threshold
+            if similarity_threshold is not None
+            else self._threshold
+        )
+        eff_max_tokens = max_tokens if max_tokens is not None else self._max_tokens
+        eff_parent = (
+            parent_retrieval if parent_retrieval is not None else self._parent_retrieval
+        )
+
+        k_raw = max(k, k * 4) if eff_parent else k
         query_vec = await self.embedder.embed(query)
-        results = await self.store.search(query_vec, k=k)
-        if not results:
-            return ""
-        context_parts = []
-        for i, (doc_id, score, meta) in enumerate(results):
+        results = await self.store.search(
+            query_vec,
+            k=k_raw,
+            filter=eff_filter,
+            hybrid=self._hybrid,
+            query_text=query,
+        )
+
+        if eff_threshold is not None:
+            results = [r for r in results if r[1] >= eff_threshold]
+
+        if eff_parent:
+            parents: dict[str, tuple[str, float]] = {}
+            for doc_id, score, meta in results:
+                pid = meta.get("parent_id")
+                if pid is None:
+                    continue
+                parent_text = meta.get("parent_text") or meta.get("text", doc_id)
+                if pid not in parents or score > parents[pid][1]:
+                    parents[pid] = (parent_text, score)
+            ranked = sorted(parents.items(), key=lambda kv: kv[1][1], reverse=True)
+            results = [
+                (pid, score, {"text": text}) for pid, (text, score) in ranked[:k]
+            ]
+
+        context_parts: list[str] = []
+        total_tokens = 0
+        for doc_id, score, meta in results:
             text = meta.get("text", doc_id)
-            context_parts.append(f"[{i + 1}] (score: {score:.3f}) {text}")
+            if eff_max_tokens is not None:
+                tokens = _estimate_tokens(text)
+                if total_tokens >= eff_max_tokens:
+                    break
+                if total_tokens + tokens > eff_max_tokens:
+                    remaining = eff_max_tokens - total_tokens
+                    text = _truncate_to_tokens(text, remaining)
+                    total_tokens = eff_max_tokens
+                else:
+                    total_tokens += tokens
+            context_parts.append(
+                f"[{len(context_parts) + 1}] (score: {score:.3f}) {text}"
+            )
         return "\n\n".join(context_parts)
 
     async def add_document(self, text: str, metadata: dict | None = None) -> None:
@@ -273,15 +443,30 @@ class RAGTool(Tool):
         assert self.embedder is not None
         assert self.store is not None
         chunks = self.chunker.chunk(text)
+        parent_id = metadata.get("id")
+        if self._parent_chunks:
+            parent_id = parent_id or f"doc_{uuid.uuid4().hex[:8]}"
+            base_meta = {**metadata, "id": parent_id}
+        else:
+            base_meta = metadata
         vectors = []
         embeddings = await self.embedder.embed_many(chunks)
         for i, (chunk, vec) in enumerate(zip(chunks, embeddings)):
-            doc_id = (
-                f"{metadata.get('id', 'doc')}_{i}"
-                if metadata.get("id")
-                else f"chunk_{i}"
-            )
-            meta = {**metadata, "text": chunk, "chunk_index": i}
+            if self._parent_chunks:
+                doc_id = f"{parent_id}_{i}"
+                meta = {
+                    **base_meta,
+                    "parent_id": parent_id,
+                    "parent_text": text,
+                    "text": chunk,
+                    "chunk_index": i,
+                }
+            elif metadata.get("id"):
+                doc_id = f"{metadata['id']}_{i}"
+                meta = {**metadata, "text": chunk, "chunk_index": i}
+            else:
+                doc_id = f"chunk_{i}"
+                meta = {**metadata, "text": chunk, "chunk_index": i}
             vectors.append((doc_id, vec, meta))
         await self.store.add(vectors)
 

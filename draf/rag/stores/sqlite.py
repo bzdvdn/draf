@@ -1,9 +1,11 @@
 """SQLite vector store — file persistence with zero extra dependencies."""
 
+from __future__ import annotations
+
 import json
 import sqlite3
 
-from draf.rag.base import VectorStore, cosine_similarity
+from draf.rag.base import VectorStore, cosine_similarity, finalize_results
 
 
 class SQLiteVectorStore(VectorStore):
@@ -42,19 +44,60 @@ class SQLiteVectorStore(VectorStore):
         self._conn.commit()
 
     async def search(
-        self, query: list[float], k: int = 10
+        self,
+        query: list[float],
+        k: int = 10,
+        filter: dict | None = None,
+        hybrid: bool = False,
+        query_text: str | None = None,
     ) -> list[tuple[str, float, dict]]:
         rows = self._conn.execute("SELECT id, vector, metadata FROM vectors").fetchall()
-        scored = []
-        for vid, vec_json, meta_json in rows:
-            vec = json.loads(vec_json)
-            sim = cosine_similarity(query, vec)
-            scored.append((vid, sim, json.loads(meta_json)))
-        scored.sort(key=lambda x: x[1], reverse=True)
-        return scored[:k]
+        candidates = [
+            (vid, cosine_similarity(query, json.loads(vec_json)), json.loads(meta_json))
+            for vid, vec_json, meta_json in rows
+        ]
+        return finalize_results(candidates, k, filter, hybrid, query_text)
 
     async def delete(self, ids: list[str]) -> None:
         self._conn.executemany("DELETE FROM vectors WHERE id = ?", [(i,) for i in ids])
+        self._conn.commit()
+
+    async def count(self) -> int:
+        return self._conn.execute("SELECT COUNT(*) FROM vectors").fetchone()[0]
+
+    async def entries(
+        self, limit: int = 100, offset: int = 0
+    ) -> list[tuple[str, dict]]:
+        rows = self._conn.execute(
+            "SELECT id, metadata FROM vectors ORDER BY id LIMIT ? OFFSET ?",
+            (limit, offset),
+        ).fetchall()
+        return [(r[0], json.loads(r[1])) for r in rows]
+
+    async def get(self, ids: list[str]) -> list[tuple[str, dict]]:
+        if not ids:
+            return []
+        marks = ",".join("?" * len(ids))
+        rows = self._conn.execute(
+            f"SELECT id, metadata FROM vectors WHERE id IN ({marks})", ids
+        ).fetchall()
+        return [(r[0], json.loads(r[1])) for r in rows]
+
+    async def update_metadata(self, id: str, metadata: dict) -> None:
+        row = self._conn.execute(
+            "SELECT metadata FROM vectors WHERE id = ?", (id,)
+        ).fetchone()
+        if row is None:
+            return
+        merged = {**json.loads(row[0]), **metadata}
+        self._conn.execute(
+            "UPDATE vectors SET metadata = ? WHERE id = ?",
+            (json.dumps(merged, ensure_ascii=False), id),
+        )
+        self._conn.commit()
+
+    async def clear(self) -> None:
+        self._conn.execute("DELETE FROM vectors")
         self._conn.commit()
 
     def close(self) -> None:

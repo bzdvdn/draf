@@ -467,6 +467,93 @@ Streamable HTTP endpoint.  The session stays open for the `async with` block.
 A runnable pair — a tiny server plus a ReAct agent calling it — lives in
 [`examples/mcp/`](examples/mcp/).
 
+## RAG (retrieval)
+
+`RAGTool` chunks, embeds, and retrieves documents from a pluggable vector
+store (`InMemoryVectorStore`, `SQLite`, `Chroma`, `Qdrant`, `PGVector`,
+`FAISS`, `Lance`, `Milvus`, `Weaviate`, `Pinecone`) using raw HTTP embeddings
+(`Embedder`: OpenAI, Ollama, Mistral, Voyage, Jina, Together, Groq, or any
+OpenAI-compatible `/v1/embeddings` endpoint).  Documents load
+from CSV, TXT (glob), PDF (`draf[rag-pdf]`), and Excel (`draf[rag-excel]`).
+All vector stores (including the embedded/external ones) are installed via
+`draf[embedding]`.
+
+```python
+from draf import RAGTool
+
+rag = RAGTool({
+    "embedder": {"provider": "ollama", "model": "nomic-embed-text"},
+    "store": {"type": "sqlite", "path": "vectors.db", "dim": 768},
+    "documents": [
+        {"type": "txt", "path": "docs/*.txt"},
+        {"type": "csv", "path": "meta.csv", "text_column": "content"},
+    ],
+    "filter": {"topic": "news"},   # metadata filter (DSL below)
+    "similarity_threshold": 0.5,   # drop low-score hits
+    "max_tokens": 1024,            # context token budget
+    "hybrid": True,                # keyword + semantic blend
+})
+result = await rag.arun("what changed in v2?")
+```
+
+Search arguments override the config per call: `arun(query, k, filter=...,
+similarity_threshold=..., max_tokens=..., parent_retrieval=...)`.
+
+- **Metadata filters** — `{"category": "news"}` (equality),
+  `{"category": ["news", "tech"]}` (membership, or shared element for list
+  fields), and `"$and"` / `"$or"` combinators.  Honoured by every store.
+- **Hybrid search** — blends a lexical keyword score with the embedding score
+  (weight `alpha`, default 0.4) in `InMemoryVectorStore`, `SQLiteVectorStore`,
+  and the new embedded/external stores (hybrid + metadata filters are applied
+  after retrieval there).
+- **Small-to-big** — with `parent_chunks: true` every chunk keeps its full
+  parent text; `parent_retrieval: true` returns whole deduplicated parent
+  documents instead of individual chunks.
+- **Token budget** — `max_tokens` truncates the returned context to an
+  approximate token count so a RAG call cannot blow up the LLM context window.
+
+Embedder providers (all OpenAI-compatible `/v1/embeddings`; the `model` key is
+optional — a per-provider default is used when omitted):
+
+| `provider` | Default `model` | API key env var |
+| ---------- | --------------- | --------------- |
+| `openai` | `text-embedding-ada-002` | `OPENAI_API_KEY` |
+| `ollama` | `nomic-embed-text` | — (local) |
+| `mistral` | `mistral-embed` | `MISTRAL_API_KEY` |
+| `voyage` | `voyage-3` | `VOYAGE_API_KEY` |
+| `jina` | `jina-embeddings-v3` | `JINA_API_KEY` |
+| `together` | `togethercomputer/m2-bert-80M-8k-retrieval` | `TOGETHER_API_KEY` |
+| `groq` | `nomic-embed-text-v1.5` | `GROQ_API_KEY` |
+
+Store types and their config keys:
+
+| `type` | Config | Notes |
+| ------ | ------ | ----- |
+| `in_memory` | `dim` | default; in-process only |
+| `sqlite` | `path`, `dim` | stdlib file persistence |
+| `chroma` | `path`, `collection` | embedded |
+| `qdrant` | `host`, `port`, `collection` | needs a server |
+| `pgvector` | `dsn`, `table` | needs PostgreSQL + pgvector |
+| `faiss` | `dim`, `path` | FAISS flat index + `.meta.json` sidecar |
+| `lance` / `lancedb` | `path`, `table`, `dim` | embedded columnar store |
+| `milvus` | `uri`, `token`, `collection`, `dim` | `uri` can be a local `./file.db` (Milvus Lite) |
+| `weaviate` | `collection`, `embedded`, `host`, `http_port`, `grpc_port`, `api_key`, `headers`, `dim` | `embedded: true` for the in-process server |
+| `pinecone` | `index_name`, `api_key`, `host`, `namespace`, `dim` | API key from `PINECONE_API_KEY` |
+
+Vector stores expose management operations beyond search:
+
+```python
+await store.count()                              # number of vectors
+await store.entries(limit=100, offset=0)         # (id, metadata) pairs
+await store.get(["chunk_0", "chunk_1"])          # by id
+await store.update_metadata("chunk_0", {"starred": True})  # merge
+await store.clear()                              # wipe everything
+```
+
+Runnable examples: [`examples/rag_search/`](examples/rag_search/) (CSV corpus,
+in-memory store) and [`examples/rag_stores/`](examples/rag_stores/) (same agent
+on every vector store).
+
 ## Observability (telemetry)
 
 Pass a `RunTracer` to `graph.run()` to collect a JSON-serialisable event log:
@@ -502,7 +589,7 @@ The CLI exposes the same report: `draf -f workflow.yaml --trace`.
 | [streaming](examples/streaming/) | Live LLM tokens + graph events via `graph.stream()` |
 | [structured_output](examples/structured_output/) | Schema-validated LLM JSON via `output_type`/`json_schema` |
 | [rag_search](examples/rag_search/) | RAG over a local CSV, in-memory store |
-| [rag_stores](examples/rag_stores/) | Same RAG agent on every vector store |
+| [rag_stores](examples/rag_stores/) | Same RAG agent on every vector store (in-memory, sqlite, chroma, faiss, lance, milvus, weaviate, qdrant, pgvector, pinecone) |
 | [checkpoint_resume](examples/checkpoint_resume/) | Crash/resume in a few lines |
 | [checkpoint_stores](examples/checkpoint_stores/) | Durable workflow on file/sqlite/pg |
 
