@@ -24,9 +24,23 @@ from draf.node import (
 from draf.tool import Tool, ToolRegistry, default_tool_registry, tool
 from draf.graph import Graph, Edge
 from draf.flow import Flow, Case, SubFlow
-from draf.harness import Harness
+from draf.harness import Harness, set_provider_concurrency, provider_concurrency
 from draf.skill import Skill, load_skill
 from draf.schema import json_schema_from_type, validate_json
+from draf.trace import (
+    RunTracer,
+    TraceEvent,
+    RunSummary,
+    TokenUsage,
+    model_pricing,
+    tokens_cost,
+    set_model_pricing,
+    set_provider_pricing,
+    load_pricing,
+    clear_pricing,
+)
+from draf.yaml_schema import validate_workflow, validate_workflow_file
+from draf.eval import run_eval, load_dataset, extract_output
 from draf.rag import VectorStore, Embedder, Chunker, RAGTool
 from draf.rag.stores import (
     InMemoryVectorStore,
@@ -42,8 +56,17 @@ from draf.state import (
     apply_reducers,
     Reducer,
 )
-from draf.trace import RunTracer, TraceEvent, RunSummary, TokenUsage
 from draf.stream import StreamEvent
+from draf._version import __version__
+from draf.errors import (
+    DrafError,
+    ConfigError,
+    WorkflowError,
+    NodeError,
+    LLMError,
+    InterruptError,
+    redact,
+)
 
 
 def set_defaults(*, provider: str | None = None, **kwargs: object) -> None:
@@ -65,6 +88,14 @@ def set_defaults(*, provider: str | None = None, **kwargs: object) -> None:
 
 __all__ = [
     "set_defaults",
+    "__version__",
+    "DrafError",
+    "ConfigError",
+    "WorkflowError",
+    "NodeError",
+    "LLMError",
+    "InterruptError",
+    "redact",
     "Node",
     "NodeRegistry",
     "default_registry",
@@ -90,6 +121,8 @@ __all__ = [
     "Case",
     "SubFlow",
     "Harness",
+    "set_provider_concurrency",
+    "provider_concurrency",
     "Skill",
     "load_skill",
     "json_schema_from_type",
@@ -112,5 +145,16 @@ __all__ = [
     "TraceEvent",
     "RunSummary",
     "TokenUsage",
+    "model_pricing",
+    "tokens_cost",
+    "set_model_pricing",
+    "set_provider_pricing",
+    "load_pricing",
+    "clear_pricing",
+    "validate_workflow",
+    "validate_workflow_file",
+    "run_eval",
+    "load_dataset",
+    "extract_output",
     "StreamEvent",
 ]

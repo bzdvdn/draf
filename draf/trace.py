@@ -9,9 +9,174 @@ activity, and LLM token usage — and folds it into a ``RunSummary``.
 from __future__ import annotations
 
 import json
+import os
 import time
-from dataclasses import asdict, dataclass, field
+from dataclasses import dataclass, field
 from typing import Any
+
+import yaml
+
+from draf.errors import redact
+
+# Approximate list pricing in USD per 1M tokens (input, output).
+# Local/self-hosted models are not in the table and cost $0.
+# Used as a fallback when no provider-specific pricing is registered.
+_MODEL_PRICING: dict[str, tuple[float, float]] = {
+    "gpt-4o": (2.5, 10.0),
+    "gpt-4o-mini": (0.15, 0.6),
+    "gpt-4-turbo": (10.0, 30.0),
+    "gpt-4": (30.0, 60.0),
+    "gpt-3.5-turbo": (0.5, 1.5),
+    "o1": (15.0, 60.0),
+    "o1-mini": (1.1, 4.4),
+    "claude-3-opus": (15.0, 75.0),
+    "claude-3-5-sonnet": (3.0, 15.0),
+    "claude-3-sonnet": (3.0, 15.0),
+    "claude-3-haiku": (0.25, 1.25),
+    "claude-3-5-haiku": (0.8, 4.0),
+    "deepseek-chat": (0.14, 0.28),
+    "deepseek-reasoner": (0.55, 1.19),
+    "mistral-large": (2.0, 6.0),
+    "mistral-medium": (2.7, 8.1),
+    "mistral-small": (0.2, 0.6),
+    "gemini-1.5-pro": (1.25, 5.0),
+    "gemini-1.5-flash": (0.075, 0.3),
+}
+
+# Provider-scoped pricing registered at runtime.  Custom providers such as
+# OpenRouter or aggregators keep their own per-model rates and use their own
+# model names (e.g. ``openai/gpt-4o``), so a model-only table cannot cover
+# them.  Keys are ``(provider, model)``; values are ``(input, output)`` USD
+# per 1M tokens.
+_CUSTOM_PRICING: dict[tuple[str, str], tuple[float, float]] = {}
+# Provider-wide defaults keyed by provider, applied when no per-model entry
+# (custom or built-in) matches.
+_PROVIDER_PRICING: dict[str, tuple[float, float]] = {}
+
+
+def set_model_pricing(
+    provider: str,
+    model: str,
+    input_price: float,
+    output_price: float,
+) -> None:
+    """Register custom USD-per-1M-token pricing for a provider/model pair.
+
+    Takes precedence over the built-in table and any provider-wide default.
+    """
+    _CUSTOM_PRICING[(provider.lower(), model)] = (
+        float(input_price),
+        float(output_price),
+    )
+
+
+def set_provider_pricing(
+    provider: str,
+    input_price: float,
+    output_price: float,
+) -> None:
+    """Register a provider-wide default price in USD per 1M tokens.
+
+    Applied to every model on *provider* that has no per-model entry.
+    """
+    _PROVIDER_PRICING[provider.lower()] = (float(input_price), float(output_price))
+
+
+def load_pricing(source: str | dict) -> None:
+    """Register pricing from a YAML/JSON file path or an inline dict.
+
+    Format::
+
+        providers:
+          openrouter:
+            default: {input: 0.1, output: 0.4}
+            models:
+              "openai/gpt-4o": {input: 3.0, output: 12.0}
+              "anthropic/claude-3.5-sonnet": {input: 3.0, output: 15.0}
+
+    A flat dict ``{"provider": {model: [in, out]}}`` is also accepted.
+    """
+    if isinstance(source, str) and os.path.exists(source):
+        with open(source) as f:
+            data = yaml.safe_load(f) or {}
+        data = data.get("providers", data)
+    elif isinstance(source, str):
+        raise ValueError("load_pricing expects an existing file path or a dict")
+    else:
+        data = source
+
+    for provider, block in data.items():
+        if not isinstance(block, dict):
+            continue
+        default = block.get("default")
+        if default:
+            _PROVIDER_PRICING[provider.lower()] = (
+                float(default["input"]),
+                float(default["output"]),
+            )
+        for model, price in (block.get("models") or {}).items():
+            if isinstance(price, (list, tuple)):
+                _CUSTOM_PRICING[(provider.lower(), model)] = (
+                    float(price[0]),
+                    float(price[1]),
+                )
+            else:
+                _CUSTOM_PRICING[(provider.lower(), model)] = (
+                    float(price["input"]),
+                    float(price["output"]),
+                )
+
+
+def clear_pricing() -> None:
+    """Remove all custom pricing registered at runtime."""
+    _CUSTOM_PRICING.clear()
+    _PROVIDER_PRICING.clear()
+
+
+def model_pricing(model: str, provider: str = "") -> tuple[float, float]:
+    """Return ``(input, output)`` USD per 1M tokens for *model* / *provider*.
+
+    Resolution order:
+
+    1. exact ``(provider, model)`` custom entry;
+    2. provider-prefixed custom entry (``gpt-4o`` matches ``gpt-4o-2024-08-06``);
+    3. provider-wide default;
+    4. built-in table (exact, then prefix);
+    5. ``(0.0, 0.0)`` for unknown/local models.
+
+    When *provider* is empty only the built-in table is consulted, so
+    callers that pass no provider keep their current behaviour.
+    """
+    key = (provider.lower(), model)
+    if key in _CUSTOM_PRICING:
+        return _CUSTOM_PRICING[key]
+    for (p, name), price in _CUSTOM_PRICING.items():
+        if p == provider.lower() and model.startswith(name + "-"):
+            return price
+    if provider:
+        p = provider.lower()
+        if p in _PROVIDER_PRICING:
+            return _PROVIDER_PRICING[p]
+    if model in _MODEL_PRICING:
+        return _MODEL_PRICING[model]
+    for name, price in _MODEL_PRICING.items():
+        if model.startswith(name + "-"):
+            return price
+    return (0.0, 0.0)
+
+
+def tokens_cost(
+    model: str,
+    prompt_tokens: int,
+    completion_tokens: int,
+    provider: str = "",
+) -> float:
+    """Estimate the USD cost of a model call from its token usage."""
+    input_price, output_price = model_pricing(model, provider)
+    return (
+        prompt_tokens / 1_000_000 * input_price
+        + completion_tokens / 1_000_000 * output_price
+    )
 
 
 def _ms(start: float) -> float:
@@ -50,6 +215,36 @@ class RunSummary:
     llm_calls: int = 0
     tokens: TokenUsage = field(default_factory=TokenUsage)
     nodes: dict[str, NodeStats] = field(default_factory=dict)
+    cost_usd: float = 0.0
+    models: dict[str, dict[str, int]] = field(default_factory=dict)
+
+    def to_dict(self) -> dict[str, Any]:
+        """Return a JSON-serialisable dict (model names redacted)."""
+        return {
+            "status": self.status,
+            "total_ms": round(self.total_ms, 3),
+            "node_count": self.node_count,
+            "llm_calls": self.llm_calls,
+            "cost_usd": round(self.cost_usd, 6),
+            "tokens": {
+                "prompt_tokens": self.tokens.prompt_tokens,
+                "completion_tokens": self.tokens.completion_tokens,
+                "total": self.tokens.total,
+            },
+            "models": redact(self.models),
+            "nodes": {
+                nid: {
+                    "runs": stats.runs,
+                    "errors": stats.errors,
+                    "total_ms": round(stats.total_ms, 3),
+                }
+                for nid, stats in sorted(self.nodes.items())
+            },
+        }
+
+    def to_json(self) -> str:
+        """Return this summary as a pretty-printed JSON string."""
+        return json.dumps(self.to_dict(), indent=2)
 
 
 @dataclass
@@ -76,7 +271,7 @@ class TraceEvent:
     data: dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
-        """Return a JSON-serialisable dict for this event."""
+        """Return a JSON-serialisable dict for this event (data redacted)."""
         return {
             "kind": self.kind,
             "timestamp": round(self.timestamp, 6),
@@ -85,7 +280,7 @@ class TraceEvent:
             "duration_ms": (
                 None if self.duration_ms is None else round(self.duration_ms, 3)
             ),
-            **self.data,
+            **redact(self.data),
         }
 
 
@@ -282,6 +477,23 @@ class RunTracer:
 
         run_end = next((e for e in reversed(self.events) if e.kind == "run_end"), None)
         end_data = run_end.data if run_end else {}
+
+        cost = 0.0
+        per_model: dict[str, dict[str, int]] = {}
+        for ev in self.events:
+            if ev.kind != "llm":
+                continue
+            model = str(ev.data.get("model", ""))
+            provider = str(ev.data.get("provider", ""))
+            prompt = int(ev.data.get("prompt_tokens", 0))
+            completion = int(ev.data.get("completion_tokens", 0))
+            cost += tokens_cost(model, prompt, completion, provider=provider)
+            usage = per_model.setdefault(
+                model, {"prompt_tokens": 0, "completion_tokens": 0}
+            )
+            usage["prompt_tokens"] += prompt
+            usage["completion_tokens"] += completion
+
         return RunSummary(
             status=str(end_data.get("status", "ok")),
             total_ms=float(end_data.get("total_ms", 0.0)),
@@ -289,11 +501,13 @@ class RunTracer:
             llm_calls=self._llm_calls,
             tokens=self._usage,
             nodes=nodes,
+            cost_usd=cost,
+            models=per_model,
         )
 
     def to_json(self) -> str:
-        """Return a JSON report: ``{summary, events}``."""
+        """Return a JSON report: ``{summary, events}`` (secrets redacted)."""
         return json.dumps(
-            {"summary": asdict(self.summary()), "events": self.timeline()},
+            {"summary": self.summary().to_dict(), "events": self.timeline()},
             indent=2,
         )

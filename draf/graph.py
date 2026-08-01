@@ -9,6 +9,7 @@ from draf.node.node import Node
 from draf.node.registry import NodeRegistry, default_registry
 from draf.node.context import ExecContext
 from draf.node.interrupt import GraphInterrupt
+from draf.errors import WorkflowError
 from draf.tool.tool import Tool
 from draf.state import Reducer, State, apply_reducers
 from draf.checkpoint import Checkpoint, Checkpointer
@@ -363,7 +364,7 @@ class Graph:
 
         while current_id:
             if max_iterations is not None and iteration >= max_iterations:
-                raise RuntimeError(f"graph exceeded max_iterations={max_iterations}")
+                raise WorkflowError(f"graph exceeded max_iterations={max_iterations}")
             iteration += 1
 
             node = self.nodes[current_id]

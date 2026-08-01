@@ -3,6 +3,7 @@
 import json
 import typing
 
+from draf.errors import DrafError
 from draf.harness import (
     Harness,
     execute_tool_calls,
@@ -32,7 +33,7 @@ def _opt_float_cfg(value: typing.Any) -> float | None:
         return None
 
 
-class StructuredOutputError(ValueError):
+class StructuredOutputError(DrafError, ValueError):
     """Raised when an LLM response fails structured-output parsing/validation.
 
     Attributes:

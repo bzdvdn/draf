@@ -5,10 +5,20 @@ import os
 import yaml
 
 from draf.graph import Graph, Edge
+from draf.errors import ConfigError
 from draf.node.node import Node
 from draf.tool.tool import Tool
 from draf.tool.registry import default_tool_registry
 from draf.state.state import Reducer, reducers_from_yaml_schema
+from draf.yaml_schema import validate_workflow, raise_for_validation
+
+
+def _safe_load(source):
+    """Load YAML, surfacing parse errors as ``ConfigError``."""
+    try:
+        return yaml.safe_load(source)
+    except (yaml.YAMLError, ValueError) as exc:
+        raise ConfigError(f"invalid YAML: {exc}") from exc
 
 
 def from_yaml(source: str) -> Graph:
@@ -36,9 +46,16 @@ def from_yaml(source: str) -> Graph:
     """
     if os.path.exists(source):
         with open(source) as f:
-            data = yaml.safe_load(f)
+            data = _safe_load(f)
     else:
-        data = yaml.safe_load(source)
+        data = _safe_load(source)
+
+    if data is None:
+        data = {}
+    if not isinstance(data, dict):
+        raise ConfigError("workflow must be a mapping")
+    label = source if os.path.exists(source) else "workflow"
+    raise_for_validation(validate_workflow(data), source=label)
 
     from draf.node.registry import default_registry
 
@@ -75,7 +92,7 @@ def graph_to_yaml(graph: Graph) -> str:
         steps.append(
             {
                 "id": nid,
-                "type": getattr(node, "type", nid),
+                "type": type(node).type or getattr(node, "type", nid),
                 "config": getattr(node, "config", {}),
             }
         )
@@ -124,7 +141,13 @@ def load_workflow(path: str) -> tuple[Graph, list[Tool], dict, dict[str, Reducer
         A ``(Graph, tools_list, initial_state, reducers)`` tuple ready for ``graph.run()``.
     """
     with open(path) as f:
-        data = yaml.safe_load(f)
+        data = _safe_load(f)
+
+    if data is None:
+        data = {}
+    if not isinstance(data, dict):
+        raise ConfigError("workflow must be a mapping")
+    raise_for_validation(validate_workflow(data), source=path)
 
     import draf.tool.builtin  # noqa: F401 — registers built-in tools
     import draf.rag  # noqa: F401 — registers the "rag" tool

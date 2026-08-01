@@ -2,9 +2,23 @@
 name = "draf"
 version = "0.1.0-alpha"
 description = "Workflow as data. Agents as graphs."
+readme = "README.md"
 requires-python = ">=3.11"
+license = { text = "MIT" }
+keywords = ["ai", "agents", "workflow", "llm", "graph", "orchestration", "rag"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
 dependencies = [
     "httpx>=0.27",
+    "jsonschema>=4.18",
     "mcp[mcp]>=1.0",
     "pyyaml>=6.0",
     "typer>=0.12",

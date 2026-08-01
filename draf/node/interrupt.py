@@ -8,10 +8,11 @@ state under the interrupt's *key* before the graph continues with the
 node that follows the interrupt.
 """
 
+from draf.errors import DrafError
 from draf.node.node import Node
 
 
-class GraphInterrupt(Exception):
+class GraphInterrupt(DrafError):
     """Raised by ``graph.run()`` when a workflow pauses for human input.
 
     Attributes:

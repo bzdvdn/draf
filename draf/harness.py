@@ -28,6 +28,8 @@ built-in tools work unchanged.
       tokens exceed this budget.
     - ``max_context_tokens`` / ``max_context_messages`` — trim the
       conversation history before each model call to fit these limits.
+    - ``cache`` — cache model responses keyed by request so re-runs /
+      checkpoint resumes do not pay for the same call twice.
     - ``on_tool_call`` — async hook ``(name, args) -> Awaitable[None]``
       invoked before each tool executes (approval/auditing).
     - ``on_step`` / ``on_llm`` / ``on_token`` — observability hooks.
@@ -36,17 +38,19 @@ built-in tools work unchanged.
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import inspect
 import json
 import os
 import re
 import time
 import typing
-from collections.abc import Awaitable, Callable, Mapping
+from collections.abc import Awaitable, Callable, Mapping, MutableMapping
 from dataclasses import dataclass, field
 
 import httpx
 
+from draf.errors import WorkflowError
 from draf.schema import extract_json_object, _py_to_schema
 from draf.tool.tool import Tool, coerce_args
 
@@ -86,6 +90,43 @@ PROVIDER_DEFAULTS = {
         "api_key_env": "MISTRAL_API_KEY",
         "chat_path": "/chat/completions",
     },
+    # OpenAI-compatible endpoints.
+    "together": {
+        "base_url": "https://api.together.xyz/v1",
+        "auth_header": "Authorization",
+        "auth_prefix": "Bearer ",
+        "api_key_env": "TOGETHER_API_KEY",
+        "chat_path": "/chat/completions",
+    },
+    "groq": {
+        "base_url": "https://api.groq.com/openai/v1",
+        "auth_header": "Authorization",
+        "auth_prefix": "Bearer ",
+        "api_key_env": "GROQ_API_KEY",
+        "chat_path": "/chat/completions",
+    },
+    "openrouter": {
+        "base_url": "https://openrouter.ai/api/v1",
+        "auth_header": "Authorization",
+        "auth_prefix": "Bearer ",
+        "api_key_env": "OPENROUTER_API_KEY",
+        "chat_path": "/chat/completions",
+    },
+    "gemini": {
+        "base_url": "https://generativelanguage.googleapis.com/v1beta/openai",
+        "auth_header": "Authorization",
+        "auth_prefix": "Bearer ",
+        "api_key_env": "GEMINI_API_KEY",
+        "chat_path": "/chat/completions",
+    },
+    # Custom OpenAI-compatible endpoint (e.g. vLLM, LM Studio, Azure).
+    "openai_compatible": {
+        "base_url": "",
+        "auth_header": "Authorization",
+        "auth_prefix": "Bearer ",
+        "api_key_env": "OPENAI_API_KEY",
+        "chat_path": "/chat/completions",
+    },
 }
 
 _JSON_TYPE_MAP = {
@@ -97,6 +138,34 @@ _JSON_TYPE_MAP = {
     dict: "object",
     type(None): "null",
 }
+
+# Global per-provider concurrency guards.  Shared across harness
+# instances so parallel branches (each with its own Harness) throttle
+# model traffic together instead of blowing past provider rate limits.
+_PROVIDER_SEMAPHORES: dict[str, asyncio.Semaphore] = {}
+# Providers with an explicit global cap (authoritative over max_parallel).
+_EXPLICIT_LIMITS: dict[str, int] = {}
+
+
+def set_provider_concurrency(provider: str, limit: int) -> None:
+    """Globally cap concurrent model calls for *provider*.
+
+    Overrides any per-harness ``max_parallel`` for that provider.
+    Pass ``limit <= 0`` to remove the cap.
+    """
+    provider = provider.lower()
+    if limit <= 0:
+        _EXPLICIT_LIMITS.pop(provider, None)
+        _PROVIDER_SEMAPHORES.pop(provider, None)
+    else:
+        _EXPLICIT_LIMITS[provider] = limit
+        _PROVIDER_SEMAPHORES[provider] = asyncio.Semaphore(limit)
+
+
+def provider_concurrency(provider: str) -> int | None:
+    """Return the current global concurrency limit for *provider* (if any)."""
+    sem = _PROVIDER_SEMAPHORES.get(provider.lower())
+    return sem._value if sem is not None else None
 
 
 def _ms(start: float) -> float:
@@ -209,6 +278,36 @@ def extract_message(data: dict) -> dict:
     return msg
 
 
+def _anthropic_to_message(data: dict) -> dict:
+    """Convert an Anthropic response into the OpenAI-style message shape.
+
+    Anthropic returns content blocks (``text`` / ``tool_use``); this
+    folds them into ``{role, content, tool_calls}`` so the rest of the
+    pipeline is provider-agnostic.
+    """
+    text_parts: list[str] = []
+    tool_calls: list[dict] = []
+    for block in data.get("content", []):
+        block_type = block.get("type")
+        if block_type == "text":
+            text_parts.append(str(block.get("text", "")))
+        elif block_type == "tool_use":
+            tool_calls.append(
+                {
+                    "id": block.get("id", ""),
+                    "type": "function",
+                    "function": {
+                        "name": block.get("name", ""),
+                        "arguments": json.dumps(block.get("input", {})),
+                    },
+                }
+            )
+    msg: dict = {"role": "assistant", "content": "\n".join(text_parts)}
+    if tool_calls:
+        msg["tool_calls"] = tool_calls
+    return msg
+
+
 def parse_text_tool_call(content: str) -> tuple[str, dict] | None:
     """Parse a tool call embedded in plain text content.
 
@@ -248,9 +347,13 @@ def extract_usage(data: dict) -> tuple[int, int]:
     prompt = usage.get("prompt_tokens")
     completion = usage.get("completion_tokens")
     if prompt is None:
-        prompt = data.get("prompt_eval_count", 0)
+        prompt = data.get("prompt_eval_count")
     if completion is None:
-        completion = data.get("eval_count", 0)
+        completion = data.get("eval_count")
+    if prompt is None:
+        prompt = usage.get("input_tokens")
+    if completion is None:
+        completion = usage.get("output_tokens")
     return int(prompt or 0), int(completion or 0)
 
 
@@ -382,7 +485,7 @@ def trim_messages(
     return system + body
 
 
-class ContextLimitError(RuntimeError):
+class ContextLimitError(WorkflowError):
     """Raised when a conversation cannot fit the configured context limits."""
 
 
@@ -507,6 +610,7 @@ class ModelReply:
     content: str
     usage: dict = field(default_factory=dict)
     latency_ms: float = 0.0
+    cached: bool = False
 
 
 @dataclass
@@ -570,6 +674,7 @@ class Harness:
         max_total_tokens: int | None = None,
         max_context_tokens: int | None = None,
         max_context_messages: int | None = None,
+        max_parallel: int | None = None,
         stop_when: Callable[[list[dict]], bool] | None = None,
         on_step: Callable[[Step], Awaitable[None]] | None = None,
         on_llm: Callable[[str, str, int, int, float], Awaitable[None]] | None = None,
@@ -579,6 +684,7 @@ class Harness:
         max_tokens: int | None = None,
         response_format: dict | None = None,
         stream: bool = False,
+        cache: "MutableMapping[str, str] | bool | None" = None,
         default_provider: str | None = None,
     ):
         self.model = model
@@ -591,6 +697,7 @@ class Harness:
         self.max_retries = max_retries
         self.retry_on = tuple(retry_on or ())
         self.fallbacks = list(fallbacks or [])
+        self.max_parallel: int | None = max_parallel
         self._tool_approval = tool_approval
         self.max_total_tokens = max_total_tokens
         self.max_context_tokens = max_context_tokens
@@ -601,6 +708,12 @@ class Harness:
         self.on_token = on_token
         self.on_tool_call = on_tool_call
         self.stream = stream
+        self._cache: MutableMapping[str, str] | None = None
+        if isinstance(cache, bool):
+            if cache:
+                self._cache = {}
+        elif cache is not None:
+            self._cache = cache
 
         self.provider_key = resolve_provider(model, provider, default_provider)
         defaults = PROVIDER_DEFAULTS.get(self.provider_key, PROVIDER_DEFAULTS["openai"])
@@ -665,6 +778,9 @@ class Harness:
         # Token budget tracking across calls.
         self.total_tokens = 0
 
+        # Register the per-provider concurrency guard (grows global cap).
+        self._concurrency_semaphore()
+
     @classmethod
     def from_config(
         cls, cfg: dict, *, default_provider: str | None = None
@@ -700,6 +816,7 @@ class Harness:
             max_total_tokens=_opt_int(cfg.get("max_total_tokens")),
             max_context_tokens=_opt_int(cfg.get("max_context_tokens")),
             max_context_messages=_opt_int(cfg.get("max_context_messages")),
+            max_parallel=_opt_int(cfg.get("max_parallel")),
             stop_when=cfg.get("stop_when"),
             on_step=cfg.get("on_step"),
             on_llm=cfg.get("on_llm"),
@@ -709,14 +826,88 @@ class Harness:
             max_tokens=cfg.get("max_tokens"),
             response_format=cfg.get("response_format"),
             stream=bool(cfg.get("stream", False)),
+            cache=cfg.get("cache"),
             default_provider=default_provider,
         )
 
     def _body(self, messages: list[dict], tools: list[dict] | None = None) -> dict:
+        if self.provider_key == "anthropic":
+            return self._anthropic_body(messages, tools)
         body: dict = {"model": self.model, "messages": messages, **self._body_extra}
         if tools:
             body["tools"] = tools
         return body
+
+    def _anthropic_body(self, messages: list[dict], tools: list[dict] | None) -> dict:
+        """Build an Anthropic ``/messages`` request body.
+
+        Splits ``system`` out to the top level, converts tool results and
+        assistant ``tool_calls`` into content blocks, and rewrites the
+        tool schemas into Anthropic's ``input_schema`` shape.
+        """
+        system = "\n".join(
+            str(m.get("content", "")) for m in messages if m.get("role") == "system"
+        )
+        body: dict = {
+            "model": self.model,
+            "messages": [
+                self._to_anthropic_message(m)
+                for m in messages
+                if m.get("role") != "system"
+            ],
+            "max_tokens": self._body_extra.get("max_tokens") or 1024,
+        }
+        if self._body_extra.get("temperature") is not None:
+            body["temperature"] = self._body_extra["temperature"]
+        if self._body_extra.get("response_format") is not None:
+            body["response_format"] = self._body_extra["response_format"]
+        if system:
+            body["system"] = system
+        if tools:
+            body["tools"] = [self._to_anthropic_tool(t) for t in tools]
+        return body
+
+    @staticmethod
+    def _to_anthropic_message(msg: dict) -> dict:
+        """Convert an OpenAI-shaped message into an Anthropic one."""
+        role = msg.get("role")
+        if role == "tool":
+            return {
+                "role": "user",
+                "content": [
+                    {
+                        "type": "tool_result",
+                        "tool_use_id": msg.get("tool_call_id", ""),
+                        "content": msg.get("content", ""),
+                    }
+                ],
+            }
+        if role == "assistant" and msg.get("tool_calls"):
+            blocks: list[dict] = []
+            content = msg.get("content")
+            if content:
+                blocks.append({"type": "text", "text": str(content)})
+            for tc in msg["tool_calls"]:
+                name, raw, call_id = _tool_call_parts(tc)
+                try:
+                    args = json.loads(raw) if raw else {}
+                except json.JSONDecodeError:
+                    args = {}
+                blocks.append(
+                    {"type": "tool_use", "id": call_id, "name": name, "input": args}
+                )
+            return {"role": "assistant", "content": blocks}
+        return {"role": role, "content": msg.get("content", "")}
+
+    @staticmethod
+    def _to_anthropic_tool(tool: dict) -> dict:
+        """Convert an OpenAI function schema into an Anthropic tool schema."""
+        fn = tool.get("function", tool)
+        return {
+            "name": fn.get("name", ""),
+            "description": fn.get("description", ""),
+            "input_schema": fn.get("parameters", {"type": "object", "properties": {}}),
+        }
 
     def _is_retryable(self, exc: Exception) -> bool:
         """Whether an HTTP exception should be retried per *retry_on*."""
@@ -726,10 +917,41 @@ class Harness:
         code = getattr(status, "status_code", None)
         return code is not None and code in self.retry_on
 
+    def _concurrency_semaphore(self) -> asyncio.Semaphore | None:
+        """Global semaphore for this provider.
+
+        An explicit cap (``set_provider_concurrency``) is authoritative;
+        otherwise the shared semaphore grows to the largest ``max_parallel``
+        any harness has configured for the provider.
+        """
+        key = self.provider_key
+        if key in _EXPLICIT_LIMITS:
+            return _PROVIDER_SEMAPHORES.get(key)
+        if self.max_parallel and self.max_parallel > 0:
+            sem = _PROVIDER_SEMAPHORES.get(key)
+            if sem is None or sem._value < self.max_parallel:
+                sem = asyncio.Semaphore(self.max_parallel)
+                _PROVIDER_SEMAPHORES[key] = sem
+            return sem
+        return None
+
     async def _post_with_retries(
         self, url: str, headers: dict, body: dict, *, allow_fallback: bool = True
     ) -> dict:
         """POST *body* with retries + backoff, then fail over on repeated errors."""
+        sem = self._concurrency_semaphore()
+        if sem is not None:
+            async with sem:
+                return await self._post_with_retries_impl(
+                    url, headers, body, allow_fallback=allow_fallback
+                )
+        return await self._post_with_retries_impl(
+            url, headers, body, allow_fallback=allow_fallback
+        )
+
+    async def _post_with_retries_impl(
+        self, url: str, headers: dict, body: dict, *, allow_fallback: bool = True
+    ) -> dict:
         last_exc: Exception | None = None
         async with httpx.AsyncClient(timeout=self.timeout) as client:
             for attempt in range(self.max_retries + 1):
@@ -746,7 +968,7 @@ class Harness:
         if allow_fallback and last_exc is not None and self._fallback_transports:
             for fb_model, fb_url, fb_headers in self._fallback_transports:
                 try:
-                    return await self._post_with_retries(
+                    return await self._post_with_retries_impl(
                         fb_url,
                         fb_headers,
                         {**body, "model": fb_model},
@@ -761,6 +983,19 @@ class Harness:
         self, url: str, headers: dict, body: dict, *, allow_fallback: bool = True
     ) -> str:
         """Stream a POST response with retries + backoff + failover."""
+        sem = self._concurrency_semaphore()
+        if sem is not None:
+            async with sem:
+                return await self._post_stream_with_retries_impl(
+                    url, headers, body, allow_fallback=allow_fallback
+                )
+        return await self._post_stream_with_retries_impl(
+            url, headers, body, allow_fallback=allow_fallback
+        )
+
+    async def _post_stream_with_retries_impl(
+        self, url: str, headers: dict, body: dict, *, allow_fallback: bool = True
+    ) -> str:
         last_exc: Exception | None = None
         for attempt in range(self.max_retries + 1):
             try:
@@ -801,10 +1036,7 @@ class Harness:
                         chunk = json.loads(data)
                     except json.JSONDecodeError:
                         continue
-                    delta = chunk.get("choices", [{}])[0].get("delta", {})
-                    token = delta.get("content", "")
-                    if not token:
-                        token = (chunk.get("message") or {}).get("content", "")
+                    token = self._stream_token(chunk)
                     if token:
                         content += token
                         if self.on_token:
@@ -812,6 +1044,19 @@ class Harness:
                             if inspect.isawaitable(result):
                                 await result
         return content
+
+    def _stream_token(self, chunk: dict) -> str:
+        """Extract a text delta from a streaming chunk (provider-aware)."""
+        if self.provider_key == "anthropic":
+            delta = chunk.get("delta") or {}
+            if delta.get("type") == "text_delta":
+                return str(delta.get("text", ""))
+            return ""
+        delta = chunk.get("choices", [{}])[0].get("delta", {})
+        token = delta.get("content", "")
+        if not token:
+            token = (chunk.get("message") or {}).get("content", "")
+        return str(token)
 
     async def _post(self, body: dict) -> dict:
         return await self._post_with_retries(
@@ -821,6 +1066,12 @@ class Harness:
     async def _post_stream(self, body: dict) -> str:
         body = {**body, "stream": True}
         return await self._post_stream_with_retries(self._url, self._headers, body)
+
+    def _cache_key(self, body: dict) -> str:
+        """Hash of the request that identifies a cacheable model call."""
+        payload = json.dumps(body, sort_keys=True, default=str)
+        digest = hashlib.sha256(payload.encode()).hexdigest()
+        return f"{self.provider_key}:{self.model}:{digest}"
 
     async def call(
         self,
@@ -840,22 +1091,39 @@ class Harness:
             content_path: Dot-separated path for content extraction.
 
         Returns:
-            A :class:`ModelReply`.
+            A :class:`ModelReply` (``cached=True`` when served from cache).
         """
         body = self._body(messages, tools)
         use_stream = stream if stream is not None else (self.stream and not tools)
         t0 = time.monotonic()
+
+        cached = False
+        cache_key: str | None = None
+        if not use_stream and self._cache is not None:
+            cache_key = self._cache_key(body)
+            hit = self._cache.get(cache_key)
+            if hit is not None:
+                data = json.loads(hit) if isinstance(hit, str) else hit
+                cached = True
+
         if use_stream:
             content = await self._post_stream(body)
             msg: dict = {"role": "assistant", "content": content}
-            data: dict = {"message": msg}
+            data = {"message": msg}
             usage: dict = {"prompt": 0, "completion": 0}
         else:
-            data = await self._post(body)
-            msg = extract_message(data)
-            content = extract_content(
-                data, self.provider_key, content_path, msg.get("content", "")
-            )
+            if not cached:
+                data = await self._post(body)
+                if self._cache is not None and cache_key is not None:
+                    self._cache[cache_key] = json.dumps(data, default=str)
+            if self.provider_key == "anthropic":
+                msg = _anthropic_to_message(data)
+                content = msg.get("content", "")
+            else:
+                msg = extract_message(data)
+                content = extract_content(
+                    data, self.provider_key, content_path, msg.get("content", "")
+                )
             prompt, completion = extract_usage(data)
             usage = {"prompt": prompt, "completion": completion}
             if self.on_llm:
@@ -871,6 +1139,7 @@ class Harness:
             content=content,
             usage=usage,
             latency_ms=_ms(t0),
+            cached=cached,
         )
 
     async def step(

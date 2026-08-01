@@ -3,6 +3,7 @@
 import inspect
 from typing import Any, Callable
 
+from draf.errors import ConfigError
 from draf.node.node import Node
 
 NodeFactory = Callable[..., Node]
@@ -34,11 +35,12 @@ class NodeRegistry:
             A Node instance.
 
         Raises:
-            KeyError: If the type name is not registered.
+            ConfigError: If the type name is not registered
+                (also a ``KeyError``).
         """
         if name not in self._factories:
             msg = f"unknown node type: {name}"
-            raise KeyError(msg)
+            raise ConfigError(msg)
         merged = {**(config or {}), **kwargs}
         return self._factories[name](merged)
 
