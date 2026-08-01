@@ -36,10 +36,27 @@ class Flow:
         self._last_branch_values: list[str] = []
         self._branch_point: str | None = None
         self._branch_ends: list[str] = []
+        self._route_terminates = False
 
     def _next_id(self, node: Node) -> str:
         self._counter += 1
         return f"{node.type}_{self._counter}"
+
+    def _check_continuation(self) -> None:
+        """Raise if the last route() terminated the flow (finish=None)."""
+        if self._route_terminates:
+            raise ValueError(
+                "route() with finish=None terminates the flow when the decider "
+                "returns 'finish'; pass finish=<chain> before adding more nodes"
+            )
+
+    @staticmethod
+    def _as_chain(node_or_chain) -> list[Node]:
+        if node_or_chain is None:
+            return []
+        if isinstance(node_or_chain, Node):
+            return [node_or_chain]
+        return list(node_or_chain)
 
     def step(self, node: Node) -> "Flow":
         """Append a node to the linear chain.
@@ -52,6 +69,7 @@ class Flow:
 
         Returns ``self`` for chaining.
         """
+        self._check_continuation()
         if not isinstance(node, Node):
             raise TypeError("step expects a Node instance")
         self._nodes.append(node)
@@ -117,6 +135,7 @@ class Flow:
         Pass *input_map* / *output_map* as keyword arguments for key remapping.
         Pass *max_iterations* to limit internal steps (see :class:`SubFlow`).
         """
+        self._check_continuation()
         sub = SubFlow(graph=flow.compile(), **kw)
         self._nodes.append(sub)
         nid = self._next_id(sub)
@@ -142,6 +161,7 @@ class Flow:
                 [Transform(action="uppercase", input_key="b", output_key="b")],
             ).converge(shout_node)
         """
+        self._check_continuation()
         branch_specs: list[Node | list[Node]] = [self._as_branch(b) for b in branches]
         node = Parallel(branch_specs)
         self._nodes.append(node)
@@ -184,6 +204,7 @@ class Flow:
                 output_key="summaries",
             )
         """
+        self._check_continuation()
         node = Map(
             processor,
             input_keys=input_keys,
@@ -214,6 +235,7 @@ class Flow:
         Multiple nodes within a case are chained sequentially.
         Use ``converge()`` after branching to merge branches.
         """
+        self._check_continuation()
         if not cases:
             raise ValueError("branch requires at least one Case")
         assert self._last_added is not None
@@ -255,6 +277,7 @@ class Flow:
 
     def default(self, node: Node) -> "Flow":
         """Add a fallback node for the most recent branch."""
+        self._check_continuation()
         self._nodes.append(node)
         dnid = self._next_id(node)
         self._node_ids.append(dnid)
@@ -285,6 +308,7 @@ class Flow:
                 Case("negative").add(on_neg),
             ).converge(shout_node)
         """
+        self._check_continuation()
         self._nodes.append(node)
         nid = self._next_id(node)
         self._node_ids.append(nid)
@@ -363,6 +387,7 @@ class Flow:
         Returns:
             ``self`` for chaining.
         """
+        self._check_continuation()
         decider = self._last_added
         if decider is None:
             raise ValueError("loop requires a preceding node to decide from")
@@ -401,6 +426,103 @@ class Flow:
             self._edges.append(Edge(source_id=body_last, target_id=decider))
 
         self._last_added = done_last
+        return self
+
+    def route(
+        self,
+        key: str,
+        *,
+        finish: Node | list[Node] | None = None,
+        **agents,
+    ) -> "Flow":
+        """Route between agent chains under a supervisor decider.
+
+        Wires the last added node (the decider) into a supervisor-style
+        loop.  The decider writes *key* (e.g. ``"next_agent"``); each
+        keyword in *agents* maps a value of *key* to the chain run for
+        it, and after that chain finishes control returns to the decider.
+        When *key* equals ``"finish"`` the loop exits through *finish*::
+
+            flow.step(supervisor)          # LLM writing "next_agent"
+            flow.route(
+                "next_agent",
+                finish=final_llm,
+                planner=planner_chain,
+                estimator=estimator_chain,
+            )
+
+        Wires::
+
+            supervisor --next_agent=planner--> planner-chain -> supervisor
+            supervisor --next_agent=estimator--> estimator-chain -> supervisor
+            supervisor --next_agent=finish--> finish-chain -> (continue)
+
+        The *finish* chain is optional.  When omitted the flow simply
+        terminates when *key* equals ``"finish"`` and no further nodes
+        may be chained; pass ``finish=<chain>`` to run something on exit
+        and keep building the flow afterwards.
+
+        Args:
+            key: State key written by the decider (the node last added
+                before this call).
+            finish: Chain (``Node`` or list of nodes) run when *key*
+                equals ``"finish"``.  Optional; when omitted the flow
+                terminates on ``"finish"``.
+            **agents: Each keyword is a value of *key*; its value is the
+                chain (``Node`` or list of nodes) run for that route,
+                after which control loops back to the decider.
+
+        Returns:
+            ``self`` for chaining.
+        """
+        self._check_continuation()
+        decider = self._last_added
+        if decider is None:
+            raise ValueError("route requires a preceding node to decide from")
+        if not agents:
+            raise ValueError("route requires at least one agent route")
+
+        def add_chain(chain: list[Node], first_condition: str) -> tuple[str, str]:
+            first_id: str | None = None
+            prev: str | None = None
+            for n in chain:
+                if not isinstance(n, Node):
+                    raise TypeError("route expects Node instances in chains")
+                self._nodes.append(n)
+                nid = self._next_id(n)
+                self._node_ids.append(nid)
+                if first_id is None:
+                    self._edges.append(
+                        Edge(
+                            source_id=decider,
+                            target_id=nid,
+                            condition=first_condition,
+                        )
+                    )
+                    first_id = nid
+                else:
+                    assert prev is not None
+                    self._edges.append(Edge(source_id=prev, target_id=nid))
+                prev = nid
+            if first_id is None:
+                raise ValueError("route requires at least one node per route")
+            assert prev is not None
+            return first_id, prev
+
+        finish_chain = self._as_chain(finish)
+        if finish_chain:
+            _, done_last = add_chain(finish_chain, f"{key}=finish")
+        else:
+            done_last = decider
+
+        for value, chain in agents.items():
+            _, last = add_chain(self._as_chain(chain), f"{key}={value}")
+            self._edges.append(Edge(source_id=last, target_id=decider))
+
+        self._last_added = done_last
+        self._branch_point = None
+        self._branch_ends = []
+        self._route_terminates = finish is None
         return self
 
     def harness(
@@ -477,6 +599,7 @@ class Flow:
 
             result = await graph.run(state, tools=tools, max_iterations=20)
         """
+        self._check_continuation()
         from draf.node.agent import ToolExec
 
         agent_cfg = {

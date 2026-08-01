@@ -87,6 +87,7 @@ class Graph:
         owner: str = DEFAULT_OWNER,
         resume: dict | None = None,
         tracer: RunTracer | None = None,
+        emit: "Callable[[StreamEvent], Awaitable[None]] | None" = None,
     ) -> dict | State:
         """Execute the graph starting from the entry point.
 
@@ -127,6 +128,13 @@ class Graph:
                 retries, checkpoint activity, and LLM token usage.
                 Inspect ``tracer.events`` / ``tracer.summary()`` after
                 the run completes.
+            emit: Optional async sink receiving
+                :class:`~draf.stream.StreamEvent` objects as the run
+                progresses.  Behaves like :meth:`stream` (emitting a
+                final ``run_end`` event) but returns the final state
+                instead of yielding events; used by nodes such as
+                :class:`~draf.flow.sub_flow.SubFlow` to forward nested
+                events, or for programmatic streaming.
 
         Raises:
             RuntimeError: If *max_iterations* is exceeded.
@@ -153,15 +161,26 @@ class Graph:
                 owner=owner,
                 resume=resume,
                 tracer=tracer,
+                emit=emit,
             )
         except GraphInterrupt:
             raise
         except Exception as exc:
             if tracer is not None:
                 tracer.run_end("error", _ms(started), exc)
+            if emit is not None:
+                await emit(
+                    StreamEvent(
+                        "run_end", data={"status": "error", "error": str(exc)}
+                    )
+                )
             raise
         if tracer is not None:
             tracer.run_end("ok", _ms(started))
+        if emit is not None:
+            await emit(
+                StreamEvent("run_end", data={"status": "ok", "total_ms": _ms(started)})
+            )
         return result
 
     async def stream(

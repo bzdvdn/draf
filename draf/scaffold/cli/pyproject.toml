@@ -1,0 +1,19 @@
+[project]
+name = "{{project_slug}}"
+version = "0.1.0"
+description = "{{PROJECT_NAME}} — terminal-first draf app"
+requires-python = ">=3.11"
+dependencies = [
+    "draf>=0.1.0",
+    "pydantic-settings>=2.0",
+    "typer>=0.12",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/"]

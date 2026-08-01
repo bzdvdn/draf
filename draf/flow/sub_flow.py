@@ -1,7 +1,10 @@
 """SubFlow — a node that executes a nested graph."""
 
+from typing import Awaitable, Callable
+
 from draf.node.node import Node
 from draf.graph import Graph
+from draf.stream import StreamEvent
 
 
 class SubFlow(Node):
@@ -46,6 +49,7 @@ class SubFlow(Node):
             sub_state,
             tools=list(ctx.tools.values()),
             max_iterations=self._max_iterations,
+            emit=self._forward(ctx.emit),
         )
 
         out = {}
@@ -55,3 +59,23 @@ class SubFlow(Node):
         else:
             out = result
         return out
+
+    @staticmethod
+    def _forward(
+        emit: "Callable[[StreamEvent], Awaitable[None]] | None",
+    ) -> "Callable[[StreamEvent], Awaitable[None]] | None":
+        """Wrap an outer emit sink, dropping the nested run's bookkeeping.
+
+        The inner run emits its own ``run_start``/``run_end`` lifecycle
+        events; those belong to the top-level stream, so they are
+        stripped while node/token/llm/edge events stream through.
+        """
+        if emit is None:
+            return None
+
+        async def forward(event: StreamEvent) -> None:
+            if event.type in ("run_start", "run_end"):
+                return
+            await emit(event)
+
+        return forward

@@ -127,3 +127,58 @@ class TestCLI:
         result = runner.invoke(app, [])
         assert result.exit_code != 0
         assert "Usage" in result.stderr
+
+
+class TestNew:
+    def test_new_scaffolds_project(self, tmp_path):
+        dest = tmp_path / "my_app"
+        result = runner.invoke(app, ["new", "My App", "--dest", str(dest)])
+        assert result.exit_code == 0, result.stderr
+        assert (dest / "src" / "graphs" / "build.py").is_file()
+        assert (dest / "app.py").is_file()
+        assert (dest / "src" / "config" / "config.py").is_file()
+        assert (dest / "src" / "api" / "router.py").is_file()
+        assert (dest / "src" / "api" / "chat" / "router.py").is_file()
+        assert (dest / "main.py").is_file()
+        readme = (dest / "README.md").read_text()
+        assert "My App" in readme
+        assert "my_app" in readme
+
+    def test_new_cli_template(self, tmp_path):
+        dest = tmp_path / "cli_app"
+        result = runner.invoke(
+            app, ["new", "Cli App", "--dest", str(dest), "--template", "cli"]
+        )
+        assert result.exit_code == 0, result.stderr
+        assert (dest / "cli.py").is_file()
+        assert not (dest / "app.py").exists()
+        assert not (dest / "src" / "api").exists()
+        assert (dest / "src" / "graphs" / "build.py").is_file()
+        assert (dest / "tests" / "test_cli.py").is_file()
+
+    def test_new_daemon_template(self, tmp_path):
+        dest = tmp_path / "daemon_app"
+        result = runner.invoke(
+            app, ["new", "Daemon App", "--dest", str(dest), "--template", "daemon"]
+        )
+        assert result.exit_code == 0, result.stderr
+        assert (dest / "daemon.py").is_file()
+        assert (dest / "src" / "queue" / "__init__.py").is_file()
+        assert not (dest / "app.py").exists()
+        assert (dest / "src" / "graphs" / "build.py").is_file()
+
+    def test_new_unknown_template_rejects(self, tmp_path):
+        dest = tmp_path / "nope"
+        result = runner.invoke(
+            app, ["new", "X", "--dest", str(dest), "--template", "bogus"]
+        )
+        assert result.exit_code != 0
+        assert "unknown template" in result.stderr
+
+    def test_new_refuses_existing_nonempty(self, tmp_path):
+        dest = tmp_path / "taken"
+        dest.mkdir()
+        (dest / "x.txt").write_text("x")
+        result = runner.invoke(app, ["new", "X", "--dest", str(dest)])
+        assert result.exit_code != 0
+        assert "already exists" in result.stderr

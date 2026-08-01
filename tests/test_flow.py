@@ -340,6 +340,39 @@ class TestSubFlow:
         r = asyncio.run(g.run({}))
         assert r["foo"] == "bar"
 
+    @pytest.mark.asyncio
+    async def test_stream_forwards_subflow_events(self):
+        from draf.flow import Flow
+        from draf.node import Transform
+
+        sub = Flow("inner").transform(
+            action="uppercase", input_key="x", output_key="y"
+        )
+        parent = Flow("outer")
+        parent.step(Transform(action="trim", input_key="x", output_key="x"))
+        parent.add_flow(sub)
+        g = parent.compile()
+
+        events = [ev async for ev in g.stream({"x": "  hi  "})]
+        types = [ev.type for ev in events]
+
+        # a single top-level lifecycle; nested run_start/run_end are stripped
+        assert types.count("run_start") == 1
+        assert types.count("run_end") == 1
+        assert events[-1].data["status"] == "ok"
+
+        # both the outer transform and the inner transform stream node events
+        transform_starts = [
+            ev for ev in events if ev.type == "node_start" and ev.node_type == "transform"
+        ]
+        assert len(transform_starts) == 2
+
+        # the subflow node itself is reported too
+        subflow_start = next(
+            ev for ev in events if ev.type == "node_start" and ev.node_type == "subflow"
+        )
+        assert subflow_start.node_id == "subflow_2"
+
 
 class TestCyclicGraph:
     @pytest.mark.asyncio
@@ -414,3 +447,319 @@ class TestCyclicGraph:
         )
         r = await g.run(state={}, max_iterations=10)
         assert r["n"] == 2
+
+
+class TestRoute:
+    def test_route_basic_loop(self):
+        from draf.flow import Flow
+        from draf.node import Node
+        import asyncio
+
+        class Decider(Node):
+            type = "decider"
+
+            def __init__(self, values: list[str]):
+                super().__init__()
+                self.values = list(values)
+                self.i = 0
+
+            async def execute(self, ctx, state):
+                state["next_agent"] = self.values[self.i % len(self.values)]
+                self.i += 1
+                return state
+
+        class Mark(Node):
+            type = "mark"
+
+            def __init__(self, tag: str):
+                super().__init__()
+                self.tag = tag
+
+            async def execute(self, ctx, state):
+                state["log"] = state.get("log", []) + [self.tag]
+                return state
+
+        flow = (
+            Flow("sup")
+            .step(Decider(["planner", "finish"]))
+            .route("next_agent", finish=Mark("final"), planner=Mark("planned"))
+        )
+        g = flow.compile()
+        r = asyncio.run(g.run(state={}, max_iterations=20))
+        assert r["log"] == ["planned", "final"]
+
+    def test_route_multiple_agents(self):
+        from draf.flow import Flow
+        from draf.node import Node
+        import asyncio
+
+        class Decider(Node):
+            type = "decider"
+
+            def __init__(self, values: list[str]):
+                super().__init__()
+                self.values = list(values)
+                self.i = 0
+
+            async def execute(self, ctx, state):
+                state["next_agent"] = self.values[self.i % len(self.values)]
+                self.i += 1
+                return state
+
+        class Mark(Node):
+            type = "mark"
+
+            def __init__(self, tag: str):
+                super().__init__()
+                self.tag = tag
+
+            async def execute(self, ctx, state):
+                state["log"] = state.get("log", []) + [self.tag]
+                return state
+
+        flow = (
+            Flow("sup")
+            .step(Decider(["planner", "estimator", "finish"]))
+            .route(
+                "next_agent",
+                finish=Mark("final"),
+                planner=Mark("planned"),
+                estimator=Mark("estimated"),
+            )
+        )
+        g = flow.compile()
+        r = asyncio.run(g.run(state={}, max_iterations=20))
+        assert r["log"] == ["planned", "estimated", "final"]
+
+    def test_route_wiring(self):
+        from draf.flow import Flow
+        from draf.node import Node
+
+        class Decider(Node):
+            type = "decider"
+
+            async def execute(self, ctx, state):
+                return state
+
+        class Mark(Node):
+            type = "mark"
+
+            async def execute(self, ctx, state):
+                return state
+
+        flow = (
+            Flow("sup")
+            .step(Decider({}))
+            .route(
+                "next_agent",
+                finish=Mark({}),
+                planner=Mark({}),
+                qa=Mark({}),
+            )
+        )
+        g = flow.compile()
+        edges = {(e.source_id, e.target_id, e.condition) for e in g.edges}
+        assert ("decider_1", "mark_2", "next_agent=finish") in edges
+        assert ("decider_1", "mark_3", "next_agent=planner") in edges
+        assert ("decider_1", "mark_4", "next_agent=qa") in edges
+        assert ("mark_3", "decider_1", None) in edges
+        assert ("mark_4", "decider_1", None) in edges
+        assert ("mark_2", "decider_1", None) not in edges
+
+    def test_route_loops_back_to_decider(self):
+        from draf.flow import Flow
+        from draf.node import Node
+        import asyncio
+
+        class Decider(Node):
+            type = "decider"
+
+            def __init__(self, values: list[str]):
+                super().__init__()
+                self.values = list(values)
+                self.i = 0
+
+            async def execute(self, ctx, state):
+                state["next_agent"] = self.values[self.i % len(self.values)]
+                self.i += 1
+                state["visits"] = state.get("visits", 0) + 1
+                return state
+
+        class Mark(Node):
+            type = "mark"
+
+            async def execute(self, ctx, state):
+                state["log"] = state.get("log", []) + ["agent"]
+                return state
+
+        # decider visited twice -> supervisor loop ran once before finishing
+        flow = (
+            Flow("sup")
+            .step(Decider(["planner", "finish"]))
+            .route("next_agent", finish=Mark({}), planner=Mark({}))
+        )
+        g = flow.compile()
+        r = asyncio.run(g.run(state={}, max_iterations=20))
+        assert r["visits"] == 2
+        assert r["log"] == ["agent", "agent"]
+
+    def test_route_finish_none_terminates(self):
+        from draf.flow import Flow
+        from draf.node import Node
+        import asyncio
+
+        class Decider(Node):
+            type = "decider"
+
+            async def execute(self, ctx, state):
+                state["next_agent"] = "finish"
+                return state
+
+        class Mark(Node):
+            type = "mark"
+
+            async def execute(self, ctx, state):
+                state["log"] = state.get("log", []) + ["agent"]
+                return state
+
+        flow = Flow("sup").step(Decider({})).route("next_agent", planner=Mark({}))
+        g = flow.compile()
+        r = asyncio.run(g.run(state={}, max_iterations=20))
+        assert "log" not in r
+
+    def test_route_requires_decider(self):
+        from draf.flow import Flow
+        from draf.node import Node
+
+        class Mark(Node):
+            type = "mark"
+
+            async def execute(self, ctx, state):
+                return state
+
+        with pytest.raises(ValueError, match="preceding"):
+            Flow("x").route("next_agent", planner=Mark({}))
+
+    def test_route_requires_agents(self):
+        from draf.flow import Flow
+        from draf.node import Node
+
+        class Decider(Node):
+            type = "decider"
+
+            async def execute(self, ctx, state):
+                return state
+
+        with pytest.raises(ValueError, match="at least one agent"):
+            Flow("x").step(Decider({})).route("next_agent")
+
+    def test_route_finish_chain_continues(self):
+        from draf.flow import Flow
+        from draf.node import Node
+        import asyncio
+
+        class Decider(Node):
+            type = "decider"
+
+            def __init__(self, values: list[str]):
+                super().__init__()
+                self.values = list(values)
+                self.i = 0
+
+            async def execute(self, ctx, state):
+                state["next_agent"] = self.values[self.i % len(self.values)]
+                self.i += 1
+                return state
+
+        class Mark(Node):
+            type = "mark"
+
+            def __init__(self, tag: str):
+                super().__init__()
+                self.tag = tag
+
+            async def execute(self, ctx, state):
+                state["log"] = state.get("log", []) + [self.tag]
+                return state
+
+        class After(Node):
+            type = "after"
+
+            async def execute(self, ctx, state):
+                state["after"] = True
+                return state
+
+        flow = (
+            Flow("t")
+            .step(Decider(["planner", "finish"]))
+            .route("next_agent", finish=Mark("final"), planner=Mark("planned"))
+            .step(After({}))
+        )
+        g = flow.compile()
+        edges = {(e.source_id, e.target_id, e.condition) for e in g.edges}
+        r = asyncio.run(g.run(state={}, max_iterations=20))
+        assert r["log"] == ["planned", "final"]
+        assert r["after"] is True
+        assert ("mark_2", "after_4", None) in edges
+
+    def test_route_finish_none_blocks_chaining(self):
+        from draf.flow import Flow
+        from draf.node import Node
+
+        class Decider(Node):
+            type = "decider"
+
+            async def execute(self, ctx, state):
+                return state
+
+        class Mark(Node):
+            type = "mark"
+
+            async def execute(self, ctx, state):
+                return state
+
+        flow = Flow("t").step(Decider({})).route("next_agent", planner=Mark({}))
+        with pytest.raises(ValueError, match="finish=None"):
+            flow.step(Mark({}))
+
+    def test_route_accepts_chains(self):
+        from draf.flow import Flow
+        from draf.node import Node
+        import asyncio
+
+        class Decider(Node):
+            type = "decider"
+
+            def __init__(self, values: list[str]):
+                super().__init__()
+                self.values = list(values)
+                self.i = 0
+
+            async def execute(self, ctx, state):
+                state["next_agent"] = self.values[self.i % len(self.values)]
+                self.i += 1
+                return state
+
+        class Mark(Node):
+            type = "mark"
+
+            def __init__(self, tag: str):
+                super().__init__()
+                self.tag = tag
+
+            async def execute(self, ctx, state):
+                state["log"] = state.get("log", []) + [self.tag]
+                return state
+
+        flow = (
+            Flow("sup")
+            .step(Decider(["planner", "finish"]))
+            .route(
+                "next_agent",
+                finish=[Mark("final-1"), Mark("final-2")],
+                planner=[Mark("planned-1"), Mark("planned-2")],
+            )
+        )
+        g = flow.compile()
+        r = asyncio.run(g.run(state={}, max_iterations=20))
+        assert r["log"] == ["planned-1", "planned-2", "final-1", "final-2"]

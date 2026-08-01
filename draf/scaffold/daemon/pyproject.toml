@@ -1,0 +1,18 @@
+[project]
+name = "{{project_slug}}"
+version = "0.1.0"
+description = "{{PROJECT_NAME}} — background worker for draf turns"
+requires-python = ">=3.11"
+dependencies = [
+    "draf>=0.1.0",
+    "pydantic-settings>=2.0",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/"]

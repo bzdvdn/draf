@@ -401,6 +401,32 @@ def inspect(
 
 
 @app.command()
+def new(
+    name: str = typer.Argument(..., help="Project name, e.g. 'support-ai'"),
+    dest: str | None = typer.Option(
+        None, "--dest", help="Destination directory (default: ./<slug>)"
+    ),
+    template: str = typer.Option(
+        "fastapi",
+        "--template",
+        "-t",
+        help="App template: fastapi (server), cli (terminal), daemon (worker)",
+    ),
+) -> None:
+    """Scaffold a new draf app from a template (fastapi|cli|daemon)."""
+    from draf.scaffold import new_project
+
+    try:
+        path = new_project(name, dest=dest, template=template)
+    except Exception as e:
+        typer.echo(f"error: {e}", err=True)
+        raise typer.Exit(1)
+    typer.echo(f"created {path}")
+    entry = {"fastapi": "python main.py", "cli": "python cli.py run", "daemon": "python daemon.py --once"}[template]
+    typer.echo(f"next: uv sync && uv run pytest tests/ && uv run {entry}")
+
+
+@app.command()
 def version() -> None:
     """Print the draf version."""
     typer.echo(f"draf {__version__}")

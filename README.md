@@ -687,8 +687,17 @@ draf -f workflow.yaml --trace              # run + JSON trace to stderr
 draf validate workflow.yaml                # validate without running
 draf eval workflow.yaml --data dataset.jsonl --exact
 draf inspect --checkpoint '{"type":"sqlite","path":"cp.db"}' --checkpoint-id run-1
+draf new support-ai                        # scaffold a FastAPI app (default)
+draf new support-cli --template cli        # scaffold a terminal-only app
+draf new support-worker --template daemon  # scaffold a background worker
 draf version
 ```
+
+`draf new` renders a runnable project from one of three templates — `fastapi`
+(a service with API-key auth and durable sessions), `cli` (the same supervisor
+graph driven from the terminal), or `daemon` (a worker polling a job queue).
+Every generated module carries `HOW TO EXTEND` comments and the project's
+tests run offline with no API keys.
 
 ## Cost & token reports
 
@@ -909,6 +918,8 @@ looks through common keys first), `--max-examples` caps the run.
 | [checkpoint_resume](examples/checkpoint_resume/) | Crash/resume in a few lines |
 | [checkpoint_stores](examples/checkpoint_stores/) | Durable workflow on file/sqlite/pg |
 | [release_features](examples/release_features/) | Release API tour — validation, typed errors, `draf eval`, cost reports, response cache (mocked, no API key) |
+| [simple_router](examples/simple_router/) | Minimal `Flow.route()` supervisor — two agents, a bounded loop (can't hang), offline tests |
+| [production_repair_ai](examples/production_repair_ai/) | Full FastAPI app built on `route()` — five agents, tools, RAG, streaming (Russian repair workflow) |
 
 All LLM examples run on local Ollama — no API keys. Most use `llama3.1:8b`
 (`ollama pull llama3.1:8b`); [pdf_agent](examples/pdf_agent/) uses

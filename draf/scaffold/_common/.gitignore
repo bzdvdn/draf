@@ -1,0 +1,28 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
+# Env & secrets (config reads provider/api keys from .env)
+.env
+.env.*
+
+# Runtime data — session checkpoints, job queues, generated stores
+# (regenerated on demand).  Bundled seed files in data/documents/ stay tracked.
+data/checkpoints/
+data/queue/
+data/results/
+
+# Tool caches
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Editor / OS
+.idea/
+.vscode/
+.DS_Store

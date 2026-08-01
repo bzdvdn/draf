@@ -344,3 +344,108 @@ class TestStreamCheckpoint:
         assert checkpoints[0].data["action"] == "load"
         assert checkpoints[-1].data["action"] == "save"
         assert checkpoints[-1].data["next_node_id"] is None
+
+
+class TestRunEmit:
+    @pytest.mark.asyncio
+    async def test_run_emit_receives_events_and_returns_state(self):
+        from draf.graph import Graph
+        from draf.node import Transform
+
+        g = Graph(
+            nodes={
+                "a": Transform(
+                    {"action": "uppercase", "input_key": "x", "output_key": "out"}
+                ),
+            },
+            edges=[],
+            entry_point="a",
+        )
+        events = []
+
+        async def sink(ev):
+            events.append(ev)
+
+        state = await g.run({"x": "hi"}, emit=sink)
+        assert state["out"] == "HI"
+        types = [ev.type for ev in events]
+        assert types[0] == "run_start"
+        assert types[-1] == "run_end"
+        assert events[-1].data["status"] == "ok"
+        assert "node_start" in types
+        assert "node_end" in types
+
+    @pytest.mark.asyncio
+    async def test_run_emit_error_emits_run_end_and_raises(self):
+        from draf.graph import Graph
+        from draf.node import Transform
+
+        g = Graph(
+            nodes={
+                "a": Transform(
+                    {"action": "bogus", "input_key": "x", "output_key": "out"}
+                ),
+            },
+            edges=[],
+            entry_point="a",
+        )
+        events = []
+
+        async def sink(ev):
+            events.append(ev)
+
+        with pytest.raises(Exception):
+            await g.run({}, emit=sink)
+        run_end = events[-1]
+        assert run_end.type == "run_end"
+        assert run_end.data["status"] == "error"
+        assert "bogus" in run_end.data["error"]
+
+    @pytest.mark.asyncio
+    async def test_run_emit_streams_llm_tokens(self, monkeypatch):
+        from draf.graph import Graph
+        from draf.node import LLM
+
+        monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
+        sse_lines = [
+            'data: {"choices":[{"delta":{"content":"Hel"}}]}\n',
+            'data: {"choices":[{"delta":{"content":"lo"}}]}\n',
+            "data: [DONE]\n",
+        ]
+
+        class MockStreamResponse:
+            def raise_for_status(self):
+                pass
+
+            async def aiter_lines(self):
+                for line in sse_lines:
+                    yield line
+
+        class MockStreamCM:
+            async def __aenter__(self):
+                return MockStreamResponse()
+
+            async def __aexit__(self, *a):
+                pass
+
+        def mock_stream(*a, **kw):
+            return MockStreamCM()
+
+        import httpx
+
+        monkeypatch.setattr(httpx.AsyncClient, "stream", mock_stream)
+
+        g = Graph(
+            nodes={"llm": LLM({"model": "gpt-4", "output_key": "answer"})},
+            edges=[],
+            entry_point="llm",
+        )
+        events = []
+
+        async def sink(ev):
+            events.append(ev)
+
+        state = await g.run({}, emit=sink)
+        assert state["answer"] == "Hello"
+        tokens = [ev.data["token"] for ev in events if ev.type == "token"]
+        assert tokens == ["Hel", "lo"]

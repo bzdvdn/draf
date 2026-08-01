@@ -1,0 +1,57 @@
+"""Typed application settings loaded from the environment / ``.env``.
+
+Every knob the server needs lives here — the LLM ``provider``/``model``,
+the optional ``api_key``, the bind address, app metadata and the storage
+and RAG paths — so ``main.py``, ``app.py`` and ``cli.py`` share a single
+source of truth.  Override any value with an environment variable prefixed
+``DRAF_`` (e.g. ``DRAF_PORT=9000``) or a line in a local ``.env`` file.
+
+The layout mirrors the ``draf new`` scaffold.
+"""
+
+from __future__ import annotations
+
+from functools import lru_cache
+
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+class Settings(BaseSettings):
+    """Runtime configuration for the ``production_repair_ai`` service."""
+
+    model_config = SettingsConfigDict(
+        env_prefix="DRAF_",
+        env_file=".env",
+        env_file_encoding="utf-8",
+        extra="ignore",
+    )
+
+    #: LLM provider (``"ollama"``, ``"openai"``, ...) and default model.
+    provider: str = "ollama"
+    model: str = "llama3.1:8b"
+
+    #: When set, the chat/run routers require the ``X-API-Key`` header.
+    api_key: str | None = None
+
+    #: Bind address for ``main.py``.
+    host: str = "127.0.0.1"
+    port: int = 8000
+
+    #: App metadata surfaced by FastAPI.
+    app_title: str = "Production Repair AI"
+    app_description: str = "Supervisor flow for repair planning over room, budget and materials agents."
+    version: str = "0.1.0"
+
+    #: Durable session storage and RAG data paths (None = project defaults).
+    checkpoint_dir: str | None = None
+    catalog_csv: str | None = None
+
+    #: RAG embedder provider and top-k used by the catalog.
+    rag_embedder: str = "ollama"
+    rag_top_k: int = 3
+
+
+@lru_cache(maxsize=1)
+def get_settings() -> Settings:
+    """Return the cached settings (the environment is read once per process)."""
+    return Settings()
