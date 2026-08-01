@@ -133,6 +133,149 @@ class TestSQLiteCheckpointer:
             ck.close()
 
 
+def _cp(state: dict):
+    from draf.checkpoint import Checkpoint
+
+    return Checkpoint(state=state, next_node_id=None, iteration=0)
+
+
+@pytest.mark.parametrize("kind", ["file", "sqlite"])
+class TestOwnerIsolation:
+    @pytest.fixture(autouse=True)
+    def _make(self, kind, tmp_path):
+        import asyncio
+
+        if kind == "file":
+            from draf.checkpoint import JSONFileCheckpointer
+
+            self.ck = JSONFileCheckpointer(str(tmp_path))
+        else:
+            from draf.checkpoint import SQLiteCheckpointer
+
+            self.ck = SQLiteCheckpointer(str(tmp_path / "ck.db"))
+        self.run = lambda coro: asyncio.run(coro)
+        yield
+        close = getattr(self.ck, "close", None)
+        if close is not None:
+            close()
+
+    async def test_same_id_different_owners_isolated(self):
+        await self.ck.save("chat-1", _cp({"user": "alice"}), owner="alice")
+        await self.ck.save("chat-1", _cp({"user": "bob"}), owner="bob")
+
+        alice = await self.ck.load("chat-1", owner="alice")
+        bob = await self.ck.load("chat-1", owner="bob")
+        assert alice.state == {"user": "alice"}
+        assert bob.state == {"user": "bob"}
+
+        # default owner sees nothing
+        assert await self.ck.load("chat-1") is None
+
+    async def test_list_returns_owner_checkpoints(self):
+        await self.ck.save("a", _cp({}), owner="alice")
+        await self.ck.save("b", _cp({}), owner="alice")
+        await self.ck.save("c", _cp({}), owner="bob")
+
+        assert await self.ck.list("alice") == ["a", "b"]
+        assert await self.ck.list("bob") == ["c"]
+        assert await self.ck.list() == []
+
+    async def test_delete_scoped_to_owner(self):
+        await self.ck.save("x", _cp({}), owner="alice")
+        await self.ck.save("x", _cp({}), owner="bob")
+
+        await self.ck.delete("x", owner="alice")
+        assert await self.ck.load("x", owner="alice") is None
+        assert await self.ck.load("x", owner="bob") is not None
+
+    async def test_overwrite_scoped_to_owner(self):
+        await self.ck.save("x", _cp({"v": 1}), owner="alice")
+        await self.ck.save("x", _cp({"v": 2}), owner="alice")
+        assert (await self.ck.load("x", owner="alice")).state == {"v": 2}
+
+
+class TestSQLiteOwnerMigration:
+    def test_migrates_legacy_single_owner_table(self, tmp_path):
+        import asyncio
+        import sqlite3
+
+        path = str(tmp_path / "legacy.db")
+        conn = sqlite3.connect(path)
+        conn.execute(
+            """
+            CREATE TABLE checkpoints (
+                checkpoint_id TEXT PRIMARY KEY,
+                state TEXT NOT NULL,
+                next_node_id TEXT,
+                iteration INTEGER NOT NULL
+            )
+            """
+        )
+        conn.execute("INSERT INTO checkpoints VALUES ('old-1', '{\"x\": 1}', NULL, 2)")
+        conn.commit()
+        conn.close()
+
+        from draf.checkpoint import SQLiteCheckpointer
+
+        ck = SQLiteCheckpointer(path)
+        try:
+            assert asyncio.run(ck.load("old-1")).state == {"x": 1}
+            assert asyncio.run(ck.list()) == ["old-1"]
+            # save into the migrated owner-scoped schema works
+            asyncio.run(ck.save("new", _cp({"y": 2}), owner="alice"))
+            assert asyncio.run(ck.load("new", owner="alice")).state == {"y": 2}
+        finally:
+            ck.close()
+
+
+class TestGraphOwnerPassThrough:
+    @pytest.mark.parametrize("kind", ["file", "sqlite"])
+    @pytest.mark.asyncio
+    async def test_run_scopes_checkpoints(self, kind, tmp_path):
+        if kind == "file":
+            from draf.checkpoint import JSONFileCheckpointer
+
+            ck = JSONFileCheckpointer(str(tmp_path))
+        else:
+            from draf.checkpoint import SQLiteCheckpointer
+
+            ck = SQLiteCheckpointer(str(tmp_path / "ck.db"))
+        try:
+            g = _build_linear_graph()
+            state = {"text": "hi"}
+            await g.run(
+                state=state,
+                checkpointer=ck,
+                checkpoint_id="run-1",
+                owner="alice",
+            )
+            await g.run(
+                state=state,
+                checkpointer=ck,
+                checkpoint_id="run-1",
+                owner="bob",
+            )
+
+            assert await ck.list("alice") == ["run-1"]
+            assert await ck.list("bob") == ["run-1"]
+
+            # same id but different owners do not share state
+            await ck.save("chat-9", _cp({"text": "alice-secret"}), owner="alice")
+            await ck.save("chat-9", _cp({"text": "bob-secret"}), owner="bob")
+            alice = await g.run(
+                state={"text": "ignored"},
+                checkpointer=ck,
+                checkpoint_id="chat-9",
+                owner="alice",
+            )
+            # resume used alice's saved state, not bob's
+            assert alice["text"] == "alice-secret"
+        finally:
+            close = getattr(ck, "close", None)
+            if close is not None:
+                close()
+
+
 @pytest.fixture
 def checkpointer(request, tmp_path):
     kind = request.param

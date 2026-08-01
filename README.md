@@ -131,6 +131,30 @@ Backends: `JSONFileCheckpointer` (core), `SQLiteCheckpointer` (core),
 state wins over the passed-in state; a `State` instance keeps its schema and
 reducers.
 
+### Multi-tenant checkpoints (owner scoping)
+
+Pass `owner=` to scope checkpoints to a user/session/tenant.  The same
+`checkpoint_id` under different owners never collides, so one store can serve
+many users without composite key conventions:
+
+```python
+await graph.run(state, checkpointer=cp, checkpoint_id="chat-1", owner="alice")
+await graph.run(state, checkpointer=cp, checkpoint_id="chat-1", owner="bob")  # separate
+
+chats = await cp.list("alice")   # ["chat-1", ...] — enumerate a user's runs
+```
+
+**Use `owner` for anything that should be isolated per end-user** — a user id,
+session id, or tenant.  Every owner gets its own namespace: file checkpoints
+land in an `owner/` subdirectory, SQLite/PG store a composite
+`(owner, checkpoint_id)` primary key (existing single-owner databases migrate
+automatically).
+
+When `owner` is omitted, runs fall under the default owner `"default"`
+(`draf.checkpoint.DEFAULT_OWNER`) — so single-tenant callers work unchanged,
+and you can still list them with `cp.list()`.  The CLI exposes the same knob:
+`--checkpoint-owner` on `draf run` and `draf inspect` (defaults to `default`).
+
 ## Parallel branches
 
 Run independent branch chains concurrently and merge their results with

@@ -2,7 +2,7 @@
 
 import json
 
-from draf.checkpoint.base import Checkpoint, Checkpointer
+from draf.checkpoint.base import DEFAULT_OWNER, Checkpoint, Checkpointer
 
 
 class PGCheckpointer(Checkpointer):
@@ -31,27 +31,36 @@ class PGCheckpointer(Checkpointer):
         await conn.execute(
             f"""
             CREATE TABLE IF NOT EXISTS {self._table} (
-                checkpoint_id TEXT PRIMARY KEY,
+                owner TEXT NOT NULL DEFAULT 'default',
+                checkpoint_id TEXT NOT NULL,
                 state JSONB NOT NULL,
                 next_node_id TEXT,
-                iteration INTEGER NOT NULL
+                iteration INTEGER NOT NULL,
+                PRIMARY KEY (owner, checkpoint_id)
             )
             """
         )
         return conn
 
-    async def save(self, checkpoint_id: str, checkpoint: Checkpoint) -> None:
+    async def save(
+        self,
+        checkpoint_id: str,
+        checkpoint: Checkpoint,
+        *,
+        owner: str = DEFAULT_OWNER,
+    ) -> None:
         conn = await self._connect()
         try:
             await conn.execute(
                 f"""
-                INSERT INTO {self._table} (checkpoint_id, state, next_node_id, iteration)
-                VALUES ($1, $2::jsonb, $3, $4)
-                ON CONFLICT(checkpoint_id) DO UPDATE SET
+                INSERT INTO {self._table} (owner, checkpoint_id, state, next_node_id, iteration)
+                VALUES ($1, $2, $3::jsonb, $4, $5)
+                ON CONFLICT(owner, checkpoint_id) DO UPDATE SET
                     state = EXCLUDED.state,
                     next_node_id = EXCLUDED.next_node_id,
                     iteration = EXCLUDED.iteration
                 """,
+                owner,
                 checkpoint_id,
                 json.dumps(checkpoint.state, ensure_ascii=False),
                 checkpoint.next_node_id,
@@ -60,12 +69,15 @@ class PGCheckpointer(Checkpointer):
         finally:
             await conn.close()
 
-    async def load(self, checkpoint_id: str) -> Checkpoint | None:
+    async def load(
+        self, checkpoint_id: str, *, owner: str = DEFAULT_OWNER
+    ) -> Checkpoint | None:
         conn = await self._connect()
         try:
             row = await conn.fetchrow(
                 f"SELECT state, next_node_id, iteration FROM {self._table} "
-                f"WHERE checkpoint_id = $1",
+                f"WHERE owner = $1 AND checkpoint_id = $2",
+                owner,
                 checkpoint_id,
             )
             if row is None:
@@ -78,11 +90,26 @@ class PGCheckpointer(Checkpointer):
         finally:
             await conn.close()
 
-    async def delete(self, checkpoint_id: str) -> None:
+    async def delete(self, checkpoint_id: str, *, owner: str = DEFAULT_OWNER) -> None:
         conn = await self._connect()
         try:
             await conn.execute(
-                f"DELETE FROM {self._table} WHERE checkpoint_id = $1", checkpoint_id
+                f"DELETE FROM {self._table} WHERE owner = $1 AND checkpoint_id = $2",
+                owner,
+                checkpoint_id,
             )
+        finally:
+            await conn.close()
+
+    async def list(self, owner: str = DEFAULT_OWNER) -> list[str]:
+        """Return all checkpoint IDs persisted for *owner*."""
+        conn = await self._connect()
+        try:
+            rows = await conn.fetch(
+                f"SELECT checkpoint_id FROM {self._table} "
+                f"WHERE owner = $1 ORDER BY checkpoint_id",
+                owner,
+            )
+            return [r["checkpoint_id"] for r in rows]
         finally:
             await conn.close()

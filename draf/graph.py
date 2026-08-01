@@ -12,7 +12,7 @@ from draf.node.interrupt import GraphInterrupt
 from draf.errors import WorkflowError
 from draf.tool.tool import Tool
 from draf.state import Reducer, State, apply_reducers
-from draf.checkpoint import Checkpoint, Checkpointer
+from draf.checkpoint import DEFAULT_OWNER, Checkpoint, Checkpointer
 from draf.trace import RunTracer, _ms
 from draf.stream import StreamEvent
 
@@ -84,6 +84,7 @@ class Graph:
         max_iterations: int | None = None,
         checkpointer: Checkpointer | None = None,
         checkpoint_id: str | None = None,
+        owner: str = DEFAULT_OWNER,
         resume: dict | None = None,
         tracer: RunTracer | None = None,
     ) -> dict | State:
@@ -111,6 +112,12 @@ class Graph:
                 Required when *checkpointer* is set.  On a fresh ID the
                 graph starts from *state* at the entry point; on an
                 existing ID it resumes from the saved checkpoint.
+            owner: Scopes *checkpoint_id* to a user/session/tenant.  The
+                same ID under different owners never collides, and
+                ``checkpointer.list(owner)`` enumerates a user's runs.
+                Use one owner per end-user so every tenant's conversations
+                stay isolated.  Defaults to
+                :data:`draf.checkpoint.DEFAULT_OWNER`.
             resume: When a :class:`~draf.node.interrupt.Interrupt` node
                 paused the run, pass a dict of ``{key: value}`` answers.
                 Each key is written into the state before execution
@@ -143,6 +150,7 @@ class Graph:
                 max_iterations=max_iterations,
                 checkpointer=checkpointer,
                 checkpoint_id=checkpoint_id,
+                owner=owner,
                 resume=resume,
                 tracer=tracer,
             )
@@ -167,6 +175,7 @@ class Graph:
         max_iterations: int | None = None,
         checkpointer: Checkpointer | None = None,
         checkpoint_id: str | None = None,
+        owner: str = "",
         resume: dict | None = None,
         tracer: RunTracer | None = None,
     ) -> AsyncIterator[StreamEvent]:
@@ -191,7 +200,7 @@ class Graph:
         with a ``resume`` dict and the same *checkpoint_id* to continue.
         A failed run yields a ``run_end`` event with ``status: "error"``.
 
-        Parameters mirror :meth:`run`.
+        Parameters mirror :meth:`run` (including ``owner``).
         """
         if checkpointer is not None and checkpoint_id is None:
             raise ValueError("checkpoint_id is required when checkpointer is set")
@@ -214,6 +223,7 @@ class Graph:
                         max_iterations=max_iterations,
                         checkpointer=checkpointer,
                         checkpoint_id=checkpoint_id,
+                        owner=owner,
                         resume=resume,
                         tracer=tracer,
                         emit=_emit,
@@ -265,6 +275,7 @@ class Graph:
         max_iterations: int | None = None,
         checkpointer: Checkpointer | None = None,
         checkpoint_id: str | None = None,
+        owner: str = "",
         resume: dict | None = None,
         tracer: RunTracer | None = None,
         emit: "Callable[[StreamEvent], Awaitable[None]] | None" = None,
@@ -305,7 +316,7 @@ class Graph:
 
         pending: dict | None = None
         if checkpointer is not None:
-            saved = await checkpointer.load(cid)
+            saved = await checkpointer.load(cid, owner=owner)
             if tracer is not None:
                 tracer.checkpoint(
                     "load",
@@ -387,6 +398,7 @@ class Graph:
                         next_node_id=current_id,
                         iteration=iteration - 1,
                     ),
+                    owner=owner,
                 )
                 if tracer is not None:
                     tracer.checkpoint("save", cid, current_id)
@@ -442,6 +454,7 @@ class Graph:
                             next_node_id=None,
                             iteration=iteration,
                         ),
+                        owner=owner,
                     )
                     if tracer is not None:
                         tracer.checkpoint("save", cid, None)
@@ -483,6 +496,7 @@ class Graph:
                                 next_node_id=current_id,
                                 iteration=iteration,
                             ),
+                            owner=owner,
                         )
                         if tracer is not None:
                             tracer.checkpoint("save", cid, current_id)
@@ -555,6 +569,7 @@ class Graph:
             await checkpointer.save(
                 cid,
                 Checkpoint(state=dict(state), next_node_id=None, iteration=iteration),
+                owner=owner,
             )
             if tracer is not None:
                 tracer.checkpoint("save", cid, None)

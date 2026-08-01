@@ -12,6 +12,7 @@ import os
 import typer
 
 from draf._version import __version__
+from draf.checkpoint import DEFAULT_OWNER
 
 app = typer.Typer(
     name="draf",
@@ -49,6 +50,7 @@ def _run_workflow(
     trace: bool = False,
     checkpoint: str | None = None,
     checkpoint_id: str | None = None,
+    checkpoint_owner: str = DEFAULT_OWNER,
     resume: dict | None = None,
     node_timeout: float | None = None,
     max_iterations: int | None = None,
@@ -77,6 +79,7 @@ def _run_workflow(
                 reducers=reducers,
                 checkpointer=checkpointer,
                 checkpoint_id=checkpoint_id,
+                checkpoint_owner=checkpoint_owner,
                 resume=resume,
                 node_timeout=node_timeout,
                 max_iterations=max_iterations,
@@ -104,6 +107,7 @@ async def _run_loop(
     reducers,
     checkpointer,
     checkpoint_id,
+    checkpoint_owner,
     resume,
     node_timeout,
     max_iterations,
@@ -123,6 +127,7 @@ async def _run_loop(
                 reducers=reducers,
                 checkpointer=checkpointer,
                 checkpoint_id=checkpoint_id,
+                owner=checkpoint_owner,
                 resume=resume,
                 node_timeout=node_timeout,
                 max_iterations=max_iterations,
@@ -189,6 +194,11 @@ def main(
     checkpoint_id: str | None = typer.Option(
         None, "--checkpoint-id", help="Checkpoint key identifying the run"
     ),
+    checkpoint_owner: str = typer.Option(
+        DEFAULT_OWNER,
+        "--checkpoint-owner",
+        help="Owner/session scoping the checkpoint (e.g. a user id)",
+    ),
     resume: str | None = typer.Option(
         None, "--resume", help='Resume values as JSON, e.g. \'{"approved":"да"}\''
     ),
@@ -217,6 +227,7 @@ def main(
         trace=trace,
         checkpoint=checkpoint,
         checkpoint_id=checkpoint_id,
+        checkpoint_owner=checkpoint_owner,
         resume=json.loads(resume) if resume else None,
         node_timeout=node_timeout,
         max_iterations=max_iterations,
@@ -244,6 +255,11 @@ def run(
     checkpoint_id: str | None = typer.Option(
         None, "--checkpoint-id", help="Checkpoint key identifying the run"
     ),
+    checkpoint_owner: str = typer.Option(
+        DEFAULT_OWNER,
+        "--checkpoint-owner",
+        help="Owner/session scoping the checkpoint (e.g. a user id)",
+    ),
     resume: str | None = typer.Option(
         None, "--resume", help='Resume values as JSON, e.g. \'{"approved":"да"}\''
     ),
@@ -265,6 +281,7 @@ def run(
         trace=trace,
         checkpoint=checkpoint,
         checkpoint_id=checkpoint_id,
+        checkpoint_owner=checkpoint_owner,
         resume=json.loads(resume) if resume else None,
         node_timeout=node_timeout,
         max_iterations=max_iterations,
@@ -362,11 +379,16 @@ def inspect(
     checkpoint_id: str = typer.Option(
         ..., "--checkpoint-id", help="Run key to inspect"
     ),
+    checkpoint_owner: str = typer.Option(
+        DEFAULT_OWNER,
+        "--checkpoint-owner",
+        help="Owner/session scoping the checkpoint (e.g. a user id)",
+    ),
 ) -> None:
     """Print the saved state for a checkpointed run."""
     try:
         cp = _checkpointer_from_config(json.loads(checkpoint))
-        saved = asyncio.run(cp.load(checkpoint_id))
+        saved = asyncio.run(cp.load(checkpoint_id, owner=checkpoint_owner))
     except Exception as e:
         typer.echo(f"error: {e}", err=True)
         raise typer.Exit(1)

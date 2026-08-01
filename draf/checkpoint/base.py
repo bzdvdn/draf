@@ -1,7 +1,14 @@
 """Checkpointing primitives for durable graph execution."""
 
+from __future__ import annotations
+
 from dataclasses import dataclass
 from typing import Any, Protocol
+
+#: Default owner when none is given.  Keeps single-tenant callers working
+#: while every checkpoint still lives under a named namespace, so data can
+#: later be split out per user without a migration of checkpoint IDs.
+DEFAULT_OWNER = "default"
 
 
 @dataclass
@@ -26,18 +33,35 @@ class Checkpointer(Protocol):
     Implementations must be safe to call concurrently for different
     checkpoint IDs and must persist *atomically* enough that a crash
     never leaves a partially-written checkpoint.
+
+    The optional *owner* scopes a checkpoint to a user/session/tenant.
+    Two checkpoints with the same ID but different owners never collide.
+    When omitted the default owner (:data:`DEFAULT_OWNER`, ``"default"``)
+    is used, keeping single-tenant callers unchanged.
+
+    Use a distinct owner per end-user (e.g. a user id or session id) so
+    every tenant's runs are isolated from the others and can be listed
+    with :meth:`list`.
     """
 
-    async def save(self, checkpoint_id: str, checkpoint: Checkpoint) -> None:
-        """Persist *checkpoint* under *checkpoint_id*."""
+    async def save(
+        self, checkpoint_id: str, checkpoint: Checkpoint, *, owner: str = DEFAULT_OWNER
+    ) -> None:
+        """Persist *checkpoint* under *checkpoint_id* for *owner*."""
         ...
 
-    async def load(self, checkpoint_id: str) -> Checkpoint | None:
-        """Return the saved checkpoint, or ``None`` if never saved."""
+    async def load(
+        self, checkpoint_id: str, *, owner: str = DEFAULT_OWNER
+    ) -> Checkpoint | None:
+        """Return the saved checkpoint for *owner*, or ``None`` if never saved."""
         ...
 
-    async def delete(self, checkpoint_id: str) -> None:
+    async def delete(self, checkpoint_id: str, *, owner: str = DEFAULT_OWNER) -> None:
         """Remove a saved checkpoint. No-op if it does not exist."""
+        ...
+
+    async def list(self, owner: str = DEFAULT_OWNER) -> list[str]:
+        """Return all checkpoint IDs persisted for *owner*."""
         ...
 
 
