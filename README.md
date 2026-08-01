@@ -393,6 +393,49 @@ flow.harness(
 )
 ```
 
+## Skills
+
+Bundle instructions **and** a tool scope into a reusable folder following
+the open *Agent Skills* layout — `skills/<name>/SKILL.md` with YAML
+frontmatter plus markdown instructions:
+
+```markdown
+---
+name: city-guide
+description: Answer questions about cities
+allowed-tools: [city_weather, city_population]
+disallowed-tools: [secret_tool]
+---
+
+You are a city guide.  When asked to compare cities, call BOTH
+`city_weather` and `city_population` in the SAME turn.
+```
+
+Mount it on any LLM-capable call — the `LLM` node or `react()`/`harness()`:
+
+```python
+flow.harness(
+    model="llama3.1:8b",
+    input_key="query",
+    output_key="answer",
+    skills=["city-guide"],
+    skill_dir="skills",
+)
+
+# same for a plain LLM node
+flow.step(LLM(model="llama3.1:8b", skills=["city-guide"], use_tools=True))
+```
+
+A mounted skill:
+- merges its instructions into the system prompt;
+- narrows the visible tools: `allowed-tools` intersects with the node's set,
+  `disallowed-tools` removes tools outright — so `secret_tool` above stays
+  out of the model's reach even though it is registered for the run.
+
+Bare names resolve against `skill_dir`; you can also pass skill paths or
+already-loaded `Skill` objects.  `use_tools` gives the same per-node scope
+without skills: `True` (all), `False` (none), or a list of names.
+
 ## MCP tools
 
 Connect any [Model Context Protocol](https://modelcontextprotocol.io) server
@@ -453,6 +496,8 @@ The CLI exposes the same report: `draf -f workflow.yaml --trace`.
 | [human_in_loop](examples/human_in_loop/) | Approve/Edit LLM output via `Interrupt` + `loop()` + resume (Python and YAML) |
 | [react_agent](examples/react_agent/) | ReAct agent loop |
 | [harness_agent](examples/harness_agent/) | `flow.harness()` — parallel tool calls in one round + `__error__` fallback |
+| [skills](examples/skills/) | Skills folder (`SKILL.md`) — instructions + tool scoping on a harness agent |
+| [pdf_agent](examples/pdf_agent/) | Skill with its own tools — vendored `pdf` skill whose bundled scripts run via the shell tool; mounted on both a harness and a plain `LLM` node |
 | [mcp](examples/mcp/) | ReAct agent calling tools from an MCP server (stdio) |
 | [streaming](examples/streaming/) | Live LLM tokens + graph events via `graph.stream()` |
 | [structured_output](examples/structured_output/) | Schema-validated LLM JSON via `output_type`/`json_schema` |
@@ -461,7 +506,9 @@ The CLI exposes the same report: `draf -f workflow.yaml --trace`.
 | [checkpoint_resume](examples/checkpoint_resume/) | Crash/resume in a few lines |
 | [checkpoint_stores](examples/checkpoint_stores/) | Durable workflow on file/sqlite/pg |
 
-All LLM examples run on local Ollama (`ollama pull llama3.1:8b`) — no API keys.
+All LLM examples run on local Ollama — no API keys. Most use `llama3.1:8b`
+(`ollama pull llama3.1:8b`); [pdf_agent](examples/pdf_agent/) uses
+`qwen2.5:7b` for more reliable tool-calling (`ollama pull qwen2.5:7b`).
 
 ## Development
 

@@ -25,6 +25,7 @@ from draf.tool import Tool, ToolRegistry, default_tool_registry, tool
 from draf.graph import Graph, Edge
 from draf.flow import Flow, Case, SubFlow
 from draf.harness import Harness
+from draf.skill import Skill, load_skill
 from draf.schema import json_schema_from_type, validate_json
 from draf.rag import VectorStore, Embedder, Chunker, RAGTool
 from draf.rag.stores import (
@@ -88,6 +89,9 @@ __all__ = [
     "Flow",
     "Case",
     "SubFlow",
+    "Harness",
+    "Skill",
+    "load_skill",
     "json_schema_from_type",
     "validate_json",
     "VectorStore",

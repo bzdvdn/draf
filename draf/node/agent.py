@@ -10,6 +10,7 @@ from draf.harness import (
 )
 from draf.node.node import Node
 from draf.node.llm import LLM
+from draf.skill import resolve_skills, scope_tools, skills_instructions
 
 
 class ReActAgent(Node):
@@ -70,6 +71,9 @@ class ReActAgent(Node):
         chat_path: str | None = None,
         auth_header: str | None = None,
         auth_prefix: str | None = None,
+        use_tools: bool | list[str] = True,
+        skills: list | None = None,
+        skill_dir: str = "skills",
         **kwargs,
     ):
         merged = {
@@ -88,6 +92,9 @@ class ReActAgent(Node):
             "chat_path": chat_path,
             "auth_header": auth_header,
             "auth_prefix": auth_prefix,
+            "use_tools": use_tools,
+            "skills": skills,
+            "skill_dir": skill_dir,
             **(config or {}),
             **kwargs,
         }
@@ -101,6 +108,11 @@ class ReActAgent(Node):
         messages_key = cfg.get("messages_key", "messages")
         tool_call_key = cfg.get("tool_call_key", "_tool_call_name")
 
+        skills = resolve_skills(cfg)
+        skill_text = skills_instructions(skills)
+        if skill_text:
+            system = f"{system}\n\n{skill_text}" if system else skill_text
+
         messages = list(state.get(messages_key, []))
         if not messages:
             user_input = str(state.get(input_key, ""))
@@ -109,7 +121,9 @@ class ReActAgent(Node):
             if user_input:
                 messages.append({"role": "user", "content": user_input})
 
-        tool_defs = [tool_to_schema(t) for t in ctx.tools.values()]
+        tool_defs = [
+            tool_to_schema(t) for t in scope_tools(ctx.tools, cfg, skills).values()
+        ]
 
         harness = Harness.from_config(cfg, default_provider=LLM.DEFAULT_PROVIDER)
         tracer = getattr(ctx, "tracer", None)
@@ -191,12 +205,18 @@ class ToolExec(Node):
         messages_key: str = "messages",
         tool_call_key: str = "_tool_call_name",
         tool_error_mode: str = "message",
+        use_tools: bool | list[str] = True,
+        skills: list | None = None,
+        skill_dir: str = "skills",
         **kwargs,
     ):
         merged = {
             "messages_key": messages_key,
             "tool_call_key": tool_call_key,
             "tool_error_mode": tool_error_mode,
+            "use_tools": use_tools,
+            "skills": skills,
+            "skill_dir": skill_dir,
             **(config or {}),
             **kwargs,
         }
@@ -217,7 +237,9 @@ class ToolExec(Node):
                 }
             ]
 
-        results = await execute_tool_calls(calls, ctx.tools, tool_error_mode)
+        skills = resolve_skills(self.config)
+        scoped = scope_tools(ctx.tools, self.config, skills)
+        results = await execute_tool_calls(calls, scoped, tool_error_mode)
 
         messages = list(state.get(messages_key, []))
         for call, res in zip(calls, results):

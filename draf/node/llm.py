@@ -12,6 +12,7 @@ from draf.harness import (
 )
 from draf.node.node import Node
 from draf.prompt import render_template
+from draf.skill import resolve_skills, scope_tools, skills_instructions
 from draf.tool.tool import Tool
 from draf.stream import StreamEvent
 from draf.schema import (
@@ -63,7 +64,8 @@ class LLM(Node):
             Falls back to ``LLM.DEFAULT_PROVIDER``, then auto-detection
             from model name.
         use_tools: If ``True``, auto-generate tool definitions from
-            ``ctx.tools``.
+            ``ctx.tools``.  A list of tool names restricts the node to
+            only those tools.
         temperature: Sampling temperature.
         max_tokens: Max tokens in response.
         response_format: ``{"type": "json_object"}`` etc.
@@ -93,6 +95,13 @@ class LLM(Node):
             If set, the conversation history is read/written from/to
             ``state[messages_key]`` instead of being built fresh each call.
         response_path: Dot-separated path to extract content from response.
+        skills: Skills to mount on this call — a :class:`~draf.skill.Skill`,
+            a path to a skill folder/``SKILL.md``, or a name resolved
+            against *skill_dir*.  Their instructions are merged into the
+            system prompt and their ``allowed-tools``/``disallowed-tools``
+            narrow the visible tools.
+        skill_dir: Directory to resolve bare skill names from
+            (default ``"skills"``).
     """
 
     type = "llm_chat"
@@ -127,6 +136,8 @@ class LLM(Node):
         tools: list[dict] | None = None,
         messages_key: str | None = None,
         response_path: str = "",
+        skills: list | None = None,
+        skill_dir: str = "skills",
         **kwargs: typing.Any,
     ):
         merged = {
@@ -153,6 +164,8 @@ class LLM(Node):
             "api_key_env": api_key_env,
             "messages_key": messages_key,
             "response_path": response_path,
+            "skills": skills,
+            "skill_dir": skill_dir,
             **(config or {}),
             **kwargs,
         }
@@ -163,6 +176,9 @@ class LLM(Node):
     async def execute(self, ctx, state: dict) -> dict:
         cfg = self.config
         provider_key = self._resolve_provider(cfg)
+
+        skills = resolve_skills(cfg)
+        skill_text = skills_instructions(skills)
 
         has_messages_key = cfg.get("messages_key") and state.get(cfg["messages_key"])
         if has_messages_key:
@@ -177,18 +193,21 @@ class LLM(Node):
             else:
                 user_message = str(state)
             messages = []
-            system = cfg.get("system", "")
+            system = render_template(cfg.get("system", ""), state)
+            if skill_text:
+                system = f"{system}\n\n{skill_text}" if system else skill_text
             if system:
-                messages.append(
-                    {"role": "system", "content": render_template(system, state)}
-                )
+                messages.append({"role": "system", "content": system})
             if user_message:
                 messages.append({"role": "user", "content": user_message})
 
         tool_defs: list[dict] = list(cfg.get("tools", []))
         if cfg.get("use_tools", False):
-            for t in ctx.tools.values():
+            scoped_tools = scope_tools(ctx.tools, cfg, skills)
+            for t in scoped_tools.values():
                 tool_defs.append(tool_to_schema(t))
+        else:
+            scoped_tools = dict(ctx.tools)
 
         has_tools = bool(tool_defs)
         output_key = cfg.get("output_key", "output")
@@ -251,7 +270,7 @@ class LLM(Node):
                 if has_tools and tool_calls:
                     messages.append(msg)
                     results = await execute_tool_calls(
-                        tool_calls, ctx.tools, harness.tool_error_mode
+                        tool_calls, scoped_tools, harness.tool_error_mode
                     )
                     for tc, res in zip(tool_calls, results):
                         messages.append(

@@ -366,6 +366,9 @@ class Flow:
         temperature: float | None = None,
         max_tokens: int | None = None,
         response_format: dict | None = None,
+        use_tools: bool | list[str] = True,
+        skills: list | None = None,
+        skill_dir: str = "skills",
         **config,
     ) -> "Flow":
         """Build a ReAct-style agent loop (LLM ↔ tools) inside this flow.
@@ -392,6 +395,15 @@ class Flow:
                 ``"raise"`` a tool failure routes to the graph's error path.
             parse_text_tool_calls: Decode tool calls embedded in plain text.
             temperature / max_tokens / response_format: Sampling knobs.
+            use_tools: ``True`` (all tools), ``False``, or a list of tool
+                names the agent may use.
+            skills: Skills to mount on the agent — names resolved against
+                *skill_dir*, skill paths, or :class:`~draf.skill.Skill`
+                objects.  Their instructions go into the system prompt and
+                their ``allowed-tools``/``disallowed-tools`` narrow the
+                agent's tool set.
+            skill_dir: Directory to resolve bare skill names from
+                (default ``"skills"``).
             **config: Extra kwargs passed to :class:`ReActAgent` /
                 :class:`ToolExec` config.
 
@@ -412,11 +424,19 @@ class Flow:
             "temperature": temperature,
             "max_tokens": max_tokens,
             "response_format": response_format,
+            "use_tools": use_tools,
+            "skills": skills,
+            "skill_dir": skill_dir,
             **config,
         }
         agent = ReActAgent(**agent_cfg)
         tool_exec = ToolExec(
-            messages_key=messages_key, tool_error_mode=tool_error_mode, **config
+            messages_key=messages_key,
+            tool_error_mode=tool_error_mode,
+            use_tools=use_tools,
+            skills=skills,
+            skill_dir=skill_dir,
+            **config,
         )
 
         self._nodes.append(agent)
