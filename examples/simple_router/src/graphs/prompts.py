@@ -7,7 +7,8 @@ Agents:
 - talk — anything else (small talk, general questions)
 - finish — the conversation is already answered and done
 
-Reply with exactly ONE word: coder, talk or finish.
+The message includes the current round and the user's request.  Reply with
+exactly ONE word: coder, talk or finish.
 
 Rules:
 - No punctuation, no quotes, no explanation — only the single word.

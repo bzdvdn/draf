@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from draf.flow import Flow, SubFlow
+from draf.flow import Flow, agent_step
 
 from src.core.deps import build_deps
 from src.graphs.prompts import (
@@ -12,7 +12,6 @@ from src.graphs.prompts import (
     PLANNER_PROMPT,
     QA_PROMPT,
 )
-from src.nodes.context import AppendAssistant, ContextBuilder
 from src.nodes.extractor import Extractor
 from src.nodes.supervisor import Supervisor
 from src.tools import build_tools
@@ -44,42 +43,6 @@ _BUDGET_TOOLS = ["estimate_material_cost", "estimate_total"]
 _RAG_TOOLS = ["search_materials", "find_similar_material"]
 
 
-def agent_chain(
-    system: str, output_key: str, use_tools, *, model: str, provider: str
-) -> SubFlow:
-    """One routed agent: context -> ReAct harness -> append to conversation.
-
-    Wrapped as a ``SubFlow`` so ``route()`` sees it as a single node while
-    the nested graph keeps its own supervisor-free tool loop.
-
-    The agent's scratch conversation lives in a private ``_<key>_messages``
-    state slot (reset by the context builder); only the final assistant
-    reply is appended to the shared ``messages`` conversation.  ``stream``
-    makes tokens flow as stream events, so a CLI/SSE client can render the
-    answer live.
-    """
-    scratch_key = f"_{output_key}_messages"
-    inner = Flow(f"agent-{output_key}")
-    inner.step(
-        ContextBuilder(
-            sections=AGENT_SECTIONS,
-            reset_keys=(output_key, "input", scratch_key),
-        )
-    )
-    inner.harness(
-        model=model,
-        system=system,
-        input_key="input",
-        output_key=output_key,
-        messages_key=scratch_key,
-        use_tools=use_tools,
-        provider=provider,
-        stream=True,
-    )
-    inner.step(AppendAssistant(output_key=output_key))
-    return SubFlow(inner.compile())
-
-
 def build_flow(
     model: str = MODEL_DEFAULT,
     *,
@@ -104,32 +67,69 @@ def build_flow(
     tools = build_tools(services, catalog)
 
     flow = Flow("production-repair-ai")
-    flow.step(Supervisor(model=model, provider=provider))
+    flow.step(
+        Supervisor(
+            model=model,
+            provider=provider,
+            sections=AGENT_SECTIONS,
+            route_keys={
+                "direct": "direct_reply",
+                "planner": "plan",
+                "estimator": "estimate",
+                "materials": "material_findings",
+                "qa": "qa_feedback",
+            },
+            done_keys={
+                "direct_reply",
+                "plan",
+                "estimate",
+                "material_findings",
+                "qa_feedback",
+            },
+            done_mode="any",
+            fallback_agent="direct",
+        )
+    )
     flow.route(
         "next_agent",
         finish=Extractor(model=model, provider=provider),
-        direct=agent_chain(
-            DIRECT_PROMPT, "direct_reply", use_tools=False, model=model, provider=provider
+        direct=agent_step(
+            DIRECT_PROMPT,
+            "direct_reply",
+            model=model,
+            provider=provider,
+            sections=AGENT_SECTIONS,
         ),
-        planner=agent_chain(
-            PLANNER_PROMPT, "plan", use_tools=_ROOM_TOOLS, model=model, provider=provider
+        planner=agent_step(
+            PLANNER_PROMPT,
+            "plan",
+            use_tools=_ROOM_TOOLS,
+            model=model,
+            provider=provider,
+            sections=AGENT_SECTIONS,
         ),
-        estimator=agent_chain(
+        estimator=agent_step(
             ESTIMATOR_PROMPT,
             "estimate",
             use_tools=[*_ROOM_TOOLS, *_MATERIAL_TOOLS, *_BUDGET_TOOLS],
             model=model,
             provider=provider,
+            sections=AGENT_SECTIONS,
         ),
-        materials=agent_chain(
+        materials=agent_step(
             MATERIALS_PROMPT,
             "material_findings",
             use_tools=_RAG_TOOLS,
             model=model,
             provider=provider,
+            sections=AGENT_SECTIONS,
         ),
-        qa=agent_chain(
-            QA_PROMPT, "qa_feedback", use_tools=False, model=model, provider=provider
+        qa=agent_step(
+            QA_PROMPT,
+            "qa_feedback",
+            model=model,
+            provider=provider,
+            sections=AGENT_SECTIONS,
         ),
     )
     return flow, tools

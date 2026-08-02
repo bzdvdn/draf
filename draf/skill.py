@@ -161,20 +161,27 @@ def scope_tools(
 ) -> dict[str, Tool]:
     """Filter the tool pool to what a node / its skills may use.
 
-    ``cfg["use_tools"]`` may be ``False`` (nothing), ``True`` (everything),
-    or a list of names.  Skills narrow the set further: ``allowed_tools``
-    intersects with whatever the node allows, ``disallowed_tools`` removes
-    tools outright.
+    ``cfg["use_tools"]`` may be ``None`` or an empty list (nothing),
+    ``"all"`` (everything), or a list of names to allow.  (``True``/``False``
+    are also honoured for backwards compatibility.)  Skills narrow the set
+    further: ``allowed_tools`` intersects with whatever the node allows,
+    ``disallowed_tools`` removes tools outright.
     """
-    use = cfg.get("use_tools", False)
-    if not use:
-        return {}
+    use = cfg.get("use_tools")
 
-    if isinstance(use, (list, tuple, set)):
-        keys = {str(k) for k in use}
-        allowed = {k for k in pool if k in keys}
+    def _all() -> set[str]:
+        return set(pool)
+
+    if use is None:
+        allowed: set[str] = set()
+    elif isinstance(use, str):
+        allowed = _all() if use.strip().lower() in ("all", "*") else {use}
+    elif isinstance(use, (list, tuple, set)):
+        allowed = {str(k) for k in use}
+    elif isinstance(use, bool):
+        allowed = _all() if use else set()
     else:
-        allowed = set(pool)
+        allowed = set()
 
     for s in skills or []:
         if s.allowed_tools is not None:

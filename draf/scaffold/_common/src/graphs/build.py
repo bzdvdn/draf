@@ -8,30 +8,25 @@ building blocks:
    and picks an agent; that agent runs, control returns to the supervisor,
    which decides again — until it says ``finish`` and the loop exits.
 
-2. :func:`agent_chain` — a helper wrapping one agent as a ``SubFlow``:
-   context builder -> ReAct harness (LLM + tools) -> append the reply to the
-   shared ``messages`` conversation.
+2. :func:`draf.flow.agent_step` — the framework helper wrapping one agent
+   as a ``SubFlow``: context builder -> ReAct harness (LLM + tools) ->
+   append the reply to the shared ``messages`` conversation.
 
 HOW TO EXTEND
     * Add an agent: write a prompt in ``graphs/prompts.py`` and register it
       here under a new keyword in ``route()``; then mention the new route
       value in the supervisor prompt.
-    * Give an agent tools: pass ``use_tools=True`` (all tools) or a list of
-      tool names, and build the ``Tool`` subclasses in ``tools/``.
+    * Give an agent tools: pass ``use_tools=["tool_name", ...]`` (an explicit
+      allowlist; ``"all"`` enables everything) and build the ``Tool``
+      subclasses in ``tools/``.
     * Add state: extend ``AppState`` in ``graphs/state.py``.
 """
 
 from __future__ import annotations
 
-from draf.flow import Flow, SubFlow
+from draf.flow import Flow, agent_step
 
-from src.graphs.prompts import (
-    PLANNER_PROMPT,
-    REVIEWER_PROMPT,
-    SUPERVISOR_PROMPT,
-    WRITER_PROMPT,
-)
-from src.nodes.context import AppendAssistant, ContextBuilder
+from src.graphs.prompts import PLANNER_PROMPT, REVIEWER_PROMPT, WRITER_PROMPT
 from src.nodes.supervisor import Supervisor
 from src.tools import build_tools
 
@@ -43,39 +38,6 @@ AGENT_SECTIONS = {
     "draft": "Draft",
     "review": "Review",
 }
-
-
-def agent_chain(
-    system: str, output_key: str, use_tools, *, model: str, provider: str
-) -> SubFlow:
-    """One routed agent: context -> ReAct harness -> append to conversation.
-
-    The agent's scratch conversation lives in a private ``_<key>_messages``
-    state slot (reset by the context builder); only the final reply is
-    appended to the shared ``messages`` conversation.  ``stream`` makes
-    tokens flow as stream events, so a CLI/SSE client can render the answer
-    live.
-    """
-    scratch_key = f"_{output_key}_messages"
-    inner = Flow(f"agent-{output_key}")
-    inner.step(
-        ContextBuilder(
-            sections=AGENT_SECTIONS,
-            reset_keys=(output_key, "input", scratch_key),
-        )
-    )
-    inner.harness(
-        model=model,
-        system=system,
-        input_key="input",
-        output_key=output_key,
-        messages_key=scratch_key,
-        use_tools=use_tools,
-        provider=provider,
-        stream=True,
-    )
-    inner.step(AppendAssistant(output_key=output_key))
-    return SubFlow(inner.compile())
 
 
 def build_flow(model: str = MODEL_DEFAULT, *, provider: str = "ollama"):
@@ -94,17 +56,40 @@ def build_flow(model: str = MODEL_DEFAULT, *, provider: str = "ollama"):
     tools = build_tools()
 
     flow = Flow("{{project_slug}}")
-    flow.step(Supervisor(model=model, provider=provider))
+    flow.step(
+        Supervisor(
+            model=model,
+            provider=provider,
+            sections=AGENT_SECTIONS,
+            route_keys={"planner": "plan", "writer": "draft", "reviewer": "review"},
+            done_keys={"plan", "draft", "review"},
+            done_mode="all",
+            fallback_agent="planner",
+        )
+    )
     flow.route(
         "next_agent",
-        planner=agent_chain(
-            PLANNER_PROMPT, "plan", use_tools=False, model=model, provider=provider
+        planner=agent_step(
+            PLANNER_PROMPT,
+            "plan",
+            model=model,
+            provider=provider,
+            sections=AGENT_SECTIONS,
         ),
-        writer=agent_chain(
-            WRITER_PROMPT, "draft", use_tools=True, model=model, provider=provider
+        writer=agent_step(
+            WRITER_PROMPT,
+            "draft",
+            use_tools=["current_date"],
+            model=model,
+            provider=provider,
+            sections=AGENT_SECTIONS,
         ),
-        reviewer=agent_chain(
-            REVIEWER_PROMPT, "review", use_tools=False, model=model, provider=provider
+        reviewer=agent_step(
+            REVIEWER_PROMPT,
+            "review",
+            model=model,
+            provider=provider,
+            sections=AGENT_SECTIONS,
         ),
     )
     return flow, tools

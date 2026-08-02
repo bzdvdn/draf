@@ -470,8 +470,8 @@ class TestToolApproval:
 
         g = Graph(
             nodes={
-                "agent": ReActAgent({"model": "gpt-4", "input_key": "input"}),
-                "tool": ToolExec({"tool_approval": lambda name, args: True}),
+                "agent": ReActAgent({"model": "gpt-4", "input_key": "input", "use_tools": ["safe"]}),
+                "tool": ToolExec({"tool_approval": lambda name, args: True, "use_tools": ["safe"]}),
             },
             edges=[
                 Edge("agent", "tool", "_tool_call_name!="),
@@ -602,8 +602,8 @@ class TestToolApproval:
 
         g = Graph(
             nodes={
-                "agent": ReActAgent({"model": "gpt-4", "input_key": "input"}),
-                "tool": ToolExec({"tool_approval": approver}),
+                "agent": ReActAgent({"model": "gpt-4", "input_key": "input", "use_tools": ["sensitive"]}),
+                "tool": ToolExec({"tool_approval": approver, "use_tools": ["sensitive"]}),
             },
             edges=[
                 Edge("agent", "tool", "_tool_call_name!="),

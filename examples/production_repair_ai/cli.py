@@ -1,20 +1,23 @@
-"""Debug CLI — run one conversation turn with live token streaming.
+"""Chat CLI — talk to the repair assistant interactively.
 
-The FastAPI server is the production interface; this script is a quick way
-to watch a single repair-planning turn against a local Ollama, streaming
-tokens as they arrive.  Provider/model/storage come from ``src.config.config``
-(env / ``.env``).
+Runs the whole supervisor graph (planner → estimator → materials → QA) as a
+simple chat: type a request, the assistant plans/calculates and streams the
+answer back.  Sessions are durable, so history is kept across prompts and
+the conversation really feels like talking to a person.
 
 Usage::
 
-    uv run python examples/production_repair_ai/cli.py \
-        "Спланируй ремонт ванной, 5 м², бюджет 80000 ₽."
+    uv run python examples/production_repair_ai/cli.py            # chat
+    uv run python examples/production_repair_ai/cli.py "message"  # one turn
+
+Ctrl-D or Ctrl-C exits the chat loop.
 """
 
 from __future__ import annotations
 
 import argparse
 import asyncio
+import json
 import sys
 from pathlib import Path
 
@@ -22,44 +25,131 @@ ROOT = Path(__file__).resolve().parent
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+from draf.checkpoint import DEFAULT_OWNER  # noqa: E402
+
 from src.config.config import get_settings  # noqa: E402
 from src.graphs.build import build_flow  # noqa: E402
 from src.service.assistant import Assistant  # noqa: E402
 from src.storage import build_checkpointer  # noqa: E402
 
+#: State keys that add noise to the debug ledger — always hidden.
+_HIDDEN_KEYS = {"next_agent", "input", "supervisor_rounds", "tool_approval"}
 
-def _render(event) -> None:
-    if event.type == "run_start":
-        print("\n-- run --")
-    elif event.type == "node_start":
-        print(f"\n-- {event.node_id} [{event.node_type}] --")
-    elif event.type == "edge":
-        print(f"  -> routed to {event.data['target_id']}")
-    elif event.type == "token":
-        print(event.data["token"], end="", flush=True)
-    elif event.type == "checkpoint":
-        print(f"  [checkpoint {event.data['action']}]")
-    elif event.type == "run_end":
-        print(f"\n== run_end: {event.data['status']} ==")
-    elif event.type == "node_error":
-        print(f"  !! {event.data['error']}")
+
+def _short(value, limit: int = 200) -> str:
+    text = str(value).replace("\n", " ")
+    return text if len(text) <= limit else text[: limit - 1] + "…"
+
+
+def _state_delta(prev: dict, cur: dict) -> list[str]:
+    """Render keys that changed since the last snapshot (debug view)."""
+    lines: list[str] = []
+    for key, value in cur.items():
+        if key.startswith("_") or key in _HIDDEN_KEYS:
+            continue
+        if value != prev.get(key):
+            if value:
+                lines.append(f"{key}={_short(value)}")
+            else:
+                lines.append(f"{key}=")  # cleared
+    return lines
+
+
+async def _stream_turn(assistant: Assistant, session: str, message: str) -> None:
+    """Run one turn, streaming the assistant's tokens plus debug ledger."""
+    prev: dict = {}
+    streamed = False
+    async for event in assistant.stream_turn(session, message):
+        etype = event.type
+        if etype == "node_start":
+            print(f"\n—— {event.node_id} [{event.node_type}]")
+        elif etype == "edge":
+            print(f"    → {event.data.get('target_id')}")
+        elif etype == "tool_call":
+            args = event.data.get("args", "{}")
+            try:
+                args = json.loads(args) if args else {}
+            except (json.JSONDecodeError, TypeError):
+                pass
+            print(f"    [tool] {event.data.get('name')}({_short(args, 160)})")
+        elif etype == "token":
+            streamed = True
+            print(event.data["token"], end="", flush=True)
+        elif etype == "node_error":
+            print(f"\n    !! {event.data['error']}")
+        elif etype == "node_end":
+            saved = await assistant.checkpointer.load(session, owner=DEFAULT_OWNER)
+            cur = saved.state if saved is not None else {}
+            delta = _state_delta(prev, cur)
+            if delta:
+                print("    · state: " + "; ".join(delta))
+            prev = cur
+    print()
+    if not streamed:
+        # Nothing streamed (e.g. the turn ended on extract-only) — show the
+        # durable final reply so the user isn't left staring at silence.
+        reply = await assistant.last_reply(session)
+        if reply:
+            print(reply)
+        else:
+            print("(ответ не сформирован — проверьте модель/маршрутизацию)")
+
+
+async def chat(assistant: Assistant, session: str) -> None:
+    """Interactive loop: prompt -> answer -> repeat until Ctrl-D/Ctrl-C."""
+    print("просто вводите запросы, Ctrl-D/Ctrl-C — выйти\n")
+    while True:
+        try:
+            message = input("> ").strip()
+        except (EOFError, KeyboardInterrupt):
+            print()
+            return
+        if not message:
+            continue
+        await _stream_turn(assistant, session, message)
 
 
 async def main() -> None:
     settings = get_settings()
     parser = argparse.ArgumentParser(
-        description="Run one repair-planning turn with token streaming."
+        prog="cli",
+        description="Repair assistant chat + catalog loader for the "
+        "production_repair_ai example.",
     )
-    parser.add_argument(
+    sub = parser.add_subparsers(dest="command")
+
+    chat_p = sub.add_parser(
+        "chat", help="interactive chat (no message) or a one-shot turn (with message)"
+    )
+    chat_p.add_argument(
         "message",
         nargs="?",
-        default="Спланируй ремонт ванной комнаты: 5 м², высота 2,7 м, бюджет 80000 ₽.",
+        help="one-shot turn to run (omit to start interactive chat)",
     )
-    parser.add_argument("--model", default=settings.model, help="LLM model name")
-    parser.add_argument(
+    chat_p.add_argument("--model", default=settings.model, help="LLM model name")
+    chat_p.add_argument(
         "--session", default="default", help="session id — reuse it to continue"
     )
-    args = parser.parse_args()
+
+    load_p = sub.add_parser(
+        "load", help="ingest CSVs into the vector store in batches"
+    )
+    load_p.add_argument("files", nargs="+", type=Path, help="CSV file(s) to load")
+    load_p.add_argument("--batch-size", type=int, default=250)
+    load_p.add_argument(
+        "--rebuild", action="store_true", help="clear + re-embed the whole catalog"
+    )
+    load_p.add_argument("--provider", default=settings.rag_embedder or settings.provider)
+
+    # Backwards compatibility: `cli.py "msg"` and bare `cli.py` mean "chat".
+    argv = sys.argv[1:]
+    if not argv or argv[0] not in ("chat", "load"):
+        argv = ["chat", *argv]
+    args = parser.parse_args(argv)
+
+    if args.command == "load":
+        await _load(args.files, args.batch_size, args.rebuild, args.provider)
+        return
 
     flow, tools = build_flow(model=args.model, provider=settings.provider)
     assistant = Assistant(
@@ -70,11 +160,39 @@ async def main() -> None:
         f"provider: {settings.provider}  model: {args.model}  "
         f"session: {args.session}  (requires a running Ollama)"
     )
-    async for event in assistant.stream_turn(args.session, args.message):
-        _render(event)
-    reply = await assistant.last_reply(args.session)
-    if reply:
-        print(f"\n== assistant ==\n{reply}")
+    if args.message:
+        await _stream_turn(assistant, args.session, args.message)
+    else:
+        await chat(assistant, args.session)
+
+
+async def _load(files, batch_size: int, rebuild: bool, provider: str) -> None:
+    """Ingest CSV(s) into a fresh :class:`MaterialCatalog` in *batch_size* chunks."""
+    from draf.rag.embedder import Embedder
+
+    from src.rag.catalog import MaterialCatalog
+
+    from src.core.deps import PRODUCT_FIELDMAP
+
+    catalog = MaterialCatalog(embedder=Embedder(provider=provider))
+    for f in files:
+        if not f.exists():
+            print(f"  skip: {f} not found")
+            continue
+        head = f.read_text(encoding="utf-8", errors="replace").split("\n", 1)[0]
+        fieldmap = PRODUCT_FIELDMAP if "Наименование" in head else None
+        added = catalog.add_csv(str(f), fieldmap=fieldmap)
+        print(f"  queued {added:>5} rows from {f.name}")
+    if catalog.size == 0:
+        print("nothing to load")
+        return
+    report = await (catalog.rebuild if rebuild else catalog.ingest)(
+        batch_size=batch_size
+    )
+    print(
+        f"  stored {report.stored} (of {report.queued} queued) "
+        f"via {report.batches} batch(es) of <= {batch_size}"
+    )
 
 
 if __name__ == "__main__":

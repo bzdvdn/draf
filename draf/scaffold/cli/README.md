@@ -56,7 +56,7 @@ Each piece carries a `HOW TO EXTEND` comment.  The usual loop:
 2. Add an output slot to `AppState` in `src/graphs/state.py` (only if the
    agent produces shared state).
 3. Build the agent chain in `src/graphs/build.py` with
-   `agent_chain(system, output_key, use_tools)` and register it under a new
+   `agent_step(system, output_key, use_tools)` and register it under a new
    keyword in the `route(..., **agents)` call.
 4. Mention the new route value in the supervisor prompt, and (if the agent
    uses tools) add a `Tool` subclass in `src/tools/` and register it in

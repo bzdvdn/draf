@@ -1,6 +1,11 @@
 from draf.node.node import Node
 from draf.node.registry import NodeRegistry, default_registry, node
-from draf.node.context import ExecContext
+from draf.node.context import (
+    ExecContext,
+    ContextBuilder,
+    AppendAssistant,
+    last_user_message,
+)
 from draf.node.retry import Retry
 from draf.node.transform import Transform
 from draf.node.llm import LLM, StructuredOutputError
@@ -10,6 +15,8 @@ from draf.node.map import Map
 from draf.node.interrupt import Interrupt, GraphInterrupt
 
 default_registry.register("transform", lambda cfg: Transform(cfg))
+default_registry.register("context_builder", lambda cfg: ContextBuilder(cfg))
+default_registry.register("append_assistant", lambda cfg: AppendAssistant(cfg))
 default_registry.register("llm_chat", lambda cfg: LLM(cfg))
 default_registry.register("react_agent", lambda cfg: ReActAgent(cfg))
 default_registry.register("tool_exec", lambda cfg: ToolExec(cfg))
@@ -31,6 +38,9 @@ __all__ = [
     "NodeRegistry",
     "default_registry",
     "ExecContext",
+    "ContextBuilder",
+    "AppendAssistant",
+    "last_user_message",
     "node",
     "Retry",
     "Transform",

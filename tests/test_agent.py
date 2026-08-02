@@ -242,9 +242,9 @@ class TestParallelToolExecution:
         g = Graph(
             nodes={
                 "agent": ReActAgent(
-                    {"model": "gpt-4", "input_key": "input", "output_key": "output"}
+                    {"model": "gpt-4", "input_key": "input", "output_key": "output", "use_tools": ["slowtool"]}
                 ),
-                "tool": ToolExec({}),
+                "tool": ToolExec({"use_tools": ["slowtool"]}),
             },
             edges=[
                 Edge("agent", "tool", "_tool_call_name!="),
@@ -401,9 +401,9 @@ class TestToolErrorMode:
         g = Graph(
             nodes={
                 "agent": ReActAgent(
-                    {"model": "gpt-4", "input_key": "input", "output_key": "output"}
+                    {"model": "gpt-4", "input_key": "input", "output_key": "output", "use_tools": ["boom"]}
                 ),
-                "tool": ToolExec({}),
+                "tool": ToolExec({"use_tools": ["boom"]}),
             },
             edges=[
                 Edge("agent", "tool", "_tool_call_name!="),
@@ -466,9 +466,9 @@ class TestToolErrorMode:
         g = Graph(
             nodes={
                 "agent": ReActAgent(
-                    {"model": "gpt-4", "input_key": "input", "output_key": "output"}
+                    {"model": "gpt-4", "input_key": "input", "output_key": "output", "use_tools": ["boom"]}
                 ),
-                "tool": ToolExec({"tool_error_mode": "raise"}),
+                "tool": ToolExec({"tool_error_mode": "raise", "use_tools": ["boom"]}),
                 "fallback": Transform(
                     {
                         "action": "value",

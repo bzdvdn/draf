@@ -17,6 +17,7 @@ from __future__ import annotations
 from fastapi import FastAPI
 
 from src.config.config import Settings, get_settings
+from src.core.deps import build_deps
 from src.api.router import api_router
 from src.graphs.build import build_flow
 from src.service.assistant import Assistant
@@ -38,7 +39,11 @@ def create_app(
     if checkpoint_dir is not None:
         settings = settings.model_copy(update={"checkpoint_dir": checkpoint_dir})
 
-    flow, tools = build_flow(model=settings.model, provider=settings.provider)
+    services, catalog = build_deps(provider=settings.provider)
+    flow, tools = build_flow(
+        model=settings.model, provider=settings.provider,
+        services=services, catalog=catalog,
+    )
     assistant = Assistant(
         flow.compile(), tools, build_checkpointer(settings.checkpoint_dir)
     )
@@ -49,6 +54,7 @@ def create_app(
         version=settings.version,
     )
     app.state.assistant = assistant
+    app.state.catalog = catalog
     app.state.model = settings.model
     app.state.settings = settings
     app.include_router(api_router)

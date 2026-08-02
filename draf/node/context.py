@@ -1,13 +1,119 @@
-"""Execution context passed to every node."""
+"""Execution context and context-building nodes for agent flows.
+
+Two concerns live here:
+
+* :class:`ExecContext` — the runtime handle passed to every node.
+* :class:`ContextBuilder` / :class:`AppendAssistant` and
+  :func:`last_user_message` — shared building blocks for routing a
+  conversation turn to an agent: compose a plain-text ``input`` from state,
+  then append the agent's reply back to the shared conversation.  They are
+  used by :func:`draf.flow.agent_step` and by every scaffold/example.
+"""
 
 import typing
 from typing import Any, Awaitable, Callable
 
+from draf.node.node import Node
 from draf.tool.tool import Tool
 
 if typing.TYPE_CHECKING:
     from draf.trace import RunTracer
     from draf.stream import StreamEvent
+
+
+def last_user_message(messages: list) -> str:
+    """Return the most recent ``user`` message from a conversation list.
+
+    Args:
+        messages: List of ``{"role": ..., "content": ...}`` dicts.
+
+    Returns:
+        The latest user content, or ``""`` when there is none.
+    """
+    for message in reversed(messages):
+        if message.get("role") == "user":
+            return str(message.get("content", ""))
+    return ""
+
+
+class ContextBuilder(Node):
+    """Compose a plain-text ``input`` for an agent from shared state.
+
+    Renders each configured section as ``<label>:\\n<value>`` plus the latest
+    user message, and clears scratch keys so a routed agent starts clean.
+
+    Args:
+        sections: State key → section label mapping.
+        messages_key: State key holding the conversation.
+        output_key: State key receiving the composed text.
+        reset_keys: Scratch state keys to clear before the agent runs.
+    """
+
+    type = "context_builder"
+
+    def __init__(
+        self,
+        config: dict | None = None,
+        *,
+        sections: dict[str, str] | None = None,
+        messages_key: str = "messages",
+        output_key: str = "input",
+        reset_keys: tuple[str, ...] = (),
+        **kwargs,
+    ):
+        merged = {
+            "sections": sections or {},
+            "messages_key": messages_key,
+            "output_key": output_key,
+            "reset_keys": list(reset_keys),
+            **(config or {}),
+            **kwargs,
+        }
+        super().__init__(**merged)
+
+    async def execute(self, ctx, state: dict) -> dict:
+        parts: list[str] = []
+        for key, label in self.config["sections"].items():
+            value = state.get(key)
+            if value:
+                parts.append(f"{label}:\n{value}")
+        last_user = last_user_message(state.get(self.config["messages_key"], []))
+        if last_user:
+            parts.append(f"User: {last_user}")
+        output_key = self.config["output_key"]
+        out: dict = {output_key: "\n\n".join(parts)}
+        for key in self.config["reset_keys"]:
+            if key != output_key:
+                out[key] = []
+        return out
+
+
+class AppendAssistant(Node):
+    """Append an agent's response to the shared conversation as assistant."""
+
+    type = "append_assistant"
+
+    def __init__(
+        self,
+        config: dict | None = None,
+        *,
+        output_key: str = "draft",
+        messages_key: str = "messages",
+        **kwargs,
+    ):
+        merged = {
+            "output_key": output_key,
+            "messages_key": messages_key,
+            **(config or {}),
+            **kwargs,
+        }
+        super().__init__(**merged)
+
+    async def execute(self, ctx, state: dict) -> dict:
+        content = state.get(self.config["output_key"], "")
+        if not content:
+            return {}
+        return {self.config["messages_key"]: [{"role": "assistant", "content": content}]}
 
 
 class ExecContext:

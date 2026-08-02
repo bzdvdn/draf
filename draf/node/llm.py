@@ -74,9 +74,9 @@ class LLM(Node):
         provider: Provider name (``"openai"``, ``"ollama"``, etc.).
             Falls back to ``LLM.DEFAULT_PROVIDER``, then auto-detection
             from model name.
-        use_tools: If ``True``, auto-generate tool definitions from
-            ``ctx.tools``.  A list of tool names restricts the node to
-            only those tools.
+        use_tools: Tool capability for the node: a list of names restricts
+            it to exactly those tools; ``"all"`` uses every ``ctx.tools``
+            entry.  ``None``/``[]`` (default) — no tools are surfaced.
         temperature: Sampling temperature.
         max_tokens: Max tokens in response.
         response_format: ``{"type": "json_object"}`` etc.

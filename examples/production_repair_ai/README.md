@@ -38,7 +38,7 @@ from the whole conversation.
 production_repair_ai/
 ├── main.py               # server entry point (uvicorn; host/port from settings)
 ├── app.py                # FastAPI app factory (uvicorn app:create_app)
-├── cli.py                # debug: one streaming repair-planning turn
+├── cli.py                # interactive chat; or one repair-planning turn
 ├── src/                  # the production package
 │   ├── config/           # env-driven settings (.env / DRAF_* vars)
 │   ├── api/              # endpoint groups: router.py + chat/ + run/ + auth/

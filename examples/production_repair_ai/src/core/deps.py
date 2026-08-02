@@ -17,6 +17,22 @@ DEFAULT_CATALOG = (
     Path(__file__).resolve().parents[2] / "data" / "documents" / "materials.csv"
 )
 
+#: The real price list (``Наименование/Цена/Ед/...``), loaded into the RAG
+#: alongside the descriptive materials CSV so agents quote real products.
+DEFAULT_PRICE_LIST = (
+    Path(__file__).resolve().parents[2] / "data" / "documents" / "price.csv"
+)
+
+#: ``canonic key -> price.csv column`` for the materialized product rows.
+PRODUCT_FIELDMAP = {
+    "name": "Наименование",
+    "price": "Цена",
+    "unit": "Ед",
+    "variant": "Вариант",
+    "article": "Артикул",
+    "brand": "Бренд",
+}
+
 
 def build_deps(catalog_csv: str | Path | None = None, *, provider: str = "ollama"):
     """Build the plain-Python dependency container.
@@ -34,4 +50,6 @@ def build_deps(catalog_csv: str | Path | None = None, *, provider: str = "ollama
     path = catalog_csv or DEFAULT_CATALOG
     if Path(path).exists():
         catalog.add_csv(str(path))
+    if Path(DEFAULT_PRICE_LIST).exists():
+        catalog.add_csv(str(DEFAULT_PRICE_LIST), fieldmap=PRODUCT_FIELDMAP)
     return services, catalog

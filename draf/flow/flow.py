@@ -540,7 +540,7 @@ class Flow:
         temperature: float | None = None,
         max_tokens: int | None = None,
         response_format: dict | None = None,
-        use_tools: bool | list[str] = True,
+        use_tools: str | list[str] | None = None,
         skills: list | None = None,
         skill_dir: str = "skills",
         **config,
@@ -583,8 +583,10 @@ class Flow:
                 ``"raise"`` a tool failure routes to the graph's error path.
             parse_text_tool_calls: Decode tool calls embedded in plain text.
             temperature / max_tokens / response_format: Sampling knobs.
-            use_tools: ``True`` (all tools), ``False``, or a list of tool
-                names the agent may use.
+            use_tools: ``None``/``[]`` (no tools, default), ``"all"`` (everything
+                the pool offers), or a list of tool names to allow.  The
+                bool shorthands ``True``/``False`` are supported for
+                compatibility but an explicit list is preferred.
             skills: Skills to mount on the agent — names resolved against
                 *skill_dir*, skill paths, or :class:`~draf.skill.Skill`
                 objects.  Their instructions go into the system prompt and

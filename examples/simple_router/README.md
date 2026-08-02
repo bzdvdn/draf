@@ -30,6 +30,14 @@ picks `finish` therefore cannot loop forever — the graph always
 terminates.  The counter resets on each new user message (it lives in
 `_TRANSIENT_KEYS` in `src/storage/__init__.py`).
 
+It also stops early instead of burning that budget.  The `build.py` wiring
+passes `done_keys={"code", "talk"}` with `done_mode="any"`, so once the
+routed agent has written its answer the supervisor returns `finish`
+deterministically — no second LLM call.  The `route_keys` guard also
+ignores a pick that would re-run an agent whose slot is already filled.  The
+decider's message now includes the work already produced plus the current
+round, so the model sees what exists and routes (or finishes) accordingly.
+
 ## Layout
 
 ```
@@ -66,6 +74,6 @@ Each piece carries a `HOW TO EXTEND` comment.  The usual loop:
 2. Add an output slot to `RouterState` in `src/graphs/state.py` (only if
    the agent produces shared state).
 3. Build the agent chain in `src/graphs/build.py` with
-   `agent_chain(system, output_key)` and register it under a new keyword
+   `agent_step(system, output_key)` and register it under a new keyword
    in the `route(..., **agents)` call.
 4. Mention the new route value in the supervisor prompt.

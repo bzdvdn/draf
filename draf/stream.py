@@ -18,8 +18,9 @@ class StreamEvent:
 
     Attributes:
         type: Event type — ``run_start``, ``node_start``, ``node_end``,
-            ``node_error``, ``edge``, ``token``, ``llm``, ``interrupt``,
-            ``interrupt_resume``, ``checkpoint``, or ``run_end``.
+            ``node_error``, ``edge``, ``token``, ``llm``, ``tool_call``,
+            ``structured``, ``interrupt``, ``interrupt_resume``, ``checkpoint``,
+            or ``run_end``.
         node_id: Graph node id the event belongs to, if any.
         node_type: Node type string, if any.
         data: Type-specific payload (token text, error, condition, etc.).

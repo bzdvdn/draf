@@ -296,6 +296,7 @@ class TestSkillIntegration:
                 "input_key": "query",
                 "output_key": "answer",
                 "skills": [str(d)],
+                "use_tools": "all",
             }
         )
         ctx = ExecContext(state={}, tools=_tools())
@@ -454,6 +455,7 @@ async def test_react_agent_body_scopes_foreign_tools(monkeypatch, tmp_path):
             "input_key": "query",
             "output_key": "answer",
             "skills": [str(d)],
+            "use_tools": "all",
         }
     )
     ctx = ExecContext(state={}, tools=pool)

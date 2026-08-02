@@ -22,6 +22,68 @@ from src.graphs.build import build_flow  # noqa: E402
 from src.graphs.state import STATE_REDUCERS, initial_state  # noqa: E402
 
 
+def _stub_embedder(client) -> None:
+    """Swap the app catalog's embedder for a deterministic offline stub."""
+    async def _embed_many(texts):
+        return [
+            list(__import__("numpy").random.default_rng(sum(map(ord, t))).random(4))
+            for t in texts
+        ]
+
+    catalog = client.app.state.catalog
+    catalog.embedder = type("_Stub", (), {"embed_many": staticmethod(_embed_many)})()
+    catalog.store = __import__(
+        "draf.rag.stores", fromlist=["InMemoryVectorStore"]
+    ).InMemoryVectorStore(dim=4)
+    catalog._ingested = 0
+
+
+def test_catalog_load_and_update(tmp_path):
+    """POST /api/catalog/load ingests a CSV in batches; update rebuilds."""
+    pytest.importorskip("fastapi")
+    from fastapi.testclient import TestClient
+
+    from app import create_app
+
+    csv_path = tmp_path / "prices.csv"
+    csv_path.write_text(
+        "Наименование,Цена,Ед\n"
+        "Кирпич М-150,24.2,₽/шт\n"
+        "Плитка Керама-Белый,780,₽/м²\n",
+        encoding="utf-8",
+    )
+
+    client = TestClient(create_app(checkpoint_dir=str(tmp_path)))
+    _stub_embedder(client)
+
+    status = client.get("/api/catalog")
+    assert status.status_code == 200
+    queued0 = status.json()["queued"]
+    assert status.json()["stored"] == 0  # stub cleared the store, nothing loaded
+
+    loaded = client.post(
+        "/api/catalog/load", data={"batch_size": "1", "path": str(csv_path)}
+    )
+    assert loaded.status_code == 200
+    body = loaded.json()
+    assert body["queued_this_file"] == 2
+    assert body["report"]["stored"] == queued0 + 2
+    assert body["report"]["batches"] >= 1  # batched embed_many calls
+    assert body["report"]["added"] == queued0 + 2
+
+    # loading the same file again appends its rows to the store
+    again = client.post(
+        "/api/catalog/load", data={"batch_size": "10", "path": str(csv_path)}
+    )
+    assert again.json()["queued_this_file"] == 2
+    assert again.json()["report"]["stored"] == queued0 + 4
+
+    # update rebuilds the whole store from every queued document
+    updated = client.post("/api/catalog/update", data={"batch_size": "10"})
+    assert updated.status_code == 200
+    assert updated.json()["report"]["stored"] == queued0 + 4
+
+
 def _reply(content: str) -> dict:
     """A response that satisfies both OpenAI (``choices``) and Ollama
     (root ``message``) extraction paths used by the framework."""
@@ -142,8 +204,9 @@ async def test_route_loop_runs_end_to_end(transport):
         max_iterations=80,
     )
 
-    # supervisor looped exactly once: planner -> finish
-    assert transport.supervisor_calls == 2
+    # planner runs once, then the done guard (done_mode="any") finishes the
+    # turn deterministically without another supervisor LLM call
+    assert transport.supervisor_calls == 1
     assert result["plan"] != ""
     assert result["project_info"] == {"room_type": "bathroom", "area": 5.0}
 

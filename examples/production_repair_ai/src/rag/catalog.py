@@ -7,8 +7,42 @@ embedding provider.
 
 from __future__ import annotations
 
+import csv
+from dataclasses import dataclass
+
 from draf.rag.stores import InMemoryVectorStore
 from draf.rag.tool import load_documents_csv
+
+
+@dataclass
+class IngestReport:
+    """Outcome of one ingestion run.
+
+    Attributes:
+        queued: Documents known to the catalog (parsed, not necessarily embedded).
+        added:  Documents newly embedded+stored in this call.
+        batches:embedding HTTP calls made this call (``ceil(added / batch_size)``).
+        stored: Rows currently resident in the vector store.
+    """
+
+    queued: int = 0
+    added: int = 0
+    batches: int = 0
+    stored: int = 0
+
+
+def _product_text(rec: dict) -> str:
+    """Compose the embeddable text for a price-list row.
+
+    *price* is kept as metadata (a number is a poor embedding signal for a
+    product); the human-readable identifying columns drive retrieval.
+    """
+    parts = [
+        str(rec[k])
+        for k in ("name", "variant", "unit", "brand", "article")
+        if rec.get(k)
+    ]
+    return ", ".join(parts).strip() or (rec.get("name") or "")
 
 
 def _format_record(meta: dict) -> str:
@@ -29,23 +63,103 @@ class MaterialCatalog:
         self.store = store or InMemoryVectorStore(dim=768)
         self.top_k = top_k
         self._docs: list[tuple[str, dict]] = []
-        self._seeded = False
+        self._ingested = 0
 
-    def add_csv(self, path: str) -> None:
-        """Queue a materials CSV for embedding (columns: name, category, ...)."""
-        docs = load_documents_csv(path, text_column="description")
-        for text, meta in docs:
-            record = {**meta, "description": text}
-            self._docs.append((text, record))
-        self._seeded = False
+    def add_csv(
+        self,
+        path: str,
+        *,
+        text_column: str = "description",
+        fieldmap: dict[str, str] | None = None,
+    ) -> int:
+        """Parse a CSV into the pending queue (no network) and return its size.
+
+        By default the rows are shaped like ``materials.csv``: *text_column*
+        becomes the embedded text and the remaining columns become metadata
+        (so a ``price`` column must already be named ``price``).
+
+        Pass *fieldmap* (``canonic key -> source column``) to ingest a raw
+        price list with Russian column headers — e.g.
+        ``{"name": "Наименование", "price": "Цена", "unit": "Ед"}``.  The
+        columns are remapped to ``name`` / ``price`` / ``unit`` / ...,
+        *name* becomes the embeddable text (rows without a name are
+        dropped), and no network is touched until :meth:`ingest`.
+        """
+        before = len(self._docs)
+        if fieldmap is None:
+            docs = load_documents_csv(path, text_column=text_column)
+            for text, meta in docs:
+                record = {**meta, "description": text}
+                self._docs.append((text, record))
+            return len(self._docs) - before
+        with open(path, newline="", encoding="utf-8") as f:
+            for row in csv.DictReader(f):
+                record = {
+                    key: (row.get(col, "") or "").strip()
+                    for key, col in fieldmap.items()
+                }
+                name = record.get("name")
+                if not name:
+                    continue
+                text = _product_text(record)
+                self._docs.append((text, record))
+        return len(self._docs) - before
+
+    @property
+    def size(self) -> int:
+        """Documents currently known to the catalog (parsed or embedded)."""
+        return len(self._docs)
+
+    @property
+    def stored(self) -> int:
+        """Rows resident in the vector store (embedded)."""
+        return self._ingested
+
+    async def ingest(self, batch_size: int = 250) -> IngestReport:
+        """Embed queued-but-not-yet-stored documents into the vector store.
+
+        Documents are embedded in *batch_size* chunks (one ``embed_many``
+        call per chunk) and appended to the store.  Safe to call repeatedly:
+        already-embedded rows are skipped.  This is the primitive the CLI
+        ``load`` command and the catalog API use to pre-fill the store.
+        """
+        pending = self._docs[self._ingested :]
+        batches = 0
+        for start in range(0, len(pending), batch_size):
+            chunk = pending[start : start + batch_size]
+            texts = [text for text, _meta in chunk]
+            vectors = await self.embedder.embed_many(texts)
+            await self.store.add(
+                [
+                    (f"material_{self._ingested + start + i}", vectors[i], meta)
+                    for i, (_text, meta) in enumerate(chunk)
+                ]
+            )
+            batches += 1
+        self._ingested += len(pending)
+        return IngestReport(
+            queued=len(self._docs),
+            added=len(pending),
+            batches=batches,
+            stored=self._ingested,
+        )
+
+    async def rebuild(self, batch_size: int = 250) -> IngestReport:
+        """Clear the store and re-embed every queued document (full refresh).
+
+        Used by the ``update store`` API/CLI action: drops stale rows, then
+        re-indexes the whole catalog so metadata edits or dropped files are
+        reflected.
+        """
+        await self.store.clear()
+        self._ingested = 0
+        return await self.ingest(batch_size=batch_size)
 
     async def _ensure_seeded(self) -> None:
-        if self._seeded:
-            return
-        for index, (text, meta) in enumerate(self._docs):
-            vector = await self.embedder.embed(text)
-            await self.store.add([(f"material_{index}", vector, meta)])
-        self._seeded = True
+        # Lazy fallback: a search against an empty store triggers ingestion,
+        # so the graph works even when nobody pre-loaded via CLI/API.
+        if self._ingested < len(self._docs):
+            await self.ingest()
 
     async def search(
         self,
@@ -86,8 +200,9 @@ class MaterialCatalog:
         lines = []
         for index, (_, score, meta) in enumerate(results, start=1):
             price = meta.get("price", "-")
+            unit = meta.get("unit") or "руб/м²"
             title = meta.get("name") or _format_record(meta)[:50]
-            lines.append(f"{index}. {title} — {price} руб/м² (похожесть: {score:.2f})")
+            lines.append(f"{index}. {title} — {price} {unit} (похожесть: {score:.2f})")
         return "\n".join(lines)
 
 

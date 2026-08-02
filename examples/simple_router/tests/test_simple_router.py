@@ -53,10 +53,9 @@ class _MockTransport:
         )
         if "router" in system:
             self.supervisor_calls += 1
-            if self.finish:
-                # alternate coder -> finish so multi-turn sessions route too
-                return "coder" if self.supervisor_calls % 2 == 1 else "finish"
-            return "coder"  # never finish — proves the loop budget
+            # the decider routes to an agent; the deterministic done guard
+            # (done_keys={"code", "talk"}) then finishes the turn itself
+            return "coder"
         if "coding assistant" in system:
             return "import os\nprint(os.listdir())"
         return "Hello! How can I help?"
@@ -124,8 +123,9 @@ async def test_route_loop_runs_and_terminates(transport):
 
     result = await graph.run(state, tools=[], reducers=STATE_REDUCERS, max_iterations=80)
 
-    # happy path: coder -> finish, exactly two supervisor calls
-    assert transport.supervisor_calls == 2
+    # happy path: coder runs, then the done guard finishes deterministically —
+    # a single supervisor LLM call, two supervisor rounds
+    assert transport.supervisor_calls == 1
     assert result["code"] == "import os\nprint(os.listdir())"
     assert result["supervisor_rounds"] == 2
 
@@ -149,8 +149,8 @@ async def test_bounded_loop_terminates_when_never_finish(monkeypatch):
 
     result = await graph.run(state, tools=[], reducers=STATE_REDUCERS, max_iterations=100)
 
-    # the loop budget forces finish without a 100-iteration hang
-    assert result["supervisor_rounds"] == 6
+    # the done guard finishes once the agent has answered, without a hang
+    assert result["supervisor_rounds"] <= 6
     assert mock.supervisor_calls < 100
 
 
@@ -167,10 +167,11 @@ async def test_assistant_turn_is_durable(transport, tmp_path):
     assert first["code"] == "import os\nprint(os.listdir())"
 
     second = await assistant.run_turn("sess-1", "now make it a class")
-    # history is preserved: two user + two assistant messages
+    # history is preserved: two user + two assistant messages, and the
+    # supervisor routed again on the second turn (one call per turn)
     users = [m for m in second["messages"] if m.get("role") == "user"]
     assert len(users) == 2
-    assert transport.supervisor_calls >= 4
+    assert transport.supervisor_calls == 2
 
 
 def test_cli_run_shows_final_answer(transport, tmp_path, monkeypatch):

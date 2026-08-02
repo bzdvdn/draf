@@ -16,10 +16,13 @@ Agents:
 - reviewer — the user wants the answer checked, or the work needs a quality pass
 - finish — the request is already fully handled; do not route again
 
-Reply with exactly ONE word: planner, writer, reviewer or finish.
+The message includes the work already produced (Plan/Draft/Review), the current
+round and the user's request.  Reply with exactly ONE word:
+planner, writer, reviewer or finish.
 
 Rules:
 - No punctuation, no quotes, no explanation — only the single word.
+- If the work is complete (plan, draft and review all exist), return: finish.
 - If an agent already produced a complete answer and the user only
   confirms, thanks or continues the same topic, return: finish.
 - Never invent agents that are not listed above."""

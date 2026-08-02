@@ -10,6 +10,7 @@ from __future__ import annotations
 from fastapi import APIRouter, Request
 
 from src.api.auth.router import router as auth_router
+from src.api.catalog.router import router as catalog_router
 from src.api.chat.router import router as chat_router
 from src.api.run.router import router as run_router
 
@@ -17,6 +18,7 @@ api_router = APIRouter()
 
 api_router.include_router(chat_router, prefix="/api/chat", tags=["chat"])
 api_router.include_router(run_router, prefix="/api/runs", tags=["runs"])
+api_router.include_router(catalog_router, prefix="/api/catalog", tags=["catalog"])
 api_router.include_router(auth_router, prefix="/api/auth", tags=["auth"])
 
 
