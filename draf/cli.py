@@ -13,6 +13,7 @@ import typer
 
 from draf._version import __version__
 from draf.checkpoint import DEFAULT_OWNER
+from draf.scaffold import TEMPLATES
 
 app = typer.Typer(
     name="draf",
@@ -410,20 +411,29 @@ def new(
         "fastapi",
         "--template",
         "-t",
-        help="App template: fastapi (server), cli (terminal), daemon (worker)",
+        help=f"App template: {', '.join(TEMPLATES)}",
+    ),
+    with_variants: str = typer.Option(
+        "",
+        "--with",
+        help="Comma-separated feature variants: postgres,rag,celery",
     ),
 ) -> None:
     """Scaffold a new draf app from a template (fastapi|cli|daemon)."""
     from draf.scaffold import new_project
 
+    variants = tuple(v for v in (p.strip() for p in with_variants.split(",")) if v)
     try:
-        path = new_project(name, dest=dest, template=template)
+        path = new_project(name, dest=dest, template=template, variants=variants)
     except Exception as e:
         typer.echo(f"error: {e}", err=True)
         raise typer.Exit(1)
     typer.echo(f"created {path}")
-    entry = {"fastapi": "python main.py", "cli": "python cli.py run", "daemon": "python daemon.py --once"}[template]
-    typer.echo(f"next: uv sync && uv run pytest tests/ && uv run {entry}")
+    typer.echo(
+        f"next: uv sync && uv run pytest tests/ && uv run {TEMPLATES[template].entry}"
+    )
+    if variants:
+        typer.echo(f"variants: {', '.join(variants)}")
 
 
 @app.command()

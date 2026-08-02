@@ -16,6 +16,7 @@ this skeleton generic and add your own agents, tools and state — see
 ├── cli.py                # debug: one streaming turn against Ollama
 ├── src/                  # the production package
 │   ├── config/           # env-driven settings (.env / DRAF_* vars)
+│   ├── core/             # composition root: src/core/container.py build_container
 │   ├── api/              # FastAPI endpoint groups
 │   │   ├── router.py     #   api_router — aggregates chat + run + auth + health
 │   │   ├── chat/         #   POST /api/chat, /api/chat/stream

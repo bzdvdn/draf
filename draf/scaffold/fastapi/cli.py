@@ -22,9 +22,7 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from src.config.config import get_settings  # noqa: E402
-from src.graphs.build import build_flow  # noqa: E402
-from src.service.assistant import Assistant  # noqa: E402
-from src.storage import build_checkpointer  # noqa: E402
+from src.core import build_container  # noqa: E402
 
 
 def _render(event) -> None:
@@ -56,18 +54,17 @@ async def main() -> None:
     )
     args = parser.parse_args()
 
-    flow, tools = build_flow(model=args.model, provider=settings.provider)
-    assistant = Assistant(
-        flow.compile(), tools, build_checkpointer(settings.checkpoint_dir)
-    )
+    if args.model != settings.model:
+        settings = settings.model_copy(update={"model": args.model})
+    container = build_container(settings)
 
     print(
         f"provider: {settings.provider}  model: {args.model}  "
         f"session: {args.session}  (requires a running Ollama)"
     )
-    async for event in assistant.stream_turn(args.session, args.message):
+    async for event in container.assistant.stream_turn(args.session, args.message):
         _render(event)
-    reply = await assistant.last_reply(args.session)
+    reply = await container.assistant.last_reply(args.session)
     if reply:
         print(f"\n== assistant ==\n{reply}")
 

@@ -690,6 +690,7 @@ draf inspect --checkpoint '{"type":"sqlite","path":"cp.db"}' --checkpoint-id run
 draf new support-ai                        # scaffold a FastAPI app (default)
 draf new support-cli --template cli        # scaffold a terminal-only app
 draf new support-worker --template daemon  # scaffold a background worker
+draf new support-chat --template fastapi --with postgres,rag,celery  # + variants
 draf version
 ```
 
@@ -698,6 +699,21 @@ draf version
 graph driven from the terminal), or `daemon` (a worker polling a job queue).
 Every generated module carries `HOW TO EXTEND` comments and the project's
 tests run offline with no API keys.
+
+Feature **variants** are additive overlays enabled with `--with` (comma-separated,
+any subset output by `draf new --help`):
+
+* `postgres` — adds a pgvector `deploy/compose.yaml` + `.env.example`; the DSN
+  (`DRAF_DATABASE_URL`) points durable sessions (and RAG vectors) at Postgres.
+* `rag` — a document catalog over `data/documents/` with RAG search tools wired
+  into the writer agent (embedded lazily on the first search, so tests stay
+  offline).
+* `celery` — a Celery worker + beat pair that re-embeds the catalog whenever
+  the seed documents change (requires the `queue` extra).
+
+Every generated app wires its graph, tools, checkpointer and assistant through a
+single composition root — `src/core/container.py:build_container` — so the CLI,
+server and worker behave identically.
 
 ## Cost & token reports
 

@@ -1,0 +1,4 @@
+name = "daemon"
+description = "Background worker: polls data/queue, runs turns, writes results"
+entry = "python daemon.py --once"
+variants = ["postgres", "rag", "celery"]

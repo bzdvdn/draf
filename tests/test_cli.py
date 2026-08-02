@@ -1,8 +1,14 @@
 import json
+import os
+import subprocess
+import sys
+from pathlib import Path
 
 from typer.testing import CliRunner
 
 from draf.cli import app
+
+ROOT = Path(__file__).resolve().parents[1]
 
 runner = CliRunner()
 
@@ -182,3 +188,89 @@ class TestNew:
         result = runner.invoke(app, ["new", "X", "--dest", str(dest)])
         assert result.exit_code != 0
         assert "already exists" in result.stderr
+
+    def test_new_rag_variant_copies_rag_files(self, tmp_path):
+        dest = tmp_path / "rag_app"
+        result = runner.invoke(
+            app, ["new", "Rag App", "--dest", str(dest), "--with", "rag"]
+        )
+        assert result.exit_code == 0, result.stderr
+        assert (dest / "src" / "rag" / "catalog.py").is_file()
+        assert (dest / "src" / "rag" / "wiring.py").is_file()
+        assert (dest / "src" / "tools" / "rag.py").is_file()
+        assert (dest / "data" / "documents" / "sample.md").is_file()
+        assert "variants: rag" in result.output
+
+    def test_new_celery_variant_copies_queue_files(self, tmp_path):
+        dest = tmp_path / "celery_app"
+        result = runner.invoke(
+            app, ["new", "Celery App", "--dest", str(dest), "--with", "celery"]
+        )
+        assert result.exit_code == 0, result.stderr
+        assert (dest / "src" / "queue" / "celery_app.py").is_file()
+        assert (dest / "src" / "queue" / "ingest.py").is_file()
+
+    def test_new_postgres_variant_copies_deploy_files(self, tmp_path):
+        dest = tmp_path / "pg_app"
+        result = runner.invoke(
+            app, ["new", "Pg App", "--dest", str(dest), "--with", "postgres"]
+        )
+        assert result.exit_code == 0, result.stderr
+        assert (dest / "deploy" / "compose.yaml").is_file()
+        assert (dest / ".env.example").is_file()
+        compose = (dest / "deploy" / "compose.yaml").read_text()
+        assert "pgvector/pgvector:pg16" in compose
+        assert "pg_app" in compose  # placeholders rendered
+
+    def test_new_unknown_variant_rejects(self, tmp_path):
+        dest = tmp_path / "nope"
+        result = runner.invoke(
+            app, ["new", "X", "--dest", str(dest), "--with", "bogus"]
+        )
+        assert result.exit_code != 0
+        assert "unknown variant" in result.stderr
+
+    def test_new_does_not_copy_template_manifest(self, tmp_path):
+        dest = tmp_path / "clean"
+        runner.invoke(app, ["new", "Clean App", "--dest", str(dest)])
+        assert not (dest / "template.toml").exists()
+
+    def test_templates_registry(self):
+        from draf.scaffold import TEMPLATES, VARIANTS
+
+        assert set(TEMPLATES) == {"fastapi", "cli", "daemon"}
+        assert TEMPLATES["fastapi"].entry == "python main.py"
+        assert TEMPLATES["cli"].entry == "python cli.py run"
+        assert TEMPLATES["daemon"].entry == "python daemon.py --once"
+        for manifest in TEMPLATES.values():
+            assert {"postgres", "rag", "celery"} <= set(manifest.variants)
+        assert {"postgres", "rag", "celery"} <= set(VARIANTS)
+
+    def test_new_rag_project_builds_container(self, tmp_path):
+        """The generated rag project builds a container offline (no LLM)."""
+        dest = tmp_path / "rag_app"
+        result = runner.invoke(
+            app, ["new", "Rag App", "--dest", str(dest), "--with", "rag"]
+        )
+        assert result.exit_code == 0, result.stderr
+        env = {**os.environ, "DRAF_CHECKPOINT_DIR": str(tmp_path / "cp")}
+        code = (
+            "import sys\n"
+            f"sys.path.insert(0, {str(dest)!r})\n"
+            f"sys.path.insert(0, {str(ROOT)!r})\n"
+            "from src.core import build_container\n"
+            "c = build_container()\n"
+            "assert c.catalog is not None, 'catalog missing'\n"
+            "names = {t.name for t in c.tools}\n"
+            "assert 'search_catalog' in names and 'find_similar' in names, names\n"
+            "print('container-ok')\n"
+        )
+        proc = subprocess.run(
+            [sys.executable, "-c", code],
+            cwd=str(dest),
+            env=env,
+            capture_output=True,
+            text=True,
+        )
+        assert proc.returncode == 0, proc.stderr
+        assert "container-ok" in proc.stdout

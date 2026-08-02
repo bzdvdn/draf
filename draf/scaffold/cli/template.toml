@@ -1,0 +1,4 @@
+name = "cli"
+description = "Terminal-first draf app: run a turn or chat interactively"
+entry = "python cli.py run"
+variants = ["postgres", "rag", "celery"]

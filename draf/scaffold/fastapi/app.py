@@ -16,11 +16,9 @@ from __future__ import annotations
 
 from fastapi import FastAPI
 
-from src.config.config import Settings, get_settings
+from src.config.config import Settings
 from src.api.router import api_router
-from src.graphs.build import build_flow
-from src.service.assistant import Assistant
-from src.storage import build_checkpointer
+from src.core import build_container
 
 
 def create_app(
@@ -30,26 +28,22 @@ def create_app(
 ) -> FastAPI:
     """Build the FastAPI app with its graph, tools and checkpointer.
 
-    Assets are built once and carried on ``app.state``.  Pass a
-    ``Settings`` to override environment defaults (tests do this);
-    ``checkpoint_dir`` is a convenience override for the storage location.
+    Assets are built once by :func:`src.core.build_container` and carried on
+    ``app.state``.  Pass a ``Settings`` to override environment defaults
+    (tests do this); ``checkpoint_dir`` is a convenience override for the
+    storage location.
     """
-    settings = settings or get_settings()
-    if checkpoint_dir is not None:
-        settings = settings.model_copy(update={"checkpoint_dir": checkpoint_dir})
-
-    flow, tools = build_flow(model=settings.model, provider=settings.provider)
-    assistant = Assistant(
-        flow.compile(), tools, build_checkpointer(settings.checkpoint_dir)
-    )
+    container = build_container(settings, checkpoint_dir=checkpoint_dir)
 
     app = FastAPI(
-        title=settings.app_title,
-        description=settings.app_description,
-        version=settings.version,
+        title=container.settings.app_title,
+        description=container.settings.app_description,
+        version=container.settings.version,
     )
-    app.state.assistant = assistant
-    app.state.model = settings.model
-    app.state.settings = settings
+    app.state.container = container
+    app.state.assistant = container.assistant
+    app.state.catalog = container.catalog
+    app.state.model = container.settings.model
+    app.state.settings = container.settings
     app.include_router(api_router)
     return app

@@ -25,9 +25,8 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from src.config.config import get_settings  # noqa: E402
-from src.graphs.build import build_flow  # noqa: E402
+from src.core import build_container  # noqa: E402
 from src.service.assistant import Assistant  # noqa: E402
-from src.storage import build_checkpointer  # noqa: E402
 
 app = typer.Typer(
     name="{{project_slug}}",
@@ -38,11 +37,7 @@ app = typer.Typer(
 
 def _build_assistant():
     settings = get_settings()
-    flow, tools = build_flow(model=settings.model, provider=settings.provider)
-    return (
-        Assistant(flow.compile(), tools, build_checkpointer(settings.checkpoint_dir)),
-        settings,
-    )
+    return build_container(settings), settings
 
 
 def _render(event) -> None:
@@ -74,14 +69,16 @@ def run(
     model: str | None = typer.Option(None, help="override the configured model"),
 ) -> None:
     """Run one conversation turn and stream the answer."""
-    assistant, settings = _build_assistant()
-    model = model or settings.model
+    container, settings = _build_assistant()
+    if model is not None and model != settings.model:
+        settings = settings.model_copy(update={"model": model})
+        container = build_container(settings)
     print(
-        f"provider: {settings.provider}  model: {model}  "
+        f"provider: {settings.provider}  model: {model or settings.model}  "
         f"session: {session}  (requires a running Ollama)"
     )
-    asyncio.run(_stream_turn(assistant, session, message))
-    print(f"\n== assistant ==\n{asyncio.run(assistant.last_reply(session))}")
+    asyncio.run(_stream_turn(container.assistant, session, message))
+    print(f"\n== assistant ==\n{asyncio.run(container.assistant.last_reply(session))}")
 
 
 @app.command()
@@ -90,10 +87,12 @@ def chat(
     model: str | None = typer.Option(None, help="override the configured model"),
 ) -> None:
     """Start an interactive chat loop (Ctrl-D to exit)."""
-    assistant, settings = _build_assistant()
-    model = model or settings.model
+    container, settings = _build_assistant()
+    if model is not None and model != settings.model:
+        settings = settings.model_copy(update={"model": model})
+        container = build_container(settings)
     print(
-        f"provider: {settings.provider}  model: {model}  "
+        f"provider: {settings.provider}  model: {model or settings.model}  "
         f"session: {session}  (requires a running Ollama)"
     )
     while True:
@@ -104,8 +103,8 @@ def chat(
             return
         if not message:
             continue
-        asyncio.run(_stream_turn(assistant, session, message))
-        print(f"\n== assistant ==\n{asyncio.run(assistant.last_reply(session))}")
+        asyncio.run(_stream_turn(container.assistant, session, message))
+        print(f"\n== assistant ==\n{asyncio.run(container.assistant.last_reply(session))}")
         print()
 
 

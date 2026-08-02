@@ -15,6 +15,7 @@ state — see **Add your own agent** below.
 ├── daemon.py            # worker loop: poll queue, process turns, write results
 ├── src/                 # the production package
 │   ├── config/          # env-driven settings (.env / DRAF_* vars)
+│   ├── core/            # composition root: src/core/container.py build_container
 │   ├── graphs/          # state, prompts, supervisor flow builder
 │   ├── nodes/           # Supervisor + context builders
 │   ├── queue/           # file-backed job queue (enqueue / pending / complete)

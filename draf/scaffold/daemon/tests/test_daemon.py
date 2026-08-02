@@ -107,8 +107,8 @@ def assistant(tmp_path, monkeypatch):
     monkeypatch.setenv("DRAF_CHECKPOINT_DIR", str(tmp_path / "checkpoints"))
     from daemon import _build_assistant
 
-    assistant, _ = _build_assistant()
-    return assistant
+    container, _ = _build_assistant()
+    return container.assistant
 
 
 def test_enqueue_and_pending(dirs):

@@ -14,6 +14,7 @@ and state — see **Add your own agent** below.
 ├── cli.py               # typer app: run + chat subcommands
 ├── src/                 # the production package
 │   ├── config/          # env-driven settings (.env / DRAF_* vars)
+│   ├── core/            # composition root: src/core/container.py build_container
 │   ├── graphs/          # state, prompts, supervisor flow builder
 │   ├── nodes/           # Supervisor + context builders
 │   ├── tools/           # Tool subclasses handed to the agents

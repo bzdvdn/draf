@@ -39,8 +39,11 @@ AGENT_SECTIONS = {
     "review": "Review",
 }
 
+#: RAG tool names (``rag`` variant) the writer may also call.
+_RAG_TOOLS = ("search_catalog", "find_similar")
 
-def build_flow(model: str = MODEL_DEFAULT, *, provider: str = "ollama"):
+
+def build_flow(model: str = MODEL_DEFAULT, *, provider: str = "ollama", catalog=None):
     """Assemble the supervisor graph over the routed agents.
 
     Flow::
@@ -51,9 +54,12 @@ def build_flow(model: str = MODEL_DEFAULT, *, provider: str = "ollama"):
         (next_agent=writer / reviewer) ...  (next_agent=finish → exits)
 
     *provider* is threaded into every agent's harness config (per-node) so
-    the graph never touches the framework's global defaults.
+    the graph never touches the framework's global defaults.  *catalog* is
+    the ``rag`` variant's document catalog (``None`` in a plain project):
+    when given, the writer agent is also allowed to call the RAG search
+    tools.
     """
-    tools = build_tools()
+    tools = build_tools(catalog=catalog)
 
     flow = Flow("{{project_slug}}")
     flow.step(
@@ -79,7 +85,7 @@ def build_flow(model: str = MODEL_DEFAULT, *, provider: str = "ollama"):
         writer=agent_step(
             WRITER_PROMPT,
             "draft",
-            use_tools=["current_date"],
+            use_tools=["current_date", *_RAG_TOOLS] if catalog else ["current_date"],
             model=model,
             provider=provider,
             sections=AGENT_SECTIONS,

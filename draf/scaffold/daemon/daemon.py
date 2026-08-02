@@ -23,18 +23,14 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from src.config.config import get_settings  # noqa: E402
-from src.graphs.build import build_flow  # noqa: E402
+from src.core import build_container  # noqa: E402
 from src.queue import complete, load_job, pending  # noqa: E402
 from src.service.assistant import Assistant  # noqa: E402
-from src.storage import build_checkpointer  # noqa: E402
 
 
 def _build_assistant():
     settings = get_settings()
-    flow, tools = build_flow(model=settings.model, provider=settings.provider)
-    return Assistant(
-        flow.compile(), tools, build_checkpointer(settings.checkpoint_dir)
-    ), settings
+    return build_container(settings), settings
 
 
 async def _process_job(
@@ -102,15 +98,15 @@ def main() -> None:
     )
     args = parser.parse_args()
 
-    assistant, _ = _build_assistant()
+    container, _ = _build_assistant()
     print(
         f"provider: {settings.provider}  model: {settings.model}  "
         f"(requires a running Ollama)"
     )
     if args.once:
-        asyncio.run(_drain_once(assistant, max_jobs=args.max_jobs))
+        asyncio.run(_drain_once(container.assistant, max_jobs=args.max_jobs))
         return
-    asyncio.run(_poll(assistant, once=False))
+    asyncio.run(_poll(container.assistant, once=False))
 
 
 if __name__ == "__main__":

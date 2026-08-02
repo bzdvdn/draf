@@ -1,0 +1,32 @@
+# {{PROJECT_NAME}} — Postgres (pgvector) for durable sessions + RAG vectors.
+#
+#   docker compose -f deploy/compose.yaml up -d
+#
+# Then run the app locally pointed at this Postgres:
+#   DRAF_DATABASE_URL=postgresql://{{project_slug}}:{{project_slug}}@localhost:5432/{{project_slug}} python main.py
+# (or cli.py / daemon.py — the DSN works for every entry point).
+#
+# Sessions use the PG checkpointer and, with the `rag` variant, RAG vectors
+# also live in Postgres — shared by every process and surviving restarts.
+# No published ports by default: only the compose network reaches Postgres.
+name: {{project_slug}}-postgres
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: {{project_slug}}-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: {{project_slug}}
+      POSTGRES_PASSWORD: {{project_slug}}
+      POSTGRES_DB: {{project_slug}}
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U {{project_slug}} -d {{project_slug}}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  pg_data:
