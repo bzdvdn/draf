@@ -86,6 +86,8 @@ def _node_types() -> list[str]:
 
 
 def _tool_types() -> list[str]:
+    import draf.tool.builtin  # noqa: F401 — registers built-in tools
+    import draf.rag  # noqa: F401 — registers the "rag" tool
     from draf.tool.registry import default_tool_registry
 
     return default_tool_registry.list()

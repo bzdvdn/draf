@@ -17,6 +17,19 @@ from draf.tool.builtin.data import (
 )
 from draf.tool.builtin.http import HttpRequestTool
 from draf.tool.builtin.notify import SendEmailTool, SendTelegramTool
+from draf.tool.builtin.redis import RedisTool
+from draf.tool.builtin.gitlab import (
+    GitLabListOpenMRsTool,
+    GitLabGetMRChangesTool,
+    GitLabPostNoteTool,
+    GitLabApproveTool,
+)
+from draf.tool.builtin.github import (
+    GitHubListOpenPRsTool,
+    GitHubGetPRChangesTool,
+    GitHubPostCommentTool,
+    GitHubApproveTool,
+)
 
 default_tool_registry.register(CalculatorTool)
 default_tool_registry.register(ShellTool)
@@ -44,6 +57,15 @@ default_tool_registry.register(PythonEvalTool)
 default_tool_registry.register(HttpRequestTool)
 default_tool_registry.register(SendEmailTool)
 default_tool_registry.register(SendTelegramTool)
+default_tool_registry.register(RedisTool)
+default_tool_registry.register(GitLabListOpenMRsTool)
+default_tool_registry.register(GitLabGetMRChangesTool)
+default_tool_registry.register(GitLabPostNoteTool)
+default_tool_registry.register(GitLabApproveTool)
+default_tool_registry.register(GitHubListOpenPRsTool)
+default_tool_registry.register(GitHubGetPRChangesTool)
+default_tool_registry.register(GitHubPostCommentTool)
+default_tool_registry.register(GitHubApproveTool)
 
 __all__ = [
     "CalculatorTool",
@@ -72,4 +94,13 @@ __all__ = [
     "HttpRequestTool",
     "SendEmailTool",
     "SendTelegramTool",
+    "RedisTool",
+    "GitLabListOpenMRsTool",
+    "GitLabGetMRChangesTool",
+    "GitLabPostNoteTool",
+    "GitLabApproveTool",
+    "GitHubListOpenPRsTool",
+    "GitHubGetPRChangesTool",
+    "GitHubPostCommentTool",
+    "GitHubApproveTool",
 ]

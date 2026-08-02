@@ -291,6 +291,148 @@ def run(
 
 
 @app.command()
+def daemon(
+    file: str = typer.Argument(..., help="Path to workflow YAML file"),
+    interval: float = typer.Option(
+        60.0, "--interval", "-i", help="Seconds between ticks"
+    ),
+    once: bool = typer.Option(
+        False, "--once", help="Run a single tick and exit"
+    ),
+    trace: bool = typer.Option(
+        False, "--trace", "-t", help="Print a JSON run trace to stderr"
+    ),
+    checkpoint: str | None = typer.Option(
+        None,
+        "--checkpoint",
+        help='JSON checkpointer config, e.g. \'{"type":"file","path":"cp"}\'',
+    ),
+    checkpoint_id: str = typer.Option(
+        "daemon", "--checkpoint-id", help="Checkpoint key for durable daemon state"
+    ),
+    checkpoint_owner: str = typer.Option(
+        DEFAULT_OWNER,
+        "--checkpoint-owner",
+        help="Owner/session scoping the checkpoint (e.g. a user id)",
+    ),
+    node_timeout: float | None = typer.Option(
+        None, "--node-timeout", help="Max seconds per node"
+    ),
+    max_iterations: int | None = typer.Option(
+        None, "--max-iterations", help="Max node executions (loop guard)"
+    ),
+) -> None:
+    """Run a workflow as a daemon: poll on an interval, keeping state between ticks.
+
+    The workflow itself defines what a *tick* does — e.g. list open GitLab
+    merge requests, review new ones, post verdicts and notify Telegram.
+    Durable state (already-reviewed MRs, counters, …) is carried across ticks
+    via the optional ``--checkpoint``.
+    """
+    from draf.yaml import load_workflow
+
+    try:
+        graph, tools, initial_state, reducers = load_workflow(file)
+    except Exception as e:
+        typer.echo(f"error: failed to load workflow: {e}", err=True)
+        raise typer.Exit(1)
+
+    checkpointer = None
+    if checkpoint:
+        base_dir = os.path.dirname(os.path.abspath(file))
+        cfg = _resolve_checkpoint_config(json.loads(checkpoint), base_dir)
+        checkpointer = _checkpointer_from_config(cfg)
+
+    try:
+        asyncio.run(
+            _daemon_loop(
+                graph,
+                initial_state,
+                tools=tools,
+                reducers=reducers,
+                checkpointer=checkpointer,
+                checkpoint_id=checkpoint_id,
+                checkpoint_owner=checkpoint_owner,
+                interval=interval,
+                once=once,
+                node_timeout=node_timeout,
+                max_iterations=max_iterations,
+                trace=trace,
+            )
+        )
+    except Exception as e:
+        typer.echo(f"error: daemon failed: {e}", err=True)
+        raise typer.Exit(1)
+
+
+async def _daemon_loop(
+    graph,
+    initial_state,
+    *,
+    tools,
+    reducers,
+    checkpointer,
+    checkpoint_id,
+    checkpoint_owner,
+    interval,
+    once,
+    node_timeout,
+    max_iterations,
+    trace,
+) -> None:
+    """Run *graph* once per tick, persisting state between ticks.
+
+    Each tick re-runs the workflow from its entry point (so sources like
+    GitLab are re-polled), starting from the durable state of the previous
+    tick.  ``GraphInterrupt`` pauses are logged and skipped rather than
+    blocking the daemon.
+    """
+    from draf.checkpoint import Checkpoint
+    from draf.node.interrupt import GraphInterrupt
+    from draf.trace import RunTracer
+
+    state = dict(initial_state)
+    if checkpointer is not None:
+        saved = await checkpointer.load(checkpoint_id, owner=checkpoint_owner)
+        if saved is not None:
+            state = dict(saved.state)
+
+    tick = 0
+    while True:
+        tick += 1
+        tracer = RunTracer() if trace else None
+        try:
+            state = await graph.run(
+                state,
+                tools=tools,
+                reducers=reducers,
+                node_timeout=node_timeout,
+                max_iterations=max_iterations,
+                tracer=tracer,
+            )
+            if tracer is not None:
+                typer.echo(tracer.to_json(), err=True)
+            typer.echo(json.dumps(state, ensure_ascii=False, default=str))
+            if checkpointer is not None:
+                await checkpointer.save(
+                    checkpoint_id,
+                    Checkpoint(state=dict(state), next_node_id=None, iteration=0),
+                    owner=checkpoint_owner,
+                )
+        except GraphInterrupt as interrupt:
+            if tracer is not None:
+                typer.echo(tracer.to_json(), err=True)
+            typer.echo(
+                f"tick {tick}: paused at {interrupt.node_id!r} "
+                f"({interrupt.prompt or interrupt.key}) — skipped in daemon mode",
+                err=True,
+            )
+        if once:
+            return
+        await asyncio.sleep(interval)
+
+
+@app.command()
 def validate(
     file: str = typer.Argument(..., help="Path to workflow YAML file"),
 ) -> None:

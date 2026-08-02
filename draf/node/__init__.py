@@ -10,6 +10,7 @@ from draf.node.retry import Retry
 from draf.node.transform import Transform
 from draf.node.llm import LLM, StructuredOutputError
 from draf.node.agent import ReActAgent, ToolExec
+from draf.node.tool_call import ToolCall
 from draf.node.parallel import Parallel
 from draf.node.map import Map
 from draf.node.interrupt import Interrupt, GraphInterrupt
@@ -20,6 +21,7 @@ default_registry.register("append_assistant", lambda cfg: AppendAssistant(cfg))
 default_registry.register("llm_chat", lambda cfg: LLM(cfg))
 default_registry.register("react_agent", lambda cfg: ReActAgent(cfg))
 default_registry.register("tool_exec", lambda cfg: ToolExec(cfg))
+default_registry.register("tool_call", lambda cfg: ToolCall(cfg))
 default_registry.register("interrupt", lambda cfg: Interrupt(cfg))
 default_registry.register(
     "parallel",
@@ -48,6 +50,7 @@ __all__ = [
     "StructuredOutputError",
     "ReActAgent",
     "ToolExec",
+    "ToolCall",
     "Parallel",
     "Map",
     "Interrupt",

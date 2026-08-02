@@ -1,6 +1,7 @@
 """YAML serialisation and deserialisation for graphs."""
 
 import os
+import re
 
 import yaml
 
@@ -19,6 +20,27 @@ def _safe_load(source):
         return yaml.safe_load(source)
     except (yaml.YAMLError, ValueError) as exc:
         raise ConfigError(f"invalid YAML: {exc}") from exc
+
+
+_ENV_VAR = re.compile(r"\$\{([A-Za-z_][A-Za-z0-9_]*)\}")
+
+
+def _interpolate_env(value):
+    """Replace ``${ENV_VAR}`` references in a YAML structure with values.
+
+    Recursively walks strings inside mappings and lists.  A reference to a
+    missing variable is left unchanged (rather than raising) so templates
+    stay valid offline; set the variable to inject the secret.
+    """
+    if isinstance(value, str):
+        return _ENV_VAR.sub(
+            lambda m: os.environ.get(m.group(1), m.group(0)), value
+        )
+    if isinstance(value, dict):
+        return {k: _interpolate_env(v) for k, v in value.items()}
+    if isinstance(value, list):
+        return [_interpolate_env(v) for v in value]
+    return value
 
 
 def from_yaml(source: str) -> Graph:
@@ -147,10 +169,12 @@ def load_workflow(path: str) -> tuple[Graph, list[Tool], dict, dict[str, Reducer
         data = {}
     if not isinstance(data, dict):
         raise ConfigError("workflow must be a mapping")
-    raise_for_validation(validate_workflow(data), source=path)
 
     import draf.tool.builtin  # noqa: F401 — registers built-in tools
     import draf.rag  # noqa: F401 — registers the "rag" tool
+
+    raise_for_validation(validate_workflow(data), source=path)
+
     from draf.node.registry import default_registry
 
     nodes: dict[str, Node] = {}
@@ -180,7 +204,7 @@ def load_workflow(path: str) -> tuple[Graph, list[Tool], dict, dict[str, Reducer
     base_dir = os.path.dirname(os.path.abspath(path))
     for td in data.get("tools", []):
         ttype = td["type"]
-        tconfig = td.get("config", {})
+        tconfig = _interpolate_env(td.get("config", {}))
         if ttype == "rag":
             tconfig = _resolve_rag_config(tconfig, base_dir)
         tools.append(default_tool_registry.create(ttype, tconfig))

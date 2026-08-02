@@ -75,8 +75,11 @@ class ContextBuilder(Node):
         parts: list[str] = []
         for key, label in self.config["sections"].items():
             value = state.get(key)
-            if value:
-                parts.append(f"{label}:\n{value}")
+            if not value:
+                continue
+            if isinstance(value, list):
+                value = "\n".join(str(item) for item in value)
+            parts.append(f"{label}:\n{value}")
         last_user = last_user_message(state.get(self.config["messages_key"], []))
         if last_user:
             parts.append(f"User: {last_user}")

@@ -22,6 +22,22 @@ _INTERRUPT_KEY = "__interrupt__"
 _MISSING = object()
 
 
+def _gte(a: float, b: float) -> bool:
+    return a >= b
+
+
+def _lte(a: float, b: float) -> bool:
+    return a <= b
+
+
+def _gt(a: float, b: float) -> bool:
+    return a > b
+
+
+def _lt(a: float, b: float) -> bool:
+    return a < b
+
+
 @dataclass
 class Edge:
     """A directed edge between two nodes with an optional condition.
@@ -30,7 +46,8 @@ class Edge:
         source_id: ID of the source node.
         target_id: ID of the target node.
         condition: Expression ``key=value``, ``key!=value``,
-            or comma-separated disjunction ``key=a,b``.
+            comma-separated disjunction ``key=a,b``, or numeric comparison
+            ``key>=N`` / ``key<=N`` / ``key>N`` / ``key<N``.
             ``None`` means unconditional.
             ``"__error__"`` matches when the source node raises an exception.
     """
@@ -641,6 +658,19 @@ class Graph:
         return value.strip().lower().rstrip(".,!?;:")
 
     def _evaluate(self, condition: str, state: dict) -> bool:
+        for op, fn in ((">=", _gte), ("<=", _lte), (">", _gt), ("<", _lt)):
+            if op in condition:
+                key, raw = condition.split(op, 1)
+                key = key.strip()
+                state_val = state.get(key)
+                if state_val is None:
+                    return False
+                try:
+                    left = float(state_val)
+                    right = float(raw.strip())
+                except (TypeError, ValueError):
+                    return False
+                return fn(left, right)
         if "!=" in condition:
             key, value = condition.split("!=", 1)
             key = key.strip()

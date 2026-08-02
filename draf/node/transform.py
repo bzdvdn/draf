@@ -43,11 +43,30 @@ class Transform(Node):
         input_key = self.config.get("input_key", "")
         output_key = self.config.get("output_key", "")
         value = self.config.get("value")
+        field = self.config.get("field")
+
+        if action == "json_get":
+            data = state.get(input_key) if input_key else value
+            result = self._json_get(data, field)
+            state[output_key] = result
+            return {output_key: result}
 
         source = value if value is not None else state.get(input_key, "")
         result = self._apply(action, source)
         state[output_key] = result
         return {output_key: result}
+
+    def _json_get(self, data, field: str | None) -> str:
+        if not isinstance(data, dict):
+            raise ValueError(
+                f"json_get requires a dict in state key, got {type(data).__name__}"
+            )
+        if not field:
+            raise ValueError("json_get requires 'field'")
+        if field not in data:
+            raise KeyError(f"json_get: no field {field!r} in object")
+        value = data[field]
+        return value if isinstance(value, str) else str(value)
 
     def _apply(self, action: str, text: str) -> str:
         if action == "uppercase":
