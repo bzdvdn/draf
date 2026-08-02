@@ -81,6 +81,7 @@ def run(
         f"session: {session}  (requires a running Ollama)"
     )
     asyncio.run(_stream_turn(assistant, session, message))
+    print(f"\n== assistant ==\n{asyncio.run(assistant.last_reply(session))}")
 
 
 @app.command()
@@ -104,6 +105,7 @@ def chat(
         if not message:
             continue
         asyncio.run(_stream_turn(assistant, session, message))
+        print(f"\n== assistant ==\n{asyncio.run(assistant.last_reply(session))}")
         print()
 
 

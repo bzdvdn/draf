@@ -25,7 +25,6 @@ from src.storage import build_checkpointer  # noqa: E402
 
 app = typer.Typer(name="simple_router", help="Minimal draf route() example.")
 
-
 def _build_assistant():
     settings = get_settings()
     flow = build_flow(model=settings.model, provider=settings.provider)
@@ -64,6 +63,32 @@ def run(
         f"session: {session}  (requires a running Ollama)"
     )
     asyncio.run(_stream_turn(assistant, session, message))
+    print(f"\n== assistant ==\n{asyncio.run(assistant.last_reply(session))}")
+
+
+@app.command()
+def chat(
+    session: str = typer.Option("default", help="session id — reuse it to continue"),
+    model: str | None = typer.Option(None, help="override the configured model"),
+) -> None:
+    """Start an interactive chat loop (Ctrl-D to exit)."""
+    assistant, settings = _build_assistant()
+    model = model or settings.model
+    print(
+        f"provider: {settings.provider}  model: {model}  "
+        f"session: {session}  (requires a running Ollama)"
+    )
+    while True:
+        try:
+            message = input("> ").strip()
+        except (EOFError, KeyboardInterrupt):
+            print()
+            return
+        if not message:
+            continue
+        asyncio.run(_stream_turn(assistant, session, message))
+        print(f"\n== assistant ==\n{asyncio.run(assistant.last_reply(session))}")
+        print()
 
 
 async def _stream_turn(assistant: Assistant, session: str, message: str) -> None:

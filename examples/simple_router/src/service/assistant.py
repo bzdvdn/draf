@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from typing import AsyncIterator
 
+from draf.checkpoint import DEFAULT_OWNER
 from draf.graph import Graph
 from draf.stream import StreamEvent
 
@@ -58,3 +59,17 @@ class Assistant:
             **run_kwargs,
         ):
             yield event
+
+    async def last_reply(self, session_id: str, *, owner: str = DEFAULT_OWNER) -> str:
+        """Return the latest assistant reply for *session_id* (``""`` if none).
+
+        Reads the durable checkpoint, so the CLI can always print the final
+        answer instead of relying on ``token`` events alone.
+        """
+        saved = await self.checkpointer.load(session_id, owner=owner)
+        if saved is None:
+            return ""
+        for message in reversed(saved.state.get("messages") or []):
+            if message.get("role") == "assistant":
+                return str(message.get("content", ""))
+        return ""

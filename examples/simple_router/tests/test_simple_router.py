@@ -171,3 +171,18 @@ async def test_assistant_turn_is_durable(transport, tmp_path):
     users = [m for m in second["messages"] if m.get("role") == "user"]
     assert len(users) == 2
     assert transport.supervisor_calls >= 4
+
+
+def test_cli_run_shows_final_answer(transport, tmp_path, monkeypatch):
+    """The CLI prints the final LLM answer, not just streamed tokens."""
+    from typer.testing import CliRunner
+
+    from cli import app
+    from src.config.config import get_settings
+
+    get_settings.cache_clear()
+    monkeypatch.setenv("DRAF_CHECKPOINT_DIR", str(tmp_path))
+    result = CliRunner().invoke(app, ["run", "list files"])
+    assert result.exit_code == 0, result.output
+    assert "== assistant ==" in result.output
+    assert "print(os.listdir())" in result.output

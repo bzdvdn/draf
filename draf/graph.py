@@ -194,7 +194,7 @@ class Graph:
         max_iterations: int | None = None,
         checkpointer: Checkpointer | None = None,
         checkpoint_id: str | None = None,
-        owner: str = "",
+        owner: str = DEFAULT_OWNER,
         resume: dict | None = None,
         tracer: RunTracer | None = None,
     ) -> AsyncIterator[StreamEvent]:

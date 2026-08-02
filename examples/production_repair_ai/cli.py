@@ -72,6 +72,9 @@ async def main() -> None:
     )
     async for event in assistant.stream_turn(args.session, args.message):
         _render(event)
+    reply = await assistant.last_reply(args.session)
+    if reply:
+        print(f"\n== assistant ==\n{reply}")
 
 
 if __name__ == "__main__":

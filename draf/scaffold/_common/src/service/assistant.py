@@ -81,3 +81,18 @@ class Assistant:
             **run_kwargs,
         ):
             yield event
+
+    async def last_reply(self, session_id: str, *, owner: str = DEFAULT_OWNER) -> str:
+        """Return the latest assistant reply for *session_id* (``""`` if none).
+
+        Reads the durable checkpoint, so it works even for agents that do
+        not stream tokens (e.g. tool-using agents): the CLI prints this at
+        the end of a turn instead of relying on ``token`` events alone.
+        """
+        saved = await self.checkpointer.load(session_id, owner=owner)
+        if saved is None:
+            return ""
+        for message in reversed(saved.state.get("messages") or []):
+            if message.get("role") == "assistant":
+                return str(message.get("content", ""))
+        return ""
