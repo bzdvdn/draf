@@ -17,7 +17,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
-    """Runtime configuration for the ``production_repair_ai`` service."""
+    """Runtime configuration for the ``repair-ai-chat`` service."""
 
     model_config = SettingsConfigDict(
         env_prefix="DRAF_",
@@ -46,9 +46,32 @@ class Settings(BaseSettings):
     checkpoint_dir: str | None = None
     catalog_csv: str | None = None
 
+    #: SQLite persistence (shared file so API + workers read the same data).
+    #: When set, ``checkpoint_db`` replaces the JSON-file checkpointer and
+    #: ``catalog_db`` replaces the in-memory RAG vector store.
+    checkpoint_db: str | None = None
+    catalog_db: str | None = None
+
+    #: PostgreSQL DSN (``postgres://...``).  When set, it wins over the
+    #: SQLite paths above: both the RAG vector store (pgvector) and session
+    #: checkpoints live in Postgres, shared by every process.
+    database_url: str | None = None
+
     #: RAG embedder provider and top-k used by the catalog.
     rag_embedder: str = "ollama"
     rag_top_k: int = 3
+
+    #: Redis broker URL for the Celery worker/beat tasks (e.g. a re-ingest
+    #: scheduler).  ``None`` disables background jobs.
+    redis_url: str | None = None
+
+    #: Where the re-ingest beat task stores its change-detection marker.
+    #: ``None`` = alongside the durable catalog DB.
+    catalog_ingest_state: str | None = None
+
+    #: Where Celery beat keeps its persistent schedule DB (writable dir —
+    #: ``/app`` is read-only for the non-root runtime user).
+    beat_schedule: str | None = None
 
 
 @lru_cache(maxsize=1)

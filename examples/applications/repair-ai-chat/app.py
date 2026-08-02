@@ -1,4 +1,4 @@
-"""FastAPI application factory for the ``production_repair_ai`` example.
+"""FastAPI application factory for the ``repair-ai-chat`` application.
 
 Run (from the example root)::
 
@@ -39,13 +39,19 @@ def create_app(
     if checkpoint_dir is not None:
         settings = settings.model_copy(update={"checkpoint_dir": checkpoint_dir})
 
-    services, catalog = build_deps(provider=settings.provider)
+    services, catalog = build_deps(
+        provider=settings.provider, catalog_db=settings.catalog_db
+    )
     flow, tools = build_flow(
         model=settings.model, provider=settings.provider,
         services=services, catalog=catalog,
     )
     assistant = Assistant(
-        flow.compile(), tools, build_checkpointer(settings.checkpoint_dir)
+        flow.compile(),
+        tools,
+        build_checkpointer(
+            settings.checkpoint_dir, checkpoint_db=settings.checkpoint_db
+        ),
     )
 
     app = FastAPI(

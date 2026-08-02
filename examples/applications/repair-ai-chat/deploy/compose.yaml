@@ -1,0 +1,138 @@
+# repair-ai-chat — production compose stack.
+#
+#   docker compose up -d --build        # full stack: API + Postgres + Minio + Redis
+#   docker compose logs -f worker beat   # background RAG re-ingest
+#
+# The API is built from this repo (the bundled `draf` package is the base
+# library).  Durable RAG vectors (pgvector) + session checkpoints live in
+# Postgres so they survive restarts and are shared by every process.  Seed
+# CSVs are baked into the image.  Ollama runs on the *host* (no heavy Docker
+# image): the API reaches it via `host.docker.internal`.  Minio (object
+# storage) and Redis (task broker) back the ingestion pipeline, and a Celery
+# `worker` + `beat` pair re-embed the catalog whenever the price CSVs change.
+name: repair-ai-chat
+
+x-app-env: &app-env
+  DRAF_PROVIDER: ollama
+  DRAF_MODEL: llama3.1:8b
+  # Ollama runs on the host machine (kept out of Docker — the image is
+  # huge).  The LLM + RAG embedder both honor the provider-env base URL;
+  # override for a remote box with `OLLAMA_BASE_URL=http://192.168.x.x:11434`.
+  OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
+  # Optional remote LLM key: set OLLAMA_API_KEY / LLM_API_KEY.
+  # Postgres wins over the SQLite paths baked into the image.
+  DRAF_DATABASE_URL: postgresql://repair:repair@postgres:5432/repair_ai
+  DRAF_REDIS_URL: redis://redis:6379/0
+  DRAF_BEAT_SCHEDULE: /data/celerybeat-schedule
+  DRAF_CATALOG_INGEST_STATE: /data/ingest_state.json
+  MINIO_ENDPOINT: http://minio:9000
+
+services:
+  api:
+    build:
+      context: ../../../.. # full repo root (provides pyproject.toml + draf/)
+      dockerfile: examples/applications/repair-ai-chat/deploy/Dockerfile
+    image: repair-ai-chat:latest
+    container_name: repair-ai-chat-api
+    restart: unless-stopped
+    command: ["--host", "0.0.0.0", "--port", "8000"]
+    environment:
+      <<: *app-env
+    ports:
+      - "8000:8000"
+    volumes:
+      - repair_data:/data
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis: { condition: service_started }
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/catalog')",
+        ]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  worker:
+    image: repair-ai-chat:latest
+    container_name: repair-ai-chat-worker
+    restart: unless-stopped
+    entrypoint: ["celery", "-A", "src.queue.celery_app:celery_app"]
+    command: ["worker", "--loglevel=info"]
+    environment:
+      <<: *app-env
+    volumes:
+      - repair_data:/data
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis: { condition: service_started }
+
+  beat:
+    image: repair-ai-chat:latest
+    container_name: repair-ai-chat-beat
+    restart: unless-stopped
+    entrypoint: ["celery", "-A", "src.queue.celery_app:celery_app"]
+    command: ["beat", "--loglevel=info"]
+    environment:
+      <<: *app-env
+    volumes:
+      - repair_data:/data
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      redis: { condition: service_started }
+
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: repair-ai-chat-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: repair
+      POSTGRES_PASSWORD: repair
+      POSTGRES_DB: repair_ai
+    # No published ports: only the compose network can reach Postgres.
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U repair -d repair_ai"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  minio:
+    image: minio/minio:latest
+    container_name: repair-ai-chat-minio
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: minioadminuser
+      MINIO_ROOT_PASSWORD: minioadminuser
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - minio_data:/data
+
+  redis:
+    image: redis:7-alpine
+    container_name: repair-ai-chat-redis
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis_data:/data
+    ports:
+      - "6379:6379"
+
+volumes:
+  repair_data:
+  pg_data:
+  minio_data:
+  redis_data:

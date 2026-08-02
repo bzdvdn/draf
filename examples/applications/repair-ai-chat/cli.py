@@ -7,8 +7,8 @@ the conversation really feels like talking to a person.
 
 Usage::
 
-    uv run python examples/production_repair_ai/cli.py            # chat
-    uv run python examples/production_repair_ai/cli.py "message"  # one turn
+    uv run python examples/applications/repair-ai-chat/cli.py            # chat
+    uv run python examples/applications/repair-ai-chat/cli.py "message"  # one turn
 
 Ctrl-D or Ctrl-C exits the chat loop.
 """
@@ -114,7 +114,7 @@ async def main() -> None:
     parser = argparse.ArgumentParser(
         prog="cli",
         description="Repair assistant chat + catalog loader for the "
-        "production_repair_ai example.",
+        "repair-ai-chat application.",
     )
     sub = parser.add_subparsers(dest="command")
 
@@ -139,7 +139,11 @@ async def main() -> None:
     load_p.add_argument(
         "--rebuild", action="store_true", help="clear + re-embed the whole catalog"
     )
-    load_p.add_argument("--provider", default=settings.rag_embedder or settings.provider)
+    load_p.add_argument("--provider", default=settings.rag_embedder or settings.provider)    #: Durable vector-store file to load into (defaults to the shared catalog db).
+    load_p.add_argument(
+        "--db", dest="catalog_db",
+        default=settings.database_url or settings.catalog_db,
+    )
 
     # Backwards compatibility: `cli.py "msg"` and bare `cli.py` mean "chat".
     argv = sys.argv[1:]
@@ -148,7 +152,10 @@ async def main() -> None:
     args = parser.parse_args(argv)
 
     if args.command == "load":
-        await _load(args.files, args.batch_size, args.rebuild, args.provider)
+        await _load(
+            args.files, args.batch_size, args.rebuild, args.provider,
+            catalog_db=args.catalog_db,
+        )
         return
 
     flow, tools = build_flow(model=args.model, provider=settings.provider)
@@ -166,15 +173,18 @@ async def main() -> None:
         await chat(assistant, args.session)
 
 
-async def _load(files, batch_size: int, rebuild: bool, provider: str) -> None:
-    """Ingest CSV(s) into a fresh :class:`MaterialCatalog` in *batch_size* chunks."""
+async def _load(files, batch_size: int, rebuild: bool, provider: str,
+            catalog_db=None) -> None:
+    """Ingest CSV(s) into the durable catalog store in *batch_size* chunks."""
     from draf.rag.embedder import Embedder
+    from draf.rag.stores import SQLiteVectorStore
 
     from src.rag.catalog import MaterialCatalog
 
-    from src.core.deps import PRODUCT_FIELDMAP
+    from src.core.deps import DEFAULT_CATALOG_DB, PRODUCT_FIELDMAP
 
-    catalog = MaterialCatalog(embedder=Embedder(provider=provider))
+    store = SQLiteVectorStore(path=str(catalog_db or DEFAULT_CATALOG_DB), dim=768)
+    catalog = MaterialCatalog(embedder=Embedder(provider=provider), store=store)
     for f in files:
         if not f.exists():
             print(f"  skip: {f} not found")

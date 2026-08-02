@@ -7,6 +7,7 @@ from draf.checkpoint.base import (
 )
 from draf.checkpoint.file import JSONFileCheckpointer
 from draf.checkpoint.sqlite import SQLiteCheckpointer
+from draf.checkpoint.pg import PGCheckpointer
 
 __all__ = [
     "DEFAULT_OWNER",
@@ -14,6 +15,7 @@ __all__ = [
     "Checkpointer",
     "JSONFileCheckpointer",
     "SQLiteCheckpointer",
+    "PGCheckpointer",
     "checkpoint_from_dict",
     "checkpoint_to_dict",
 ]

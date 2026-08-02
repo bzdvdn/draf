@@ -115,6 +115,23 @@ class MaterialCatalog:
         """Rows resident in the vector store (embedded)."""
         return self._ingested
 
+    def resume(self) -> None:
+        """Adopt rows a durable store already holds (e.g. indexed by a worker).
+
+        A fresh process starts with ``_ingested == 0``, which would re-embed
+        everything on the first search.  If the backing store is persistent
+        and already populated, treat those rows as embedded so we never
+        duplicate work across processes.  Tolerant of stores without a
+        synchronous ``count`` (in-memory stores simply stay unchanged).
+        """
+        sync = getattr(self.store, "count_sync", None)
+        if sync is None:
+            return
+        try:
+            self._ingested = min(int(sync()), len(self._docs))
+        except ValueError:
+            pass
+
     async def ingest(self, batch_size: int = 250) -> IngestReport:
         """Embed queued-but-not-yet-stored documents into the vector store.
 

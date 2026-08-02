@@ -16,7 +16,7 @@ service, storage, wiring tests) overlaid with template-specific entry points,
 config, and API/queue layers.  Every module carries a ``HOW TO EXTEND``
 comment, so a template reads as a guide for growing your own app.  See
 ``examples/simple_router/`` for the minimal ``route()`` example and
-``examples/production_repair_ai/`` for a fully runnable, richer instance
+``examples/applications/repair-ai-chat/`` for a fully runnable, richer instance
 built on the same layout.
 
 ``draf new <name>`` copies the core + chosen template into a new directory,

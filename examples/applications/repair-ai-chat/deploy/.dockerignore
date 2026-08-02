@@ -1,0 +1,15 @@
+# Build/runtime artifacts are not part of the image build context.
+.git
+.venv
+venv
+**/__pycache__
+**/*.py[cod]
+*.egg-info
+.mypy_cache
+.pytest_cache
+.ruff_cache
+old
+checkpoints
+# The durable runtime db is created/extended at run time, not baked in.
+data/catalog.db
+data/checkpoints

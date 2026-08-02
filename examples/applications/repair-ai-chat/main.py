@@ -1,9 +1,9 @@
-"""Server entry point — runs the ``production_repair_ai`` FastAPI app.
+"""Server entry point — runs the ``repair-ai-chat`` FastAPI app.
 
 Usage::
 
-    uv run python examples/production_repair_ai/main.py
-    uv run python examples/production_repair_ai/main.py --port 8001
+    uv run python examples/applications/repair-ai-chat/main.py
+    uv run python examples/applications/repair-ai-chat/main.py --port 8001
 """
 
 from __future__ import annotations
@@ -16,7 +16,7 @@ from src.config.config import get_settings
 def main() -> None:
     settings = get_settings()
     parser = argparse.ArgumentParser(
-        description="Run the production_repair_ai API server."
+        description="Run the repair-ai-chat API server."
     )
     parser.add_argument("--host", default=settings.host, help="bind host")
     parser.add_argument("--port", type=int, default=settings.port, help="bind port")

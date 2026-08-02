@@ -1,4 +1,4 @@
-# production_repair_ai — supervisor repair assistant (production scaffold app)
+# repair-ai-chat — supervisor repair assistant (production scaffold app)
 
 A runnable instance of the **production scaffold template** (`draf/scaffold`):
 a `src/` package with typed state, domain services, per-agent
@@ -35,7 +35,7 @@ from the whole conversation.
 ## Layout
 
 ```
-production_repair_ai/
+repair-ai-chat/
 ├── main.py               # server entry point (uvicorn; host/port from settings)
 ├── app.py                # FastAPI app factory (uvicorn app:create_app)
 ├── cli.py                # interactive chat; or one repair-planning turn
@@ -50,8 +50,8 @@ production_repair_ai/
 │   ├── rag/              # materials catalog over an in-memory vector store
 │   ├── service/          # Assistant: turn orchestration (HTTP + CLI)
 │   └── storage/          # JSON-file checkpointer + session helpers
-├── data/documents/       # materials.csv — embedded lazily on first search
-└── src/                  # (wiring + API tests live in tests/test_examples_production_repair_ai.py)
+├── data/documents/       # materials.csv + price.csv — embedded lazily / via `load`
+└── src/                  # (wiring + API tests live in tests/test_applications_repair_ai_chat.py)
 ```
 
 ## Run
@@ -60,9 +60,9 @@ Requires Ollama running locally:
 
 ```
 ollama pull llama3.1:8b
-uv run python examples/production_repair_ai/main.py
+uv run python examples/applications/repair-ai-chat/main.py
 ```
 
-The end-to-end wiring test (`tests/test_examples_production_repair_ai.py`)
+The end-to-end wiring test (`tests/test_applications_repair_ai_chat.py`)
 runs the same graph against a mocked LLM transport, so it needs no network:
-`uv run pytest tests/test_examples_production_repair_ai.py`
+`uv run pytest tests/test_applications_repair_ai_chat.py`

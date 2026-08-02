@@ -1,6 +1,6 @@
-"""End-to-end wiring + API tests for the ``production_repair_ai`` example.
+"""End-to-end wiring + API tests for the ``repair-ai-chat`` application.
 
-Builds the supervisor flow from ``examples/production_repair_ai`` and runs
+Builds the supervisor flow from ``examples/applications/repair-ai-chat`` and runs
 it against a mocked LLM transport — no network, no API keys — to prove the
 ``route()`` loop, tool scoping, ``SubFlow`` agent chains, streaming, the
 final structured extraction, and the FastAPI server (chat, SSE, sessions)
@@ -14,7 +14,7 @@ from pathlib import Path
 import httpx
 import pytest
 
-_EXAMPLE = Path(__file__).resolve().parents[1] / "examples" / "production_repair_ai"
+_EXAMPLE = Path(__file__).resolve().parents[1] / "examples" / "applications" / "repair-ai-chat"
 if str(_EXAMPLE) not in sys.path:
     sys.path.insert(0, str(_EXAMPLE))
 
@@ -265,6 +265,76 @@ async def test_supervisor_loop_is_bounded(monkeypatch):
     # the loop budget forces finish without an 80-iteration hang
     assert result["supervisor_rounds"] <= 6
     assert mock.supervisor_calls < 80
+
+
+@pytest.mark.asyncio
+async def test_catalog_reingest_task_detects_changes(tmp_path, monkeypatch):
+    """The beat re-ingest rebuilds only when a seed CSV's content changes."""
+    from src.queue.ingest import _fingerprint, reingest_if_changed
+
+    catalog = __import__(
+        "src.rag.catalog", fromlist=["MaterialCatalog"]
+    ).MaterialCatalog
+    store = __import__(
+        "draf.rag.stores", fromlist=["InMemoryVectorStore"]
+    ).InMemoryVectorStore(dim=4)
+
+    async def _embed_many(texts):
+        return [
+            list(__import__("numpy").random.default_rng(sum(map(ord, t))).random(4))
+            for t in texts
+        ]
+
+    stub = type("_Stub", (), {"embed_many": staticmethod(_embed_many)})()
+    (tmp_path / "prices.csv").write_text(
+        "Наименование,Цена,Ед\nКирпич,10,₽/шт\n", encoding="utf-8"
+    )
+    cat = catalog(embedder=stub, store=store)
+    cat.add_csv(
+        str(tmp_path / "prices.csv"),
+        fieldmap={"name": "Наименование", "price": "Цена", "unit": "Ед"},
+    )
+
+    state_file = tmp_path / "ingest_state.json"
+    monkeypatch.setattr("src.queue.ingest._state_path", lambda: state_file)
+    monkeypatch.setattr(
+        "src.queue.ingest.DEFAULT_CATALOG", tmp_path / "prices.csv"
+    )
+    monkeypatch.setattr("src.queue.ingest.DEFAULT_PRICE_LIST", tmp_path / "prices.csv")
+
+    # first run embeds; fingerprint recorded
+    first = await reingest_if_changed(catalog=cat)
+    assert first["status"] == "ok"
+    assert first["stored"] == 1  # the single row was embedded
+    assert state_file.exists()
+
+    # unchanged source -> no-op, no duplicate work
+    again = await reingest_if_changed(catalog=cat)
+    assert again["status"] == "unchanged"
+
+    # changed source -> rebuild happens again
+    (tmp_path / "prices.csv").write_text(
+        "Наименование,Цена,Ед\nКирпич,15,₽/шт\n", encoding="utf-8"
+    )
+    changed = await reingest_if_changed(catalog=cat)
+    assert changed["status"] == "ok"
+    assert _fingerprint([tmp_path / "prices.csv"]) != ""
+
+
+def test_queue_fingerprint_tracks_content():
+    """Fingerprint is content-based, not path-based."""
+    from src.queue.ingest import _fingerprint
+
+    a = __import__("tempfile").NamedTemporaryFile("w", delete=False, suffix=".csv")
+    a.write("a,b\n1,2\n")
+    a.close()
+    b = __import__("tempfile").NamedTemporaryFile("w", delete=False, suffix=".csv")
+    b.write("a,b\n1,3\n")
+    b.close()
+
+    assert _fingerprint([a.name, b.name]) != _fingerprint([b.name, a.name])
+    assert _fingerprint([a.name]) != _fingerprint([b.name])
+    assert _fingerprint([a.name]) == _fingerprint([a.name])
 
 
 def test_api_chat_and_stream(transport, tmp_path):

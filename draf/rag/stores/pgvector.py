@@ -8,18 +8,24 @@ from draf.rag.base import VectorStore
 class PGVectorStore(VectorStore):
     """Vector store backed by PostgreSQL with pgvector extension.
 
-    Requires ``asyncpg`` and ``sqlalchemy`` (install via ``draf[embedding]``).
+    Requires ``asyncpg`` + ``pgvector`` (install via ``draf[embedding]``).
     Metadata is stored in a ``jsonb`` column; filters are translated into
     SQL ``WHERE`` clauses on the top-level JSON keys.
+
+    The schema (``vector`` extension + table with a primary key on
+    ``doc_id``) is bootstrapped lazily on the first connection, and ``add``
+    is idempotent (``ON CONFLICT DO UPDATE``) so re-embedding a document or
+    a fresh process re-indexing the same queue never duplicates rows.
     """
 
-    def __init__(self, dsn: str, table: str = "draf_vectors"):
+    def __init__(self, dsn: str, table: str = "draf_vectors", dim: int = 768):
         import importlib.util
 
         if importlib.util.find_spec("asyncpg") is None:
             raise ImportError("install asyncpg + pgvector for PGVectorStore")
         self._dsn = dsn
         self._table = table
+        self._dim = dim
 
     async def _connect(self):
         import asyncpg
@@ -27,6 +33,13 @@ class PGVectorStore(VectorStore):
 
         conn = await asyncpg.connect(self._dsn)
         await pgvector.asyncpg.register_vector(conn)
+        await conn.execute("CREATE EXTENSION IF NOT EXISTS vector")
+        await conn.execute(
+            f"CREATE TABLE IF NOT EXISTS {self._table} ("
+            f"doc_id TEXT PRIMARY KEY, "
+            f"embedding vector({self._dim}) NOT NULL, "
+            f"metadata JSONB NOT NULL)"
+        )
         return conn
 
     async def add(self, vectors: list[tuple[str, list[float], dict]]) -> None:
@@ -34,14 +47,16 @@ class PGVectorStore(VectorStore):
 
         conn = await self._connect()
         try:
-            for vid, vec, meta in vectors:
-                await conn.execute(
-                    f"INSERT INTO {self._table} (doc_id, embedding, metadata) "
-                    f"VALUES ($1, $2::vector, $3::jsonb)",
-                    vid,
-                    vec,
-                    json.dumps(meta),
-                )
+            await conn.executemany(
+                f"INSERT INTO {self._table} (doc_id, embedding, metadata) "
+                f"VALUES ($1, $2::vector, $3::jsonb) "
+                f"ON CONFLICT (doc_id) DO UPDATE SET "
+                f"embedding = EXCLUDED.embedding, metadata = EXCLUDED.metadata",
+                [
+                    (vid, vec, json.dumps(meta, ensure_ascii=False))
+                    for vid, vec, meta in vectors
+                ],
+            )
         finally:
             await conn.close()
 

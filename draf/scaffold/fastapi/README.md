@@ -5,7 +5,7 @@ as a **FastAPI service**: a supervisor Flow built on `Flow.route()` with
 typed state, durable sessions, API-key auth, and a debug `cli.py`.  Keep
 this skeleton generic and add your own agents, tools and state — see
 **Add your own agent** below.  For a fully-worked real example, look at
-`examples/production_repair_ai`.
+`examples/applications/repair-ai-chat`.
 
 ## Layout
 

@@ -919,7 +919,7 @@ looks through common keys first), `--max-examples` caps the run.
 | [checkpoint_stores](examples/checkpoint_stores/) | Durable workflow on file/sqlite/pg |
 | [release_features](examples/release_features/) | Release API tour — validation, typed errors, `draf eval`, cost reports, response cache (mocked, no API key) |
 | [simple_router](examples/simple_router/) | Minimal `Flow.route()` supervisor — two agents, a bounded loop (can't hang), offline tests |
-| [production_repair_ai](examples/production_repair_ai/) | Full FastAPI app built on `route()` — five agents, tools, RAG, streaming (Russian repair workflow) |
+| [repair-ai-chat](examples/applications/repair-ai-chat/) | Full FastAPI app built on `route()` — five agents, tools, RAG, streaming (Russian repair workflow) |
 
 All LLM examples run on local Ollama — no API keys. Most use `llama3.1:8b`
 (`ollama pull llama3.1:8b`); [pdf_agent](examples/pdf_agent/) uses

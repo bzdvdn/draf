@@ -61,8 +61,11 @@ fastapi = [
     "uvicorn>=0.30",
     "sse-starlette>=2.0",
 ]
+queue = [
+    "celery[redis]>=5.4",
+]
 all = [
-    "draf[embedding,tools,mcp,rag-pdf,rag-excel,pg-checkpoint,fastapi]",
+    "draf[embedding,tools,mcp,rag-pdf,rag-excel,pg-checkpoint,fastapi,queue]",
 ]
 
 [tool.pytest.ini_options]

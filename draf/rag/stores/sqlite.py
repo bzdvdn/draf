@@ -65,6 +65,10 @@ class SQLiteVectorStore(VectorStore):
     async def count(self) -> int:
         return self._conn.execute("SELECT COUNT(*) FROM vectors").fetchone()[0]
 
+    def count_sync(self) -> int:
+        """Synchronous count — lets a fresh process adopt an existing store."""
+        return self._conn.execute("SELECT COUNT(*) FROM vectors").fetchone()[0]
+
     async def entries(
         self, limit: int = 100, offset: int = 0
     ) -> list[tuple[str, dict]]:
