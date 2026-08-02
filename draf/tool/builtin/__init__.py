@@ -18,6 +18,10 @@ from draf.tool.builtin.data import (
 from draf.tool.builtin.http import HttpRequestTool
 from draf.tool.builtin.notify import SendEmailTool, SendTelegramTool
 from draf.tool.builtin.redis import RedisTool
+from draf.tool.builtin.git import GitTool
+from draf.tool.builtin.lock import LockTool
+from draf.tool.builtin.wait_for import WaitForTool
+from draf.tool.builtin.csv import CsvQueryTool
 from draf.tool.builtin.gitlab import (
     GitLabListOpenMRsTool,
     GitLabGetMRChangesTool,
@@ -58,6 +62,10 @@ default_tool_registry.register(HttpRequestTool)
 default_tool_registry.register(SendEmailTool)
 default_tool_registry.register(SendTelegramTool)
 default_tool_registry.register(RedisTool)
+default_tool_registry.register(GitTool)
+default_tool_registry.register(LockTool)
+default_tool_registry.register(WaitForTool)
+default_tool_registry.register(CsvQueryTool)
 default_tool_registry.register(GitLabListOpenMRsTool)
 default_tool_registry.register(GitLabGetMRChangesTool)
 default_tool_registry.register(GitLabPostNoteTool)
@@ -95,6 +103,10 @@ __all__ = [
     "SendEmailTool",
     "SendTelegramTool",
     "RedisTool",
+    "GitTool",
+    "LockTool",
+    "WaitForTool",
+    "CsvQueryTool",
     "GitLabListOpenMRsTool",
     "GitLabGetMRChangesTool",
     "GitLabPostNoteTool",

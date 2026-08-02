@@ -958,3 +958,214 @@ class TestDocumentLoaders:
         monkeypatch.setattr(builtins, "__import__", fake_import)
         with pytest.raises(ImportError, match="rag-pdf"):
             load_documents_pdf("whatever.pdf")
+
+
+class TestPDFTool:
+    def test_blank_pdf_returns_no_text(self, tmp_path):
+        from draf.rag import PDFTool
+
+        pytest.importorskip("pypdf")
+        from pypdf import PdfWriter
+
+        w = PdfWriter()
+        w.add_blank_page(width=200, height=200)
+        p = tmp_path / "d.pdf"
+        with open(p, "wb") as f:
+            w.write(f)
+        assert PDFTool().run(str(p)) == "no text found in pdf"
+
+    def test_missing_path_raises(self):
+        from draf.rag import PDFTool
+
+        with pytest.raises(ValueError, match="path is required"):
+            PDFTool().run(path="")
+
+    def test_config_max_chars_default(self):
+        from draf.rag import PDFTool
+
+        assert PDFTool().max_chars == 50000
+        assert PDFTool({"max_chars": 10}).max_chars == 10
+
+    def test_schema_requires_path(self):
+        from draf.harness import tool_to_schema
+        from draf.rag import PDFTool
+
+        schema = tool_to_schema(PDFTool())
+        assert "path" in schema["function"]["parameters"]["required"]
+
+    def test_returns_pages_with_truncation(self, monkeypatch):
+        from draf.rag import PDFTool
+
+        docs = [("hello page", {"page": 1}), ("world page", {"page": 2})]
+        monkeypatch.setattr(
+            "draf.rag.pdf_tool.load_documents_pdf", lambda path: docs
+        )
+        result = PDFTool().run("fake.pdf")
+        assert "--- page 1 ---\nhello page" in result
+        assert "--- page 2 ---\nworld page" in result
+        short = PDFTool().run("fake.pdf", max_chars=15)
+        assert len(short) <= 15
+
+
+class TestImageTool:
+    class _FakeVisionClient:
+        def __init__(self, *a, **k):
+            self.sent = {}
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *a, **k):
+            return False
+
+        async def post(self, url, **kwargs):
+            self.sent = {
+                "url": url,
+                "headers": kwargs.get("headers"),
+                "json": kwargs.get("json"),
+            }
+
+            class R:
+                status_code = 200
+
+                def raise_for_status(self):
+                    return None
+
+                def json(self):
+                    return {
+                        "choices": [{"message": {"content": "INVOICE TOTAL 100"}}]
+                    }
+
+            return R()
+
+    def _png(self, tmp_path, name="shot.png"):
+        p = tmp_path / name
+        p.write_bytes(b"\x89PNG\r\n\x1a\nfakepngdata")
+        return p
+
+    def test_defaults_ollama_llava(self, monkeypatch):
+        from draf.rag import ImageTool
+
+        monkeypatch.delenv("OLLAMA_API_KEY", raising=False)
+        monkeypatch.delenv("OLLAMA_BASE_URL", raising=False)
+        t = ImageTool({})
+        assert t.provider == "ollama"
+        assert t.model == "llava"
+        assert t.base_url == "http://localhost:11434/v1"
+
+    def test_config_overrides(self, monkeypatch):
+        from draf.rag import ImageTool
+
+        monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+        t = ImageTool(
+            {
+                "provider": "openai",
+                "model": "gpt-4o",
+                "base_url": "https://x/v1",
+                "api_key": "k",
+            }
+        )
+        assert t.api_key == "k"
+        assert t.model == "gpt-4o"
+        assert t.base_url == "https://x/v1"
+
+    def test_arun_posts_base64_image(self, monkeypatch, tmp_path):
+        import asyncio
+        import base64
+
+        import httpx
+
+        from draf.rag import ImageTool
+
+        p = self._png(tmp_path)
+        fake = self._FakeVisionClient()
+        monkeypatch.setattr(httpx, "AsyncClient", lambda *a, **k: fake)
+
+        result = asyncio.run(ImageTool({}).arun(str(p)))
+        assert result == "INVOICE TOTAL 100"
+        payload = fake.sent["json"]
+        assert payload["model"] == "llava"
+        content = payload["messages"][0]["content"]
+        assert content[0]["type"] == "text"
+        image_url = content[1]["image_url"]["url"]
+        assert image_url.startswith("data:image/png;base64,")
+        raw = image_url.split(",", 1)[1]
+        assert base64.b64decode(raw) == b"\x89PNG\r\n\x1a\nfakepngdata"
+
+    def test_arun_uses_custom_prompt(self, monkeypatch, tmp_path):
+        import asyncio
+
+        import httpx
+
+        from draf.rag import ImageTool
+
+        p = self._png(tmp_path)
+        fake = self._FakeVisionClient()
+        monkeypatch.setattr(httpx, "AsyncClient", lambda *a, **k: fake)
+
+        asyncio.run(ImageTool({}).arun(str(p), prompt="Describe the chart"))
+        text_block = fake.sent["json"]["messages"][0]["content"][0]
+        assert text_block["text"] == "Describe the chart"
+
+    def test_max_chars_truncates(self, monkeypatch, tmp_path):
+        import asyncio
+
+        import httpx
+
+        from draf.rag import ImageTool
+
+        p = self._png(tmp_path)
+        fake = self._FakeVisionClient()
+        monkeypatch.setattr(httpx, "AsyncClient", lambda *a, **k: fake)
+        result = asyncio.run(ImageTool({}).arun(str(p), max_chars=4))
+        assert result == "INVO"
+
+    def test_requires_path(self):
+        import asyncio
+
+        from draf.rag import ImageTool
+
+        with pytest.raises(ValueError, match="path is required"):
+            asyncio.run(ImageTool({}).arun(""))
+
+    def test_missing_file_raises(self, tmp_path):
+        import asyncio
+
+        from draf.rag import ImageTool
+
+        with pytest.raises(FileNotFoundError):
+            asyncio.run(ImageTool({}).arun(str(tmp_path / "nope.png")))
+
+    def test_http_error_raises(self, monkeypatch, tmp_path):
+        import asyncio
+
+        import httpx
+
+        from draf.rag import ImageTool
+
+        p = self._png(tmp_path)
+
+        class Boom:
+            def raise_for_status(self):
+                raise httpx.HTTPStatusError("boom", request=None, response=None)
+
+        class Client:
+            async def __aenter__(self):
+                return self
+
+            async def __aexit__(self, *a, **k):
+                return False
+
+            async def post(self, *a, **k):
+                return Boom()
+
+        monkeypatch.setattr(httpx, "AsyncClient", lambda *a, **k: Client())
+        with pytest.raises(httpx.HTTPStatusError):
+            asyncio.run(ImageTool({}).arun(str(p)))
+
+    def test_schema_requires_path(self):
+        from draf.harness import tool_to_schema
+        from draf.rag import ImageTool
+
+        schema = tool_to_schema(ImageTool({}))
+        assert "path" in schema["function"]["parameters"]["required"]

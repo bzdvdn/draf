@@ -4,16 +4,8 @@ A single tool with an ``action`` selector covering the common operations
 (get/set/delete/list/exists/ttl/expire/incr, plus lists, sets, hashes and
 pub/sub) against any RESP-compatible server.  It uses the ``redis``
 package, which speaks RESP to Redis, KeyDB and Valkey alike, so the same
-config works for all of them.
-
-Args (config):
-    url: Optional ``redis://[[username]:[password]]@host:port/db``
-        connection string (e.g. ``redis://localhost:6379/0``).
-    host: Host (default ``localhost``) when ``url`` is not given.
-    port: Port (default ``6379``).
-    db: Database index (default ``0``).
-    password: Optional password.
-    username: Optional username (ACL setups).
+config works for all of them.  The distributed ``lock`` tool reuses the
+shared client setup in :class:`_RedisBase`.
 """
 
 import fnmatch
@@ -22,7 +14,51 @@ from typing import Any
 from draf.tool.tool import Tool
 
 
-class RedisTool(Tool):
+class _RedisBase(Tool):
+    """Shared RESP client setup for Redis-like tools.
+
+    Args (config):
+        url: Optional ``redis://[[username]:[password]]@host:port/db``
+            connection string (e.g. ``redis://localhost:6379/0``).
+        host: Host (default ``localhost``) when ``url`` is not given.
+        port: Port (default ``6379``).
+        db: Database index (default ``0``).
+        password: Optional password.
+        username: Optional username (ACL setups).
+    """
+
+    def __init__(self, config: dict | None = None):
+        cfg = config or {}
+        self.url = cfg.get("url", "")
+        self.host = cfg.get("host", "localhost")
+        self.port = cfg.get("port", 6379)
+        self.db = cfg.get("db", 0)
+        self.password = cfg.get("password", "")
+        self.username = cfg.get("username", "")
+
+    def _client(self) -> Any:
+        try:
+            import redis as _redis
+        except ImportError as e:
+            msg = "redis tools require the 'redis' package (pip install draf[tools])"
+            raise ImportError(msg) from e
+        if self.url:
+            return _redis.Redis.from_url(self.url, decode_responses=True)
+        kwargs: dict = {}
+        if self.username:
+            kwargs["username"] = self.username
+        if self.password:
+            kwargs["password"] = self.password
+        return _redis.Redis(
+            host=self.host,
+            port=int(self.port),
+            db=int(self.db),
+            decode_responses=True,
+            **kwargs,
+        )
+
+
+class RedisTool(_RedisBase):
     """Read/write a Redis-compatible store (KeyDB/Valkey supported).
 
     Args:
@@ -46,36 +82,6 @@ class RedisTool(Tool):
         "Read/write a Redis-compatible key-value store (get, set, delete, "
         "list, exists, ttl, expire, incr, lists, sets, hashes, publish)"
     )
-
-    def __init__(self, config: dict | None = None):
-        cfg = config or {}
-        self.url = cfg.get("url", "")
-        self.host = cfg.get("host", "localhost")
-        self.port = cfg.get("port", 6379)
-        self.db = cfg.get("db", 0)
-        self.password = cfg.get("password", "")
-        self.username = cfg.get("username", "")
-
-    def _client(self) -> Any:
-        try:
-            import redis as _redis
-        except ImportError as e:
-            msg = "redis tool requires the 'redis' package (pip install draf[tools])"
-            raise ImportError(msg) from e
-        if self.url:
-            return _redis.Redis.from_url(self.url, decode_responses=True)
-        kwargs: dict = {}
-        if self.username:
-            kwargs["username"] = self.username
-        if self.password:
-            kwargs["password"] = self.password
-        return _redis.Redis(
-            host=self.host,
-            port=int(self.port),
-            db=int(self.db),
-            decode_responses=True,
-            **kwargs,
-        )
 
     def run(  # type: ignore[override]
         self,
@@ -189,4 +195,4 @@ class RedisTool(Tool):
             client.close()
 
 
-__all__ = ["RedisTool"]
+__all__ = ["RedisTool", "_RedisBase"]

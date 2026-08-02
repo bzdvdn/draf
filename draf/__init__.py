@@ -41,7 +41,7 @@ from draf.trace import (
 )
 from draf.yaml_schema import validate_workflow, validate_workflow_file
 from draf.eval import run_eval, load_dataset, extract_output
-from draf.rag import VectorStore, Embedder, Chunker, RAGTool
+from draf.rag import VectorStore, Embedder, Chunker, RAGTool, PDFTool, ImageTool
 from draf.rag.stores import (
     InMemoryVectorStore,
     QdrantVectorStore,
@@ -131,6 +131,8 @@ __all__ = [
     "Embedder",
     "Chunker",
     "RAGTool",
+    "PDFTool",
+    "ImageTool",
     "InMemoryVectorStore",
     "QdrantVectorStore",
     "ChromaVectorStore",

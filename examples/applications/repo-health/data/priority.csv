@@ -1,0 +1,6 @@
+file,owner,priority
+src/auth.py,backend,high
+src/payments.py,backend,high
+src/ui/checkout.py,frontend,medium
+src/ui/landing.py,frontend,low
+docs/api.md,docs,low

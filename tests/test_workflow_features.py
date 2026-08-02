@@ -5,6 +5,7 @@ from draf.node import Transform
 
 ROOT = __file__.rsplit("/tests/", 1)[0]
 EXAMPLE = f"{ROOT}/examples/applications/gitlab-reviewer/workflow.yaml"
+REPO_HEALTH = f"{ROOT}/examples/applications/repo-health/workflow.yaml"
 
 
 class TestEnvInterpolation:
@@ -179,6 +180,53 @@ class TestGithubReviewerExample:
         from draf.yaml_schema import validate_workflow_file
 
         assert validate_workflow_file(GITHUB_EXAMPLE) == []
+
+
+class TestRepoHealthExample:
+    def test_example_loads(self):
+        from draf.yaml import load_workflow
+
+        graph, tools, initial, reducers = load_workflow(REPO_HEALTH)
+        names = {t.name for t in tools}
+        assert {
+            "git",
+            "csv_query",
+            "redis",
+            "lock",
+            "wait_for",
+            "send_telegram",
+        } <= names
+        assert graph.entry_point == "reset"
+        assert {"reset", "agent", "tool_exec"} <= set(graph.nodes)
+        assert initial["priority_csv"] == "data/priority.csv"
+
+    def test_example_validates(self):
+        from draf.yaml_schema import validate_workflow_file
+
+        assert validate_workflow_file(REPO_HEALTH) == []
+
+    def test_flow_py_compiles_equivalent_structure(self):
+        import importlib.util
+
+        path = f"{ROOT}/examples/applications/repo-health/flow.py"
+        spec = importlib.util.spec_from_file_location("repo_health_flow", path)
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+
+        graph = mod.build_flow().compile()
+        node_types = {node.type for node in graph.nodes.values()}
+        assert node_types == {"context_builder", "react_agent", "tool_exec"}
+
+        tools = mod.build_tools()
+        names = {t.name for t in tools}
+        assert {
+            "git",
+            "csv_query",
+            "redis",
+            "lock",
+            "wait_for",
+            "send_telegram",
+        } <= names
 
 
 class TestContextBuilderListRendering:
