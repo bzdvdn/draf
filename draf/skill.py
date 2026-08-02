@@ -46,6 +46,8 @@ class Skill:
         allowed_tools: If set, only these tools are visible to the call.
         disallowed_tools: Tools removed from the visible set.
         path: Directory the skill was loaded from (``None`` if synthetic).
+        builtin: True for skills bundled with draf (core/``draf-`` skills),
+            False for user skills loaded from disk.
     """
 
     name: str
@@ -55,6 +57,7 @@ class Skill:
     allowed_tools: list[str] | None = None
     disallowed_tools: list[str] = field(default_factory=list)
     path: Path | None = None
+    builtin: bool = False
 
 
 def _to_list(value: typing.Any) -> list[str]:
@@ -65,6 +68,83 @@ def _to_list(value: typing.Any) -> list[str]:
     if isinstance(value, (list, tuple, set)):
         return [str(v) for v in value]
     return [str(value)]
+
+
+# Core meta-skills shipped with draf.  These are framework-level behaviour
+# contracts for the model, orthogonal to any specific tool or domain, and
+# are resolved by name when no user skill with the same name exists on
+# disk.  All are namespaced with the ``draf-`` prefix to avoid colliding
+# with user skills.
+_CORE_SKILLS: list[Skill] = [
+    Skill(
+        name="draf-tool-discipline",
+        description="When and how to call tools in the ReAct loop",
+        when_to_use="Any agent that uses tools",
+        builtin=True,
+        instructions="""\
+Follow the tool discipline rules:
+
+1. Call a tool only when the answer is not already in your context or
+   knowledge.  Prefer answering directly when you can.
+2. Never fabricate a tool result.  Base every claim on the actual tool
+   output returned to you.
+3. On a tool error: retry once with the same call if the failure looks
+   transient, otherwise change approach or fall back — but never ignore
+   the error silently.
+4. Do not repeat a tool call with identical arguments if the previous
+   call already returned.  If a call would loop, stop and explain the
+   situation instead.
+
+Tool calls exist to ground your answer in facts, not to pad the
+conversation.""",
+    ),
+    Skill(
+        name="draf-structured-output",
+        description="Fill JSON schemas exactly in structured-output mode",
+        when_to_use="Nodes using response_format / json_object",
+        builtin=True,
+        instructions="""\
+When producing structured output, follow these rules:
+
+1. Return only the fields declared in the schema, with exactly the
+   declared types.
+2. Do not use ``null`` where the schema expects a concrete value; fall
+   back to an empty string or a sensible default.
+3. In ``json_object`` mode output nothing but the JSON document — no
+   markdown fences, no prose before or after.
+4. Never invent a value to fill a required field; if the data is missing,
+   say so through the field's default/empty representation.""",
+    ),
+    Skill(
+        name="draf-verification",
+        description="Cross-check final answers against tool output",
+        when_to_use="Any agent producing a final answer",
+        builtin=True,
+        instructions="""\
+Verify your answer before delivering it:
+
+1. State only facts that are confirmed by the tool output you actually
+   received.
+2. Re-read the result of your last tool call before writing the final
+   answer.
+3. Do not carry over details that were not present in the results.
+4. When you are not certain, say so explicitly instead of presenting a
+   guess as fact.""",
+    ),
+]
+
+
+def core_skills() -> list[Skill]:
+    """Return the built-in core (``draf-``) skills."""
+    return list(_CORE_SKILLS)
+
+
+def get_core_skill(name: str) -> Skill | None:
+    """Return a core skill by name, or ``None`` if it does not exist."""
+    for s in _CORE_SKILLS:
+        if s.name == name:
+            return s
+    return None
 
 
 def _split_frontmatter(text: str) -> tuple[str, str]:
@@ -139,7 +219,16 @@ def resolve_skills(cfg: dict) -> list[Skill]:
         if p.is_file() or p.is_dir():
             skills.append(load_skill(p))
             continue
-        skills.append(load_skill(skill_dir / str(item) / "SKILL.md"))
+        candidate = skill_dir / str(item) / "SKILL.md"
+        if candidate.is_file():
+            skills.append(load_skill(candidate))
+            continue
+        core = get_core_skill(str(item))
+        if core is not None:
+            skills.append(core)
+            continue
+        msg = f"skill not found: {item}"
+        raise FileNotFoundError(msg)
     return skills
 
 
@@ -150,6 +239,8 @@ def skills_instructions(skills: list[Skill]) -> str:
         if not s.instructions:
             continue
         header = f"### Skill: {s.name}"
+        if s.builtin:
+            header += " [system]"
         if s.description:
             header += f" — {s.description}"
         parts.append(f"{header}\n\n{s.instructions}")

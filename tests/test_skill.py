@@ -147,6 +147,79 @@ def test_scope_tools_disallowed_removes(analyst_skill):
     assert list(scoped) == ["calc"]
 
 
+class TestCoreSkills:
+    def test_core_skills_are_builtin_and_namespaced(self):
+        from draf.skill import core_skills
+
+        skills = core_skills()
+        names = {s.name for s in skills}
+        assert names == {
+            "draf-tool-discipline",
+            "draf-structured-output",
+            "draf-verification",
+        }
+        assert all(s.builtin for s in skills)
+        assert all(s.path is None for s in skills)
+        assert all(s.allowed_tools is None for s in skills)
+
+    def test_get_core_skill(self):
+        from draf.skill import get_core_skill
+
+        s = get_core_skill("draf-verification")
+        assert s is not None
+        assert s.builtin is True
+        assert get_core_skill("nope") is None
+
+    def test_resolve_skills_falls_back_to_core(self, tmp_path):
+        from draf.skill import resolve_skills
+
+        skills = resolve_skills(
+            {"skills": ["draf-tool-discipline"], "skill_dir": str(tmp_path)}
+        )
+        assert len(skills) == 1
+        assert skills[0].name == "draf-tool-discipline"
+        assert skills[0].builtin is True
+
+    def test_resolve_skills_unknown_name_raises(self, tmp_path):
+        from draf.skill import resolve_skills
+
+        with pytest.raises(FileNotFoundError):
+            resolve_skills({"skills": ["no-such-skill"], "skill_dir": str(tmp_path)})
+
+    def test_user_skill_shadows_core(self, tmp_path):
+        from draf.skill import resolve_skills
+
+        d = tmp_path / "draf-tool-discipline"
+        d.mkdir()
+        (d / "SKILL.md").write_text(
+            "---\nname: draf-tool-discipline\n---\n\nCustom override.",
+            encoding="utf-8",
+        )
+        skills = resolve_skills(
+            {"skills": ["draf-tool-discipline"], "skill_dir": str(tmp_path)}
+        )
+        assert skills[0].builtin is False
+        assert "Custom override" in skills[0].instructions
+
+    def test_load_skill_defaults_builtin_false(self, tmp_path):
+        from draf.skill import load_skill
+
+        d = tmp_path / "custom"
+        d.mkdir()
+        (d / "SKILL.md").write_text("---\n---\n\nBody.", encoding="utf-8")
+        assert load_skill(d).builtin is False
+
+    def test_skills_instructions_marks_system(self, analyst_skill):
+        from draf.skill import get_core_skill, load_skill, skills_instructions
+
+        core = skills_instructions([get_core_skill("draf-verification")])
+        assert core.startswith("### Skill: draf-verification [system]")
+
+        custom = skills_instructions([load_skill(analyst_skill)])
+        assert custom.startswith("### Skill: analyst")
+        assert "[system]" not in custom
+
+
 class TestSkillIntegration:
     @pytest.mark.asyncio
     async def test_llm_merges_instructions_and_scopes_tools(
