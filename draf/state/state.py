@@ -36,6 +36,23 @@ def reducers_from_yaml_schema(schema: dict) -> dict[str, Reducer]:
     return reducers
 
 
+def reducers_to_yaml_schema(reducers: dict[str, Reducer]) -> dict:
+    """Convert a reducer map back into a YAML state schema dict.
+
+    Only string reducers (``"override"``/``"append"``/``"keep"``) can be
+    serialised; callable reducers are skipped.  Field types are unknown
+    after the reverse mapping, so entries carry just the ``reducer`` key::
+
+        reducers_to_yaml_schema({"messages": "append"})
+        # -> {"messages": {"reducer": "append"}}
+    """
+    schema: dict = {}
+    for key, reducer in reducers.items():
+        if isinstance(reducer, str):
+            schema[key] = {"reducer": reducer}
+    return schema
+
+
 def reducers_from_typeddict(cls: type) -> dict[str, Reducer]:
     """Extract per-key reducers from a TypedDict's ``Annotated`` metadata.
 

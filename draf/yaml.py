@@ -76,6 +76,7 @@ def from_yaml(source: str) -> Graph:
         data = {}
     if not isinstance(data, dict):
         raise ConfigError("workflow must be a mapping")
+    data = _interpolate_env(data)
     label = source if os.path.exists(source) else "workflow"
     raise_for_validation(validate_workflow(data), source=label)
 
@@ -107,15 +108,31 @@ def from_yaml(source: str) -> Graph:
     return Graph(nodes=nodes, edges=edges, entry_point=entry_point or "")
 
 
-def graph_to_yaml(graph: Graph) -> str:
-    """Serialize a ``Graph`` instance to a YAML string."""
+def workflow_to_yaml(
+    graph: Graph,
+    *,
+    tools: list[Tool] | None = None,
+    initial: dict | None = None,
+    reducers: dict[str, Reducer] | None = None,
+    name: str = "graph",
+) -> str:
+    """Serialize a ``Graph`` (plus optional tools/state) to a workflow YAML.
+
+    ``steps`` and ``edges`` come from the graph; ``tools`` are written
+    from their ``name`` and (when present) their ``config`` attribute;
+    ``reducers`` become the ``state.schema`` block (string reducers only)
+    and *initial* becomes ``state.initial``.
+
+    The output validates with :func:`validate_workflow` and round-trips
+    through :func:`load_workflow`.
+    """
     steps = []
     for nid, node in graph.nodes.items():
         steps.append(
             {
                 "id": nid,
-                "type": type(node).type or getattr(node, "type", nid),
-                "config": getattr(node, "config", {}),
+                "type": getattr(type(node), "type", None) or getattr(node, "type", nid),
+                "config": getattr(node, "config", {}) or {},
             }
         )
 
@@ -126,12 +143,34 @@ def graph_to_yaml(graph: Graph) -> str:
             entry["condition"] = e.condition
         edges.append(entry)
 
-    data = {
-        "name": "graph",
-        "steps": steps,
-        "edges": edges,
-    }
-    return yaml.dump(data, default_flow_style=False)
+    data: dict = {"name": name, "steps": steps, "edges": edges}
+    if tools:
+        data["tools"] = [{"type": t.name, "config": _tool_config(t)} for t in tools]
+    if reducers or initial:
+        from draf.state.state import reducers_to_yaml_schema
+
+        state: dict = {}
+        if reducers:
+            state["schema"] = reducers_to_yaml_schema(reducers)
+        if initial:
+            state["initial"] = initial
+        data["state"] = state
+    return yaml.dump(data, default_flow_style=False, sort_keys=False)
+
+
+def _tool_config(tool: Tool) -> dict:
+    cfg = getattr(tool, "config", None)
+    if isinstance(cfg, dict):
+        return cfg
+    return {}
+
+
+def graph_to_yaml(graph: Graph) -> str:
+    """Serialize a ``Graph`` instance to a YAML string.
+
+    This is shorthand for :func:`workflow_to_yaml` without tools or state.
+    """
+    return workflow_to_yaml(graph)
 
 
 def load_workflow(path: str) -> tuple[Graph, list[Tool], dict, dict[str, Reducer]]:
@@ -170,6 +209,13 @@ def load_workflow(path: str) -> tuple[Graph, list[Tool], dict, dict[str, Reducer
     if not isinstance(data, dict):
         raise ConfigError("workflow must be a mapping")
 
+    # Resolve ${ENV} references across the whole document (tools, steps,
+    # state), then load plugins so custom node/tool types validate below.
+    data = _interpolate_env(data)
+    from draf.plugins import load_plugins_from_document
+
+    load_plugins_from_document(data, os.path.dirname(os.path.abspath(path)))
+
     import draf.tool.builtin  # noqa: F401 — registers built-in tools
     import draf.rag  # noqa: F401 — registers the "rag" tool
 
@@ -204,7 +250,7 @@ def load_workflow(path: str) -> tuple[Graph, list[Tool], dict, dict[str, Reducer
     base_dir = os.path.dirname(os.path.abspath(path))
     for td in data.get("tools", []):
         ttype = td["type"]
-        tconfig = _interpolate_env(td.get("config", {}))
+        tconfig = td.get("config", {})
         if ttype == "rag":
             tconfig = _resolve_rag_config(tconfig, base_dir)
         tools.append(default_tool_registry.create(ttype, tconfig))

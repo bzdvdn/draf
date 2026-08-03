@@ -701,3 +701,38 @@ class Flow:
             edges=self._edges,
             entry_point=self._node_ids[0],
         )
+
+    def to_yaml(
+        self,
+        *,
+        tools: list | None = None,
+        initial: dict | None = None,
+        reducers: dict | None = None,
+    ) -> str:
+        """Export the compiled flow as a ``workflow.yaml`` document.
+
+        The graph (``steps`` + ``edges``) is serialised faithfully —
+        including the ReAct loop wiring produced by :meth:`harness` /
+        :meth:`react`.  Tools and state are not tracked by ``Flow``, so
+        pass them explicitly if you want them in the export::
+
+            yaml_text = (
+                Flow("repo")
+                .react(model="llama3.1:8b", use_tools="all")
+                .to_yaml(tools=[GitTool(), CsvQueryTool()])
+            )
+            with open("workflow.yaml", "w") as f:
+                f.write(yaml_text)
+
+        The result validates with ``draf validate`` and round-trips through
+        :func:`draf.yaml.load_workflow`.
+        """
+        from draf.yaml import workflow_to_yaml
+
+        return workflow_to_yaml(
+            self.compile(),
+            tools=tools,
+            initial=initial,
+            reducers=reducers,
+            name=self._name or "graph",
+        )

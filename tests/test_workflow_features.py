@@ -6,6 +6,7 @@ from draf.node import Transform
 ROOT = __file__.rsplit("/tests/", 1)[0]
 EXAMPLE = f"{ROOT}/examples/applications/gitlab-reviewer/workflow.yaml"
 REPO_HEALTH = f"{ROOT}/examples/applications/repo-health/workflow.yaml"
+PLUGINS_EXAMPLE = f"{ROOT}/examples/plugins"
 
 
 class TestEnvInterpolation:
@@ -73,6 +74,30 @@ steps:
         graph, tools, initial, reducers = load_workflow(str(path))
         assert len(tools) == 0
         assert graph.entry_point == "s"
+
+    def test_interpolates_env_in_step_and_state(self, tmp_path, monkeypatch):
+        from draf.yaml import load_workflow
+
+        monkeypatch.setenv("SYSTEM_HINT", "be brief")
+        path = tmp_path / "wf.yaml"
+        path.write_text(
+            """\
+name: env-step
+steps:
+  - id: llm
+    type: llm_chat
+    config:
+      model: gpt-4
+      system: "hint: ${SYSTEM_HINT}"
+state:
+  initial:
+    token: "${MISSING_TOKEN}"
+"""
+        )
+        monkeypatch.delenv("MISSING_TOKEN", raising=False)
+        graph, _, initial, _ = load_workflow(str(path))
+        assert graph.nodes["llm"].config["system"] == "hint: be brief"
+        assert initial["token"] == "${MISSING_TOKEN}"
 
 
 class TestJsonGet:
@@ -227,6 +252,46 @@ class TestRepoHealthExample:
             "wait_for",
             "send_telegram",
         } <= names
+
+
+class TestPluginsExample:
+    def test_workflow_validates(self):
+        from draf.yaml_schema import validate_workflow_file
+
+        assert validate_workflow_file(f"{PLUGINS_EXAMPLE}/workflow.yaml") == []
+
+    def test_example_runs_offline(self):
+        import asyncio
+        import json
+
+        from draf.yaml import load_workflow
+
+        graph, tools, initial, reducers = load_workflow(
+            f"{PLUGINS_EXAMPLE}/workflow.yaml"
+        )
+        result = asyncio.run(
+            graph.run(state=initial, tools=tools, reducers=reducers)
+        )
+        assert result["slug"] == "hello-world-draf-plugins"
+        assert result["count"] == "4"
+        assert json.loads(result["report"]) == {
+            "slug": "hello-world-draf-plugins",
+            "count": "4",
+        }
+
+    def test_class_based_workflow_validates_and_runs(self):
+        import asyncio
+
+        from draf.yaml import load_workflow
+        from draf.yaml_schema import validate_workflow_file
+
+        path = f"{PLUGINS_EXAMPLE}/workflow-classes.yaml"
+        assert validate_workflow_file(path) == []
+        graph, tools, initial, reducers = load_workflow(path)
+        result = asyncio.run(
+            graph.run(state=initial, tools=tools, reducers=reducers)
+        )
+        assert result["shouted"] == "HELLO PLUGINS"
 
 
 class TestContextBuilderListRendering:

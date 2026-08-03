@@ -72,6 +72,13 @@ WORKFLOW_JSON_SCHEMA: dict[str, Any] = {
             },
             "additionalProperties": True,
         },
+        "plugins": {
+            "oneOf": [
+                {"type": "string"},
+                {"type": "array", "items": {"type": "string"}},
+            ]
+        },
+        "plugins_folder": {"type": "string"},
     },
     "additionalProperties": True,
 }
@@ -189,6 +196,10 @@ def format_errors(errors: list[dict], *, source: str = "workflow") -> str:
 def validate_workflow_file(path: str) -> list[dict]:
     """Validate a workflow YAML file on disk.
 
+    Loads any plugins referenced by the ``plugins`` key (or the default
+    ``plugins/`` folder) so custom node/tool types are registered before
+    validation.
+
     Returns a list of ``{"path", "message"}`` errors (empty when valid).
     A missing or unparseable file raises :class:`ConfigError`.
     """
@@ -205,6 +216,9 @@ def validate_workflow_file(path: str) -> list[dict]:
         raise ConfigError(
             f"{path}: workflow must be a mapping, got {type(data).__name__}"
         )
+    from draf.plugins import load_plugins_from_document
+
+    load_plugins_from_document(data, os.path.dirname(os.path.abspath(path)))
     return validate_workflow(data)
 
 

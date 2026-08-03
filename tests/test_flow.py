@@ -763,3 +763,69 @@ class TestRoute:
         g = flow.compile()
         r = asyncio.run(g.run(state={}, max_iterations=20))
         assert r["log"] == ["planned-1", "planned-2", "final-1", "final-2"]
+
+
+class TestFlowToYaml:
+    def test_react_flow_exports_and_round_trips(self, tmp_path):
+        from draf.flow import Flow
+        from draf.node import Transform
+        from draf.yaml import load_workflow
+        from draf.yaml_schema import validate_workflow_file
+
+        flow = Flow("demo")
+        flow.step(Transform(action="uppercase", input_key="t", output_key="u"))
+        flow.react(model="gpt-4", use_tools="all", input_key="u", output_key="answer")
+        text = flow.to_yaml()
+
+        path = tmp_path / "wf.yaml"
+        path.write_text(text, encoding="utf-8")
+        assert validate_workflow_file(str(path)) == []
+
+        graph, _, _, _ = load_workflow(str(path))
+        types = {type(n).type for n in graph.nodes.values()}
+        assert {"transform", "react_agent", "tool_exec"} <= types
+        conditions = [e.condition for e in graph.edges if e.condition]
+        assert any("_tool_call_name!=" in c for c in conditions)
+        assert graph.entry_point.startswith("transform_")
+
+    def test_workflow_to_yaml_includes_tools_and_state(self, tmp_path):
+        from draf.flow import Flow
+        from draf.node import Transform
+        from draf.state.state import reducers_from_yaml_schema
+        from draf.tool.registry import default_tool_registry
+        from draf.yaml import load_workflow, workflow_to_yaml
+        from draf.yaml_schema import validate_workflow_file
+
+        flow = Flow("wf")
+        flow.step(Transform(action="uppercase", input_key="t", output_key="u"))
+        tool = default_tool_registry.create("calculator", {})
+
+        text = workflow_to_yaml(
+            flow.compile(),
+            tools=[tool],
+            initial={"status": "active"},
+            reducers={"messages": "append"},
+        )
+        path = tmp_path / "wf.yaml"
+        path.write_text(text, encoding="utf-8")
+        assert validate_workflow_file(str(path)) == []
+
+        graph, tools, initial, reducers = load_workflow(str(path))
+        assert [t.name for t in tools] == ["calculator"]
+        assert initial == {"status": "active"}
+        assert reducers == {"messages": "append"}
+        assert reducers_from_yaml_schema(
+            {"messages": {"reducer": "append"}}
+        ) == {"messages": "append"}
+
+    def test_graph_to_yaml_back_compat(self):
+        from draf.flow import Flow
+        from draf.node import Transform
+        from draf.yaml import graph_to_yaml
+
+        flow = Flow()
+        flow.step(Transform(action="trim", input_key="x", output_key="y"))
+        text = graph_to_yaml(flow.compile())
+        assert "steps:" in text
+        assert "edges:" in text
+        assert "transform" in text
