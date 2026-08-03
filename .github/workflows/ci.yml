@@ -30,7 +30,6 @@ jobs:
   lint:
     name: Lint & types
     runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request'
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v5
