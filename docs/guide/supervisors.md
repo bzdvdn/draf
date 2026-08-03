@@ -58,6 +58,64 @@ The decider is **any node that writes the routing key** — an `LLM` node, a
 `react_agent`, an `Interrupt`, or a custom node. `route()` never cares what it
 is, only that the previous `flow.step(...)` wrote `key`.
 
+## A ready-made decider: `Supervisor`
+
+For the common case — "ask the model which agent, then route" — draf ships a
+safe decider built in: `draf.node.Supervisor` (wired via `flow.supervisor()`).
+It asks the model for a one-word reply, writes it to the routing key, and
+applies deterministic guards so the loop can't hang and free-form text can't
+silently end the graph:
+
+```python
+from draf.flow import Flow, agent_step
+
+flow = Flow("support")
+flow.supervisor(
+    model="llama3.1:8b",
+    provider="ollama",
+    sections={"plan": "План", "review": "Ревью"},
+    route_keys={"planner": "plan", "reviewer": "review"},
+    done_keys={"plan", "review"},
+    fallback_agent="planner",
+)  # writes "next_agent"
+flow.route(
+    "next_agent",
+    finish=final_llm,
+    planner=agent_step(PLANNER_PROMPT, "plan", model=model, provider=provider),
+    reviewer=agent_step(REVIEWER_PROMPT, "review", model=model, provider=provider),
+)
+```
+
+Guards provided, on top of the plain "reply a single word":
+
+| Key | Default | What it guards |
+| --- | ------- | -------------- |
+| `route_keys` | `{}` | Map agent → output slot; an agent whose slot already has content is never re-run (no overwrite of finished work). |
+| `done_keys` / `done_mode` | — / `"all"` | When these output slots are filled, return `finish` without another model call. `done_mode="any"` requires just one. |
+| `fallback_agent` | `""` | Route to this agent when the model says `finish` (or fails to parse) before anything has been produced, so the user still gets an answer. |
+| `rounds_key` / `max_rounds` | `"supervisor_rounds"` / `6` | Bound the loop: `finish` is forced once the counter reaches `max_rounds`, so a model that never says `finish` can't hang. |
+
+Other knobs: `output_key` (default `"next_agent"`), `messages_key` (default
+`"messages"`; set `""` to always consult the model), `sections` (rendered into
+the prompt alongside `Round: n/max` and the latest user message), and `agents`
+(override the reply vocabulary; by default it is `route_keys ∪ {"finish"} ∪
+{fallback_agent}`).
+
+Two override hooks cover deterministic policies:
+
+- ``_needs_model(state)`` — skip the model call when the state alone decides
+  (default: skip when there's no user message or `done_keys` are filled).
+- ``decide(state, proposal)`` — resolve the final route from the parsed
+  *proposal* plus the guards. Override it for a state-machine policy (e.g.
+  `examples/release_coordinator`, which forces a fill order and human-gate
+  rules instead of letting the model roam).
+
+A deterministic decider therefore subclasses `Supervisor`, overrides
+`_needs_model` / `decide`, and can omit the model call entirely for states it
+resolves from state alone.
+
+## `flow.supervisor()`
+
 ## `agent_step()`
 
 One routed agent as a reusable `SubFlow`:

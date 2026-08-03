@@ -845,3 +845,122 @@ class TestFlowToYaml:
         assert "steps:" in text
         assert "edges:" in text
         assert "transform" in text
+
+
+class TestNodeIds:
+    """User-supplied node ids (``id=``) across the Flow helpers."""
+
+    def test_step_llm_transform_ids(self):
+        from draf.flow import Flow
+
+        flow = Flow()
+        flow.llm(model="m", system="s", output_key="sent", id="classify")
+        flow.transform(
+            action="uppercase", input_key="sent", output_key="out", id="shout"
+        )
+        g = flow.compile()
+        assert g.entry_point == "classify"
+        assert list(g.nodes) == ["classify", "shout"]
+
+    def test_branch_case_converge_ids(self):
+        from draf.flow import Case, Flow
+        from draf.node import Transform
+
+        flow = Flow()
+        flow.step(Transform(action="value", value="0", output_key="k"), id="start")
+        flow.branch(
+            "k",
+            Case("a").add(
+                Transform(action="value", value="A", output_key="r"), id="on_a"
+            ),
+            Case("b").add(
+                Transform(action="value", value="B", output_key="r"), id="on_b"
+            ),
+        ).converge(
+            Transform(action="uppercase", input_key="r", output_key="out"),
+            id="merge",
+        )
+        g = flow.compile()
+        edges = {(e.source_id, e.target_id, e.condition) for e in g.edges}
+        assert ("start", "on_a", "k=a") in edges
+        assert ("start", "on_b", "k=b") in edges
+        assert ("on_a", "merge", None) in edges
+        assert ("on_b", "merge", None) in edges
+        assert list(g.nodes) == ["start", "on_a", "on_b", "merge"]
+
+    def test_harness_id_prefixes_agent_and_tool(self):
+        from draf.flow import Flow
+
+        flow = Flow()
+        flow.harness(model="m", output_key="answer", id="assistant")
+        g = flow.compile()
+        assert set(g.nodes) == {"assistant/agent", "assistant/tool"}
+        edges = {(e.source_id, e.target_id, e.condition) for e in g.edges}
+        assert ("assistant/agent", "assistant/tool", "_tool_call_name!=") in edges
+
+    def test_route_subflow_named_by_prefix(self):
+        from draf.flow import Flow, agent_step
+        from draf.node import LLM, Node
+
+        class Decider(Node):
+            type = "decider"
+
+            async def execute(self, ctx, state):
+                return {"next_agent": "planner"}
+
+        flow = Flow()
+        flow.step(Decider(), id="supervisor")
+        flow.route(
+            "next_agent",
+            finish=LLM(model="m", output_key="done"),
+            planner=agent_step("p", "plan", model="m", id="planner"),
+        )
+        g = flow.compile()
+        assert "planner" in g.nodes
+        sub = g.nodes["planner"]
+        assert sub.type == "subflow"
+        inner_ids = list(sub._graph.nodes)
+        assert all(nid.startswith("planner/") for nid in inner_ids)
+        assert sub._graph.entry_point == "planner/context_builder_1"
+
+    def test_duplicate_id_raises(self):
+        from draf.flow import Flow
+        from draf.node import Transform
+
+        flow = Flow()
+        flow.step(Transform(action="value", value="1", output_key="a"), id="dup")
+        with pytest.raises(ValueError, match="duplicate node id"):
+            flow.step(Transform(action="value", value="2", output_key="b"), id="dup")
+
+    def test_auto_ids_still_work_without_id(self):
+        from draf.flow import Flow
+        from draf.node import Transform
+
+        flow = Flow()
+        flow.step(Transform(action="value", value="1", output_key="a"))
+        flow.step(Transform(action="value", value="2", output_key="b"))
+        g = flow.compile()
+        assert g.entry_point == "transform_1"
+        assert list(g.nodes) == ["transform_1", "transform_2"]
+
+    def test_map_and_parallel_accept_id(self):
+        from draf.flow import Flow
+        from draf.node import Transform
+
+        flow = Flow()
+        flow.step(Transform(action="value", value="x", output_key="items"), id="seed")
+        flow.map(
+            Transform(action="uppercase", input_key="item", output_key="o"),
+            input_keys=["items"],
+            output_key="out",
+            id="fan",
+        )
+        flow.parallel(
+            Transform(action="value", value="p", output_key="p1"),
+            Transform(action="value", value="q", output_key="p2"),
+            id="branch",
+        )
+        g = flow.compile()
+        assert "seed" in g.nodes
+        assert "fan" in g.nodes
+        assert "branch" in g.nodes

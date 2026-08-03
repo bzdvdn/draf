@@ -25,6 +25,7 @@ def agent_step(
     messages_key: str = "messages",
     use_tools: str | list[str] | None = None,
     stream: bool = True,
+    id: str | None = None,
     **config,
 ) -> SubFlow:
     """One routed agent: context builder → ReAct harness → append to conversation.
@@ -83,7 +84,7 @@ def agent_step(
         **config,
     )
     inner.step(AppendAssistant(output_key=output_key, messages_key=messages_key))
-    return SubFlow(inner.compile())
+    return SubFlow(inner.compile(), id_prefix=id or "")
 
 
 #: Backwards-compatible alias — ``agent_step`` is the preferred name.

@@ -19,7 +19,6 @@ import asyncio
 
 from draf import set_defaults
 from draf.flow import Flow
-from draf.node import LLM
 
 set_defaults(provider="ollama")
 
@@ -28,24 +27,18 @@ SYSTEM = "Ты инженер по ремонту."
 
 async def main():
     flow = Flow("streaming")
-    flow.step(
-        LLM(
-            model="llama3.1:8b",
-            system=SYSTEM,
-            prompt=(
-                "Составь краткий план ремонта санузла "
-                "на сумму 80000 рублей, 3-5 пунктов."
-            ),
-            output_key="draft",
-        )
-    )
-    flow.step(
-        LLM(
-            model="llama3.1:8b",
-            system=SYSTEM,
-            prompt="Отформатируй план красиво в 5-7 строк:\n{draft}",
-            output_key="final",
-        )
+    flow.llm(
+        model="llama3.1:8b",
+        system=SYSTEM,
+        prompt=(
+            "Составь краткий план ремонта санузла на сумму 80000 рублей, 3-5 пунктов."
+        ),
+        output_key="draft",
+    ).llm(
+        model="llama3.1:8b",
+        system=SYSTEM,
+        prompt="Отформатируй план красиво в 5-7 строк:\n{draft}",
+        output_key="final",
     )
 
     graph = flow.compile()

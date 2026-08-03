@@ -24,7 +24,6 @@ from typing import TypedDict
 
 from draf import set_defaults
 from draf.flow import Flow
-from draf.node import LLM
 from draf.node.llm import StructuredOutputError
 
 set_defaults(provider="ollama")
@@ -38,17 +37,15 @@ class RepairPlan(TypedDict):
 
 async def main():
     flow = Flow("structured-output")
-    flow.step(
-        LLM(
-            model="llama3.1:8b",
-            prompt=(
-                "Составь план ремонта санузла в виде JSON: "
-                "title (строка), items (3 пункта), cost (целое число)."
-            ),
-            output_key="plan",
-            output_type=RepairPlan,
-            max_retries=2,
-        )
+    flow.llm(
+        model="llama3.1:8b",
+        prompt=(
+            "Составь план ремонта санузла в виде JSON: "
+            "title (строка), items (3 пункта), cost (целое число)."
+        ),
+        output_key="plan",
+        output_type=RepairPlan,
+        max_retries=2,
     )
     graph = flow.compile()
 

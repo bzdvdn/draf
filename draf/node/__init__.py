@@ -12,6 +12,7 @@ from draf.node.node import Node
 from draf.node.parallel import Parallel
 from draf.node.registry import NodeRegistry, default_registry, node
 from draf.node.retry import Retry
+from draf.node.supervisor import Supervisor
 from draf.node.tool_call import ToolCall
 from draf.node.transform import Transform
 
@@ -23,6 +24,7 @@ default_registry.register("react_agent", lambda cfg: ReActAgent(cfg))
 default_registry.register("tool_exec", lambda cfg: ToolExec(cfg))
 default_registry.register("tool_call", lambda cfg: ToolCall(cfg))
 default_registry.register("interrupt", lambda cfg: Interrupt(cfg))
+default_registry.register("supervisor", lambda cfg: Supervisor(cfg))
 default_registry.register(
     "parallel",
     lambda cfg: Parallel(cfg.get("branches", []) if isinstance(cfg, dict) else []),
@@ -53,6 +55,7 @@ __all__ = [
     "ToolCall",
     "Parallel",
     "Map",
+    "Supervisor",
     "Interrupt",
     "GraphInterrupt",
 ]

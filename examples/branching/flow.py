@@ -11,7 +11,7 @@ import asyncio
 
 from draf import set_defaults
 from draf.flow import Case, Flow
-from draf.node import LLM, Transform
+from draf.node import Transform
 from draf.state.state import reducers_from_yaml_schema
 
 set_defaults(provider="ollama")
@@ -34,9 +34,9 @@ async def main():
         output_key="result",
     )
 
-    flow = Flow("sentiment-router")
-    flow.step(
-        LLM(
+    flow = (
+        Flow("sentiment-router")
+        .llm(
             model="llama3.1:8b",
             system=(
                 "Classify the sentiment of the user's text. Respond with"
@@ -45,12 +45,13 @@ async def main():
             input_key="text",
             output_key="sentiment",
         )
+        .branch(
+            "sentiment",
+            Case("positive").add(on_positive),
+            Case("negative").add(on_negative),
+        )
+        .converge(shout)
     )
-    flow.branch(
-        "sentiment",
-        Case("positive").add(on_positive),
-        Case("negative").add(on_negative),
-    ).converge(shout)
 
     graph = flow.compile()
     reducers = reducers_from_yaml_schema(

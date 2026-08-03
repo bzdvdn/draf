@@ -2,7 +2,7 @@
 
 from typing import Awaitable, Callable
 
-from draf.graph import Graph
+from draf.graph import Edge, Graph
 from draf.node.node import Node
 from draf.stream import StreamEvent
 
@@ -26,16 +26,22 @@ class SubFlow(Node):
         input_map: dict[str, str] | None = None,
         output_map: dict[str, str] | None = None,
         max_iterations: int | None = None,
+        *,
+        id_prefix: str = "",
     ):
         super().__init__(
             input_map=input_map or {},
             output_map=output_map or {},
             max_iterations=max_iterations,
+            id_prefix=id_prefix,
         )
         self._graph = graph
         self._input_map = input_map or {}
         self._output_map = output_map or {}
         self._max_iterations = max_iterations
+        self._id_prefix = id_prefix
+        if id_prefix:
+            self._graph = self._prefix_graph(graph, id_prefix)
 
     async def execute(self, ctx, state: dict) -> dict:
         sub_state = {}
@@ -59,6 +65,24 @@ class SubFlow(Node):
         else:
             out = result
         return out
+
+    @staticmethod
+    def _prefix_graph(graph: Graph, prefix: str) -> Graph:
+        """Rename every node in *graph* to ``prefix/<original>``."""
+        nodes = {f"{prefix}/{nid}": node for nid, node in graph.nodes.items()}
+        edges = [
+            Edge(
+                source_id=f"{prefix}/{e.source_id}",
+                target_id=f"{prefix}/{e.target_id}",
+                condition=e.condition,
+            )
+            for e in graph.edges
+        ]
+        return Graph(
+            nodes=nodes,
+            edges=edges,
+            entry_point=f"{prefix}/{graph.entry_point}",
+        )
 
     @staticmethod
     def _forward(

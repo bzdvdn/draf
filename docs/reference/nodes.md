@@ -18,6 +18,7 @@ Every node is a `steps:` entry in YAML (`type: <name>`) and a class in the
 | `map` | `Map` | Dynamic fan-out of a state list into parallel branches |
 | `context_builder` | `ContextBuilder` | Compose a scratch prompt from state + conversation |
 | `append_assistant` | `AppendAssistant` | Append the result as an assistant message |
+| `supervisor` | `Supervisor` | Ask a model "which agent next" + deterministic guards |
 
 ## Wrapper nodes
 
@@ -142,6 +143,28 @@ Compose the scratch prompt from named state sections and the conversation:
   `messages_key` (default `"messages"`), `output_key` (default `"input"`),
   `reset_keys`.
 - `append_assistant` — `output_key` (default `"draft"`), `messages_key`.
+
+## `supervisor`
+
+The decider for a [supervisor loop](../guide/supervisors.md): ask the model
+for a one-word route, then apply deterministic guards. Wired with
+`flow.supervisor()` or used directly with `flow.route()`.
+
+| Key | Default | Description |
+| --- | ------- | ----------- |
+| `model` / `provider` | — | LLM model and provider for the harness. |
+| `system` | `""` | System prompt (list the reply values + `finish`). |
+| `output_key` | `"next_agent"` | State key that receives the chosen route. |
+| `sections` | `{}` | State key → label map rendered into the prompt as progress. |
+| `route_keys` | `{}` | Map route value → output slot; a picked agent whose slot already has content is not re-routed. |
+| `done_keys` / `done_mode` | `{}` / `"all"` | When these output slots are filled, return `finish` with no model call (`"any"` = just one). |
+| `fallback_agent` | `""` | Route to this agent when `finish` is picked before anything is produced. |
+| `rounds_key` / `max_rounds` | `"supervisor_rounds"` / `6` | Force `finish` once the counter reaches `max_rounds`. |
+| `messages_key` | `"messages"` | Source of the user message; `""` means always consult the model. |
+| `agents` | — | Explicit reply vocabulary (default: `route_keys ∪ {"finish"} ∪ {fallback_agent}`). |
+
+See [Supervisors — a ready-made decider](../guide/supervisors.md#a-ready-made-decider-supervisor)
+for the guards and the `_needs_model` / `decide` override hooks.
 
 ## Registering custom types
 

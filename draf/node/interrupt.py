@@ -10,6 +10,7 @@ node that follows the interrupt.
 
 from draf.errors import DrafError
 from draf.node.node import Node
+from draf.prompt import render_template
 
 
 class GraphInterrupt(DrafError):
@@ -67,7 +68,10 @@ class Interrupt(Node):
     type = "interrupt"
 
     async def execute(self, ctx, state: dict) -> dict:
+        prompt = self.config.get("prompt", "")
+        if "{" in prompt:
+            prompt = render_template(prompt, state)
         raise GraphInterrupt(
             self.config.get("key", ""),
-            self.config.get("prompt", ""),
+            prompt,
         )

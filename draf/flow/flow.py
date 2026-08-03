@@ -8,6 +8,7 @@ from draf.node.llm import LLM
 from draf.node.map import Map
 from draf.node.node import Node
 from draf.node.parallel import Parallel
+from draf.node.supervisor import Supervisor
 from draf.node.transform import Transform
 
 
@@ -38,9 +39,12 @@ class Flow:
         self._branch_ends: list[str] = []
         self._route_terminates = False
 
-    def _next_id(self, node: Node) -> str:
+    def _next_id(self, node: Node, id_hint: str | None = None) -> str:
         self._counter += 1
-        return f"{node.type}_{self._counter}"
+        nid = id_hint or f"{node.type}_{self._counter}"
+        if nid in self._node_ids:
+            raise ValueError(f"duplicate node id: {nid}")
+        return nid
 
     def _check_continuation(self) -> None:
         """Raise if the last route() terminated the flow (finish=None)."""
@@ -58,7 +62,7 @@ class Flow:
             return [node_or_chain]
         return list(node_or_chain)
 
-    def step(self, node: Node) -> "Flow":
+    def step(self, node: Node, id: str | None = None) -> "Flow":
         """Append a node to the linear chain.
 
         Accepts a Node instance::
@@ -67,20 +71,21 @@ class Flow:
             flow.step(LLM(model="gpt-4"))
             flow.step(custom_node)
 
-        Returns ``self`` for chaining.
+        *id* optionally names the node in the compiled graph instead of
+        the auto-generated ``{type}_{n}``.  Returns ``self`` for chaining.
         """
         self._check_continuation()
         if not isinstance(node, Node):
             raise TypeError("step expects a Node instance")
         self._nodes.append(node)
-        nid = self._next_id(node)
+        nid = self._next_id(node, id)
         self._node_ids.append(nid)
         if self._last_added is not None:
             self._edges.append(Edge(source_id=self._last_added, target_id=nid))
         self._last_added = nid
         return self
 
-    def llm(self, node: LLM | None = None, **config) -> "Flow":
+    def llm(self, node: LLM | None = None, id: str | None = None, **config) -> "Flow":
         """Add an :class:`~draf.node.llm.LLM` chat node.
 
         Pass a pre-built ``LLM`` instance to reuse a shared node, or give
@@ -90,6 +95,7 @@ class Flow:
             flow.llm(LLM(model="gpt-4", parse=True, output_key="data"))
 
         Passing both an instance and config kwargs raises ``TypeError``.
+        *id* optionally names the node in the compiled graph.
 
         Returns ``self`` for chaining.
         """
@@ -102,9 +108,11 @@ class Flow:
                 )
             if not isinstance(node, LLM):
                 raise TypeError("llm() expects an LLM instance")
-        return self.step(node)
+        return self.step(node, id=id)
 
-    def transform(self, node: Transform | None = None, **config) -> "Flow":
+    def transform(
+        self, node: Transform | None = None, id: str | None = None, **config
+    ) -> "Flow":
         """Add a :class:`~draf.node.transform.Transform` node.
 
         Pass a pre-built ``Transform`` instance or keyword config that is
@@ -114,6 +122,7 @@ class Flow:
             flow.transform(Transform(action="value", value="done", output_key="status"))
 
         Passing both an instance and config kwargs raises ``TypeError``.
+        *id* optionally names the node in the compiled graph.
 
         Returns ``self`` for chaining.
         """
@@ -126,26 +135,62 @@ class Flow:
                 )
             if not isinstance(node, Transform):
                 raise TypeError("transform() expects a Transform instance")
-        return self.step(node)
+        return self.step(node, id=id)
 
-    def add_flow(self, flow: "Flow", **kw) -> "Flow":
+    def supervisor(
+        self,
+        node: "Supervisor | None" = None,
+        id: str | None = None,
+        **config,
+    ) -> "Flow":
+        """Add a :class:`~draf.node.supervisor.Supervisor` decider node.
+
+        Pass a pre-built ``Supervisor`` instance to reuse a shared node, or
+        keyword config that is forwarded to the ``Supervisor`` constructor::
+
+            flow.supervisor(
+                model="llama3.1:8b",
+                provider="ollama",
+                sections=AGENT_SECTIONS,
+                route_keys={"planner": "plan", "reviewer": "review"},
+                done_keys={"plan", "review"},
+            ).route("next_agent", ...)
+
+        Passing both an instance and config kwargs raises ``TypeError``.
+        *id* optionally names the node in the compiled graph.
+
+        Returns ``self`` for chaining.
+        """
+        if node is None:
+            node = Supervisor(**config)
+        else:
+            if config:
+                raise TypeError(
+                    "supervisor() accepts either a Supervisor instance or config kwargs, not both"
+                )
+            if not isinstance(node, Supervisor):
+                raise TypeError("supervisor() expects a Supervisor instance")
+        return self.step(node, id=id)
+
+    def add_flow(self, flow: "Flow", id: str | None = None, **kw) -> "Flow":
         """Embed a sub-flow as a single node (SubFlow).
 
         The *flow* is compiled and wrapped in a SubFlow node.
         Pass *input_map* / *output_map* as keyword arguments for key remapping.
         Pass *max_iterations* to limit internal steps (see :class:`SubFlow`).
+        *id* optionally names the node in the compiled graph.
         """
         self._check_continuation()
         sub = SubFlow(graph=flow.compile(), **kw)
         self._nodes.append(sub)
-        nid = self._next_id(sub)
+        nid = self._next_id(sub, id)
         self._node_ids.append(nid)
         if self._last_added is not None:
             self._edges.append(Edge(source_id=self._last_added, target_id=nid))
         self._last_added = nid
         return self
 
-    def parallel(self, *branches) -> "Flow":
+    def parallel(self, *branches, id: str | None = None) -> "Flow":
         """Run several branch chains concurrently from the last node.
 
         Each *branch* is a single :class:`Node`, a list of nodes (run
@@ -160,12 +205,14 @@ class Flow:
                 [Transform(action="uppercase", input_key="a", output_key="a")],
                 [Transform(action="uppercase", input_key="b", output_key="b")],
             ).converge(shout_node)
+
+        *id* optionally names the node in the compiled graph.
         """
         self._check_continuation()
         branch_specs: list[Node | list[Node]] = [self._as_branch(b) for b in branches]
         node = Parallel(branch_specs)
         self._nodes.append(node)
-        nid = self._next_id(node)
+        nid = self._next_id(node, id)
         self._node_ids.append(nid)
         if self._last_added is not None:
             self._edges.append(Edge(source_id=self._last_added, target_id=nid))
@@ -189,6 +236,7 @@ class Flow:
         output_key: str = "",
         chunk_size: int | None = None,
         max_concurrency: int | None = None,
+        id: str | None = None,
         **kwargs,
     ) -> "Flow":
         """Dynamically fan a state list out across parallel branches.
@@ -203,6 +251,8 @@ class Flow:
                 input_keys=["chunks"],
                 output_key="summaries",
             )
+
+        *id* optionally names the node in the compiled graph.
         """
         self._check_continuation()
         node = Map(
@@ -214,7 +264,7 @@ class Flow:
             **kwargs,
         )
         self._nodes.append(node)
-        nid = self._next_id(node)
+        nid = self._next_id(node, id)
         self._node_ids.append(nid)
         if self._last_added is not None:
             self._edges.append(Edge(source_id=self._last_added, target_id=nid))
@@ -246,9 +296,9 @@ class Flow:
         for case in cases:
             self._last_branch_values.append(case.value)
             prev_id: str | None = None
-            for n in case._nodes:
+            for n, cid in zip(case._nodes, case._ids):
                 self._nodes.append(n)
-                nid = self._next_id(n)
+                nid = self._next_id(n, cid)
                 self._node_ids.append(nid)
                 parent = prev_id if prev_id is not None else self._last_added
                 condition = f"{key}={case.value}" if prev_id is None else None
@@ -275,11 +325,11 @@ class Flow:
             self._last_added = self._branch_ends[-1]
         return self
 
-    def default(self, node: Node) -> "Flow":
+    def default(self, node: Node, id: str | None = None) -> "Flow":
         """Add a fallback node for the most recent branch."""
         self._check_continuation()
         self._nodes.append(node)
-        dnid = self._next_id(node)
+        dnid = self._next_id(node, id)
         self._node_ids.append(dnid)
         bp = self._branch_point or self._last_added
         if self._last_branch_key and self._last_branch_values:
@@ -297,7 +347,7 @@ class Flow:
         self._last_added = dnid
         return self
 
-    def converge(self, node: Node) -> "Flow":
+    def converge(self, node: Node, id: str | None = None) -> "Flow":
         """Merge all branch ends into a single node.
 
         Adds edges from every branch end (set by the last ``branch()``
@@ -307,10 +357,12 @@ class Flow:
                 Case("positive").add(on_pos),
                 Case("negative").add(on_neg),
             ).converge(shout_node)
+
+        *id* optionally names the node in the compiled graph.
         """
         self._check_continuation()
         self._nodes.append(node)
-        nid = self._next_id(node)
+        nid = self._next_id(node, id)
         self._node_ids.append(nid)
         for src in self._branch_ends:
             self._edges.append(Edge(source_id=src, target_id=nid))
@@ -318,7 +370,7 @@ class Flow:
         self._branch_ends = []
         return self
 
-    def interrupt(self, key: str, prompt: str = "") -> "Flow":
+    def interrupt(self, key: str, prompt: str = "", id: str | None = None) -> "Flow":
         """Pause the flow for human input at this point.
 
         Appends an :class:`~draf.node.interrupt.Interrupt` node.  When
@@ -346,7 +398,7 @@ class Flow:
         """
         from draf.node.interrupt import Interrupt
 
-        return self.step(Interrupt(key=key, prompt=prompt))
+        return self.step(Interrupt(key=key, prompt=prompt), id=id)
 
     def loop(
         self,
@@ -482,14 +534,17 @@ class Flow:
         if not agents:
             raise ValueError("route requires at least one agent route")
 
-        def add_chain(chain: list[Node], first_condition: str) -> tuple[str, str]:
+        def add_chain(
+            chain: list[Node], first_condition: str, first_hint: str | None = None
+        ) -> tuple[str, str]:
             first_id: str | None = None
             prev: str | None = None
-            for n in chain:
+            for i, n in enumerate(chain):
                 if not isinstance(n, Node):
                     raise TypeError("route expects Node instances in chains")
                 self._nodes.append(n)
-                nid = self._next_id(n)
+                hint = n.config.get("id") or (first_hint if i == 0 else None)
+                nid = self._next_id(n, hint)
                 self._node_ids.append(nid)
                 if first_id is None:
                     self._edges.append(
@@ -509,14 +564,29 @@ class Flow:
             assert prev is not None
             return first_id, prev
 
+        def _chain_hint(chain: list[Node], value: str) -> str | None:
+            """Name a prefixed SubFlow chain after its route value.
+
+            ``agent_step(id="planner")`` yields a SubFlow whose internal
+            nodes are ``planner/<node>``; naming the outer node ``planner``
+            keeps the route key visible in the parent graph.
+            """
+            first = chain[0] if chain else None
+            if isinstance(first, SubFlow) and first._id_prefix == value:
+                return value
+            return None
+
         finish_chain = self._as_chain(finish)
         if finish_chain:
-            _, done_last = add_chain(finish_chain, f"{key}=finish")
+            _, done_last = add_chain(
+                finish_chain, f"{key}=finish", _chain_hint(finish_chain, "finish")
+            )
         else:
             done_last = decider
 
         for value, chain in agents.items():
-            _, last = add_chain(self._as_chain(chain), f"{key}={value}")
+            chain = self._as_chain(chain)
+            _, last = add_chain(chain, f"{key}={value}", _chain_hint(chain, value))
             self._edges.append(Edge(source_id=last, target_id=decider))
 
         self._last_added = done_last
@@ -543,6 +613,7 @@ class Flow:
         use_tools: str | list[str] | None = None,
         skills: list | None = None,
         skill_dir: str = "skills",
+        id: str | None = None,
         **config,
     ) -> "Flow":
         """Build a ReAct-style agent loop (LLM ↔ tools) inside this flow.
@@ -557,6 +628,10 @@ class Flow:
         Multiple tools can be requested in a single round (e.g. read from
         RAG *and* compute at once); the executor fans them out with
         ``asyncio.gather``.
+
+        *id* names the two nodes created by this helper as ``{id}/agent``
+        and ``{id}/tool``; when omitted they keep the auto-generated
+        ``{type}_{n}`` ids.
 
         The agent node is a :class:`~draf.node.agent.ReActAgent`.  Pass a
         pre-built instance or a subclass to override its behaviour::
@@ -648,11 +723,11 @@ class Flow:
         )
 
         self._nodes.append(agent_node)
-        agent_id = self._next_id(agent_node)
+        agent_id = self._next_id(agent_node, f"{id}/agent" if id else None)
         self._node_ids.append(agent_id)
 
         self._nodes.append(tool_exec)
-        tool_id = self._next_id(tool_exec)
+        tool_id = self._next_id(tool_exec, f"{id}/tool" if id else None)
         self._node_ids.append(tool_id)
 
         self._edges.append(Edge(agent_id, tool_id, "_tool_call_name!="))
