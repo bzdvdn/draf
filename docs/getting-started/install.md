@@ -7,6 +7,16 @@ pip install draf
 Python **>=\ 3.11**. Core runtime depends only on `httpx`, `pyyaml`, and
 `typer`.
 
+## The CLI
+
+The `draf` CLI ships with the package. Prefer uv? uv installs the package
+**and** the CLI in one step:
+
+```bash
+uv tool install draf         # global `draf` CLI
+uvx draf -f workflow.yaml    # run on the fly without installing anything
+```
+
 ## Extras
 
 Install only what you need; `draf[all]` pulls in everything.
@@ -29,3 +39,27 @@ pip install "draf[embedding]"
 pip install "draf[tools]"
 pip install "draf[all]"
 ```
+
+## Docker
+
+Ready-made images are published to Docker Hub for every `v*` release tag. They
+mirror the extras above, so pick the variant that matches your deployment:
+
+| Image                   | Contents                        | Runs                                            |
+| ----------------------- | ------------------------------- | ----------------------------------------------- |
+| `bzdvdn/draf`           | core + `draf[tools]`            | the `draf` CLI — run/validate/inspect workflows |
+| `bzdvdn/draf-fastapi`   | core + `draf[fastapi]`          | `uvicorn` — a FastAPI server app                |
+| `bzdvdn/draf-worker`    | core + `draf[queue]`            | `celery` — background workers / beat            |
+| `bzdvdn/draf-all`       | every extra except `docs`       | the `draf` CLI with the full optional surface   |
+
+Run a workflow from a mounted `workflow.yaml` (plus an optional `plugins/`
+folder) in one shot:
+
+```bash
+docker run --rm -v "$PWD:/workflow" \
+  bzdvdn/draf:latest run -f /workflow/workflow.yaml
+```
+
+All CLI subcommands and flags work inside the container. Images run as a
+non-root user (UID 65534) with durable checkpoints under `/data/checkpoints`
+(see the [README](https://github.com/bzdvdn/draf#docker)).

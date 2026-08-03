@@ -1,6 +1,12 @@
 # CLI Reference
 
 `draf` runs YAML workflows, validates them, and reports on runs and evals.
+It is installed with the package (`pip install draf`), or standalone via uv:
+
+```bash
+uv tool install draf         # global `draf` CLI
+uvx draf -f workflow.yaml    # run on the fly without installing anything
+```
 
 ```bash
 draf -f workflow.yaml                      # run (the default command)

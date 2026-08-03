@@ -27,6 +27,14 @@ pip install draf
 
 Python >= 3.11. Core runtime depends only on `httpx`, `pyyaml`, and `typer`.
 
+The `draf` CLI ships with the package. Prefer uv? The same command works — uv
+installs the package **and** the CLI in one go:
+
+```bash
+uv tool install draf         # global `draf` CLI
+uvx draf -f workflow.yaml    # run on the fly without installing anything
+```
+
 ## Quick start
 
 ### YAML workflow
@@ -776,6 +784,53 @@ Every generated app wires its graph, tools, checkpointer and assistant through a
 single composition root — `src/core/container.py:build_container` — so the CLI,
 server and worker behave identically.
 
+## Docker
+
+Official images are published to Docker Hub for every `v*` tag. One build,
+four variants — pick the one that matches how you deploy:
+
+| Image                    | Contents                        | Runs                                             |
+| ------------------------ | ------------------------------- | ------------------------------------------------ |
+| `bzdvdn/draf`            | core + `draf[tools]`            | the `draf` CLI — run/validate/inspect workflows  |
+| `bzdvdn/draf-fastapi`    | core + `draf[fastapi]`          | `uvicorn` — a FastAPI server app                 |
+| `bzdvdn/draf-worker`     | core + `draf[queue]`            | `celery` — background workers / beat             |
+| `bzdvdn/draf-all`        | every extra except `docs`       | the `draf` CLI with the full optional surface    |
+
+Run a workflow from a mounted `workflow.yaml` (plus an optional `plugins/`
+folder) in one shot — plugins are plain Python files loaded at runtime, so a
+container isolates untrusted workflow code:
+
+```bash
+docker run --rm -v "$PWD:/workflow" \
+  bzdvdn/draf:latest run -f /workflow/workflow.yaml
+```
+
+Interactive mode, with durable checkpoints:
+
+```bash
+docker run --rm -it \
+  -v "$PWD/workflow.yaml:/workflow/workflow.yaml" \
+  -v "$PWD/plugins:/workflow/plugins" \
+  -v draf-checkpoints:/data/checkpoints \
+  bzdvdn/draf:latest run -f /workflow/workflow.yaml --interactive
+```
+
+Every image runs as a non-root user (UID 65534) with checkpoints under
+`/data/checkpoints`. The `fastapi` and `worker` images are base images for your
+own app — extend them with your `main.py`, or mount it and override the
+command:
+
+```bash
+docker run -p 8000:8000 -v "$PWD/app:/app" \
+  bzdvdn/draf-fastapi:latest main:app
+docker run -v "$PWD:/app" bzdvdn/draf-worker:latest -A src.celery_app worker
+```
+
+All CLI subcommands (`run`, `daemon`, `validate`, `graph`, `eval`, `inspect`,
+`new`) and flags work inside the container. Local builds use
+`docker buildx bake` — see [`Dockerfile`](Dockerfile) and
+[`docker-bake.hcl`](docker-bake.hcl).
+
 ## Cost & token reports
 
 `RunSummary` folds the trace into cost and token figures. Costs are
@@ -1017,11 +1072,11 @@ uv run mkdocs build            # docs (requires: pip install -e ".[docs]")
 
 The repo ships three GitHub Actions workflows in [`.github/workflows/`](.github/workflows/):
 
-| Trigger          | What runs                                                                                                |
-| ---------------- | -------------------------------------------------------------------------------------------------------- |
-| Pull request     | `ci.yml` — lint (`ruff check`, `ruff format --check`, `mypy`) **and** tests across Python 3.11/3.12/3.13 |
-| Push to `master` | `ci.yml` — tests only (fast feedback, no redundant lint)                                                 |
-| Tag `v*`         | `release.yml` — tests → build sdist/wheel → publish to PyPI → GitHub Release → docs to GitHub Pages      |
+| Trigger          | What runs                                                                                                                  |
+| ---------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| Pull request     | `ci.yml` — lint (`ruff check`, `ruff format --check`, `mypy`) **and** tests across Python 3.11/3.12/3.13                    |
+| Push to `master` | `ci.yml` — the same lint and tests as a PR (keeps `master` green without opening one)                                      |
+| Tag `v*`         | `release.yml` — tests → build sdist/wheel → PyPI → GitHub Release → **Docker images to Docker Hub** → docs to GitHub Pages |
 
 Tests install the full optional surface (`uv sync --frozen --all-extras`) so the
 RAG-store, FastAPI, and scaffold tests exercise real integrations; the suite is
@@ -1038,8 +1093,10 @@ fully offline (no API keys), and the LLM examples that need Ollama are not run.
    git push origin v0.1.0
    ```
 
-3. `release.yml` runs tests, builds the package, publishes it to PyPI,
-   attaches the artifacts to a GitHub Release, and deploys the docs.
+3. `release.yml` runs tests, builds the package, publishes it to PyPI, pushes
+   the four Docker images (`draf`, `draf-fastapi`, `draf-worker`, `draf-all`)
+   to Docker Hub, attaches the artifacts to a GitHub Release, and deploys the
+   docs.
 
 ### One-time setup
 
@@ -1047,6 +1104,12 @@ fully offline (no API keys), and the LLM examples that need Ollama are not run.
   so no API token is stored. In your PyPI account add a pending publisher for
   `draf`: owner `bzdvdn`, repository `draf`, workflow `release.yml`, environment
   `release` (the publish job pins `environment: release`).
+- **Docker Hub** — the `docker` job logs in with two repository secrets:
+  `docker_login` (your Docker Hub username) and `docker_password` (a Docker Hub
+  **access token**, not your account password — Account Settings → Security →
+  Access Tokens, scope _Read & Write_). The image repositories
+  (`draf`, `draf-fastapi`, `draf-worker`, `draf-all`) are created automatically
+  on the first push.
 - **GitHub Pages** — enable Pages on the repository and set the source to
   _GitHub Actions_; the `docs` job deploys `site/` on every release.
 
