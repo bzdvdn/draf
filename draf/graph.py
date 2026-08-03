@@ -654,25 +654,40 @@ class Graph:
         """
         return value.strip().lower().rstrip(".,!?;:")
 
+    @staticmethod
+    def _split_condition(condition: str) -> tuple[str, str, str] | None:
+        """Split a condition into ``(op, key, raw)`` with explicit precedence.
+
+        Multi-character operators (``>=``, ``<=``, ``!=``) are tried before
+        the single characters they contain (``>``, ``<``, ``=``), so
+        ``count>=3`` and ``status!=done`` parse on the compound operator
+        instead of accidentally matching ``>`` / ``=``.  ``!=`` must be
+        matched before ``=`` for the same reason.
+        """
+        for op in (">=", "<=", "!=", ">", "<", "="):
+            idx = condition.find(op)
+            if idx != -1:
+                return op, condition[:idx].strip(), condition[idx + len(op) :].strip()
+        return None
+
     def _evaluate(self, condition: str, state: dict) -> bool:
-        for op, fn in ((">=", _gte), ("<=", _lte), (">", _gt), ("<", _lt)):
-            if op in condition:
-                key, raw = condition.split(op, 1)
-                key = key.strip()
-                state_val = state.get(key)
-                if state_val is None:
-                    return False
-                try:
-                    left = float(state_val)
-                    right = float(raw.strip())
-                except (TypeError, ValueError):
-                    return False
-                return fn(left, right)
-        if "!=" in condition:
-            key, value = condition.split("!=", 1)
-            key = key.strip()
-            raw = value.strip()
-            state_val = state.get(key)
+        parts = self._split_condition(condition)
+        if parts is None:
+            return False
+        op, key, raw = parts
+        state_val = state.get(key)
+
+        if op in (">=", "<=", ">", "<"):
+            if state_val is None:
+                return False
+            try:
+                left = float(state_val)
+                right = float(raw)
+            except (TypeError, ValueError):
+                return False
+            return {">": _gt, "<": _lt, ">=": _gte, "<=": _lte}[op](left, right)
+
+        if op == "!=":
             if raw == "":
                 return state_val is not None and state_val != ""
             if state_val is None:
@@ -682,21 +697,17 @@ class Graph:
                 values = [self._norm(v) for v in raw.split(",")]
                 return state_str not in values
             return state_str != self._norm(raw)
-        if "=" in condition:
-            parts = condition.split("=", 1)
-            key = parts[0].strip()
-            raw = parts[1].strip()
-            state_val = state.get(key)
-            if raw == "":
-                return state_val is None or state_val == ""
-            if state_val is None:
-                return False
-            state_str = self._norm(str(state_val))
-            if "," in raw:
-                values = [self._norm(v) for v in raw.split(",")]
-                return state_str in values
-            return state_str == self._norm(raw)
-        return False
+
+        # Equality ("=").
+        if raw == "":
+            return state_val is None or state_val == ""
+        if state_val is None:
+            return False
+        state_str = self._norm(str(state_val))
+        if "," in raw:
+            values = [self._norm(v) for v in raw.split(",")]
+            return state_str in values
+        return state_str == self._norm(raw)
 
     def to_yaml(self) -> str:
         """Serialize this graph to a YAML string."""

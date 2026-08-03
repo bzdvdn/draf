@@ -169,7 +169,6 @@ draf/
 ├── graph.py               # Graph: nodes + edges, run()
 ├── yaml.py                # from_yaml(), to_yaml()
 ├── tool.py                # Tool base, FuncTool
-├── executor.py            # runtime execution engine
 └── builtin/
     ├── __init__.py         # auto-register builtins
     ├── llm.py              # LLM node

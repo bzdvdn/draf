@@ -28,20 +28,26 @@ SKIP = {
 
 def modules(root: Path) -> Iterable[Path]:
     for path in sorted(root.rglob("*.py")):
-        if path.name == "__init__.py":
-            continue
-        if path.name.startswith("_"):
-            continue
         if any(part in SKIP for part in path.parts):
             continue
         if path.name.endswith("test_") or "tests" in path.parts:
+            continue
+        if path.name == "__init__.py":
+            if path == root / "__init__.py":
+                continue
+            yield path
+            continue
+        if path.name.startswith("_"):
             continue
         yield path
 
 
 def rel_name(path: Path) -> str:
     rel = path.relative_to(PKG)
-    return "draf." + ".".join(rel.with_suffix("").parts)
+    parts = list(rel.with_suffix("").parts)
+    if parts and parts[-1] == "__init__":
+        parts.pop()
+    return "draf." + ".".join(parts)
 
 
 def main() -> None:

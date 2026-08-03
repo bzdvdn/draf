@@ -22,7 +22,7 @@ jobs:
       - name: Install dependencies
         run: uv sync --frozen --all-extras
       - name: Run tests
-        run: uv run pytest -q
+        run: uv run pytest -q --cov=draf --cov-report=term-missing --cov-fail-under=80
 
   build:
     name: Build sdist & wheel

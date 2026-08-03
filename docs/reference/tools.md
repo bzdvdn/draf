@@ -78,7 +78,9 @@ The same works in Python:
 from draf.tool.registry import default_tool_registry
 
 sql = default_tool_registry.create("sql_query", {"db_type": "sqlite", "path": "./v.db"})
-shell = default_tool_registry.create("shell", {"root_dir": "/tmp", "allowed_commands": ["echo"]})
+shell = default_tool_registry.create(
+    "shell", {"root_dir": "/tmp", "allowed_commands": ["echo"]}
+)
 ```
 
 ## Writing a custom tool
