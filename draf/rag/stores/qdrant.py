@@ -101,13 +101,13 @@ class QdrantVectorStore(VectorStore):
             query_filter=_to_qdrant_filter(filter),
         )
         return [
-            (r.payload.get("doc_id", str(r.id)), r.score, r.payload)
+            (r.payload.get("doc_id", str(r.id)), r.score, r.payload)  # type: ignore[misc, union-attr]
             for r in results.points
         ]
 
     async def delete(self, ids: list[str]) -> None:
         hashed = [self._hash_id(vid) for vid in ids]
-        self._client.delete(collection_name=self._collection, points_selector=hashed)
+        self._client.delete(collection_name=self._collection, points_selector=hashed)  # type: ignore[arg-type]
 
     async def count(self) -> int:
         return self._client.count(collection_name=self._collection).count
@@ -123,7 +123,7 @@ class QdrantVectorStore(VectorStore):
             with_vectors=False,
         )
         points, _ = res
-        return [(p.payload.get("doc_id", str(p.id)), p.payload) for p in points]
+        return [(p.payload.get("doc_id", str(p.id)), p.payload) for p in points]  # type: ignore[misc, union-attr]
 
     async def get(self, ids: list[str]) -> list[tuple[str, dict]]:
         hashed = [self._hash_id(vid) for vid in ids]
@@ -133,7 +133,7 @@ class QdrantVectorStore(VectorStore):
             with_payload=True,
             with_vectors=False,
         )
-        return [(p.payload.get("doc_id", str(p.id)), p.payload) for p in res]
+        return [(p.payload.get("doc_id", str(p.id)), p.payload) for p in res]  # type: ignore[misc, union-attr]
 
     async def update_metadata(self, id: str, metadata: dict) -> None:
         from qdrant_client import models

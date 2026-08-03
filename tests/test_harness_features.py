@@ -19,8 +19,8 @@ def _mock_response(data: dict):
 
 class TestNestedSchema:
     def test_flat_types(self):
-        from draf.tool import Tool
         from draf.harness import tool_to_schema
+        from draf.tool import Tool
 
         class Flat(Tool):
             name = "flat"
@@ -38,8 +38,8 @@ class TestNestedSchema:
         assert props["count"]["default"] == 0
 
     def test_nested_list_of_dict(self):
-        from draf.tool import Tool
         from draf.harness import tool_to_schema
+        from draf.tool import Tool
 
         class Nested(Tool):
             name = "nested"
@@ -58,8 +58,8 @@ class TestNestedSchema:
     def test_nested_typed_list(self):
         from typing import TypedDict
 
-        from draf.tool import Tool
         from draf.harness import tool_to_schema
+        from draf.tool import Tool
 
         class Item(TypedDict):
             name: str
@@ -80,8 +80,8 @@ class TestNestedSchema:
         assert "items" in schema["function"]["parameters"]["required"]
 
     def test_dict_str_to_str(self):
-        from draf.tool import Tool
         from draf.harness import tool_to_schema
+        from draf.tool import Tool
 
         class Map(Tool):
             name = "map_tool"
@@ -98,8 +98,8 @@ class TestNestedSchema:
     def test_typeddict_expands(self):
         from typing import TypedDict
 
-        from draf.tool import Tool
         from draf.harness import tool_to_schema
+        from draf.tool import Tool
 
         class Config(TypedDict):
             host: str
@@ -360,8 +360,8 @@ class TestTokenBudget:
 class TestToolApproval:
     @pytest.mark.asyncio
     async def test_deny_shortcircuits_call(self, monkeypatch):
+        from draf.graph import Edge, Graph
         from draf.node.agent import ReActAgent, ToolExec
-        from draf.graph import Graph, Edge
         from draf.tool import Tool
 
         monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
@@ -427,8 +427,8 @@ class TestToolApproval:
 
     @pytest.mark.asyncio
     async def test_approve_allows_execution(self, monkeypatch):
+        from draf.graph import Edge, Graph
         from draf.node.agent import ReActAgent, ToolExec
-        from draf.graph import Graph, Edge
         from draf.tool import Tool
 
         monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
@@ -470,8 +470,12 @@ class TestToolApproval:
 
         g = Graph(
             nodes={
-                "agent": ReActAgent({"model": "gpt-4", "input_key": "input", "use_tools": ["safe"]}),
-                "tool": ToolExec({"tool_approval": lambda name, args: True, "use_tools": ["safe"]}),
+                "agent": ReActAgent(
+                    {"model": "gpt-4", "input_key": "input", "use_tools": ["safe"]}
+                ),
+                "tool": ToolExec(
+                    {"tool_approval": lambda name, args: True, "use_tools": ["safe"]}
+                ),
             },
             edges=[
                 Edge("agent", "tool", "_tool_call_name!="),
@@ -486,9 +490,9 @@ class TestToolApproval:
 
     @pytest.mark.asyncio
     async def test_pause_raises_interrupt(self, monkeypatch):
+        from draf.graph import Edge, Graph
         from draf.node.agent import ReActAgent, ToolExec
         from draf.node.interrupt import GraphInterrupt
-        from draf.graph import Graph, Edge
         from draf.tool import Tool
 
         monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
@@ -550,11 +554,11 @@ class TestToolApproval:
 
     @pytest.mark.asyncio
     async def test_pause_then_resume_approves(self, monkeypatch, tmp_path):
+        from draf.checkpoint import JSONFileCheckpointer
+        from draf.graph import Edge, Graph
         from draf.node.agent import ReActAgent, ToolExec
         from draf.node.interrupt import GraphInterrupt
-        from draf.graph import Graph, Edge
         from draf.tool import Tool
-        from draf.checkpoint import JSONFileCheckpointer
 
         monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
 
@@ -602,8 +606,12 @@ class TestToolApproval:
 
         g = Graph(
             nodes={
-                "agent": ReActAgent({"model": "gpt-4", "input_key": "input", "use_tools": ["sensitive"]}),
-                "tool": ToolExec({"tool_approval": approver, "use_tools": ["sensitive"]}),
+                "agent": ReActAgent(
+                    {"model": "gpt-4", "input_key": "input", "use_tools": ["sensitive"]}
+                ),
+                "tool": ToolExec(
+                    {"tool_approval": approver, "use_tools": ["sensitive"]}
+                ),
             },
             edges=[
                 Edge("agent", "tool", "_tool_call_name!="),
@@ -693,8 +701,8 @@ class TestToolApproval:
 class TestReActStreaming:
     @pytest.mark.asyncio
     async def test_agent_streams_tokens(self, monkeypatch):
-        from draf.node.agent import ReActAgent
         from draf.graph import Graph
+        from draf.node.agent import ReActAgent
 
         monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
 

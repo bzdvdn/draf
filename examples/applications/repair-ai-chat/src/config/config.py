@@ -39,7 +39,9 @@ class Settings(BaseSettings):
 
     #: App metadata surfaced by FastAPI.
     app_title: str = "Production Repair AI"
-    app_description: str = "Supervisor flow for repair planning over room, budget and materials agents."
+    app_description: str = (
+        "Supervisor flow for repair planning over room, budget and materials agents."
+    )
     version: str = "0.1.0"
 
     #: Durable session storage and RAG data paths (None = project defaults).

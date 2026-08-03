@@ -1,7 +1,6 @@
 """Room geometry tools."""
 
 from draf.tool.tool import Tool
-
 from src.domain.services.room import RoomService
 
 
@@ -23,8 +22,7 @@ class CalculateWallArea(Tool):
 class CalculateFloorArea(Tool):
     name = "calculate_floor_area"
     description = (
-        "Calculate the floor area of a room. "
-        "Useful for tiles, laminate, or flooring."
+        "Calculate the floor area of a room. Useful for tiles, laminate, or flooring."
     )
 
     def __init__(self, service: RoomService):
@@ -50,8 +48,7 @@ class CalculateCeilingArea(Tool):
 class CalculatePerimeter(Tool):
     name = "calculate_perimeter"
     description = (
-        "Calculate the perimeter of a room. "
-        "Useful for baseboards or crown molding."
+        "Calculate the perimeter of a room. Useful for baseboards or crown molding."
     )
 
     def __init__(self, service: RoomService):

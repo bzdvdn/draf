@@ -6,10 +6,10 @@ import os
 import uuid
 from typing import Callable
 
-from draf.tool.tool import Tool
 from draf.rag.base import VectorStore
-from draf.rag.embedder import Embedder
 from draf.rag.chunker import Chunker
+from draf.rag.embedder import Embedder
+from draf.tool.tool import Tool
 
 
 def load_documents_csv(

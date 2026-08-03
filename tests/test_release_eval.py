@@ -209,6 +209,7 @@ class TestRunEval:
 class TestCLIEval:
     def test_eval_command(self, tmp_path, monkeypatch):
         from typer.testing import CliRunner
+
         from draf.cli import app
 
         runner = CliRunner()
@@ -230,6 +231,7 @@ class TestCLIEval:
 
     def test_validate_command_ok(self, tmp_path):
         from typer.testing import CliRunner
+
         from draf.cli import app
 
         runner = CliRunner()
@@ -243,6 +245,7 @@ class TestCLIEval:
 
     def test_validate_command_fails(self, tmp_path):
         from typer.testing import CliRunner
+
         from draf.cli import app
 
         runner = CliRunner()
@@ -254,6 +257,7 @@ class TestCLIEval:
 
     def test_version_command(self):
         from typer.testing import CliRunner
+
         from draf.cli import app
 
         result = CliRunner().invoke(app, ["version"])
@@ -263,8 +267,9 @@ class TestCLIEval:
     def test_inspect_command(self, tmp_path):
 
         from typer.testing import CliRunner
+
+        from draf.checkpoint import Checkpoint, JSONFileCheckpointer
         from draf.cli import app
-        from draf.checkpoint import JSONFileCheckpointer, Checkpoint
 
         cp_dir = tmp_path / "cps"
         cp = JSONFileCheckpointer(str(cp_dir))

@@ -11,7 +11,7 @@ class EchoTool(Tool):
     name = "echo"
     description = "Echo args back"
 
-    async def arun(self, message: str = "", repeat: int = 1) -> str:
+    async def arun(self, message: str = "", repeat: int = 1) -> str:  # type: ignore[override]
         return (message * repeat) or "empty"
 
 

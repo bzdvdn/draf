@@ -112,11 +112,15 @@ class GitLabGetMRChangesTool(_GitLabBase):
         data = json.loads(text)
         changes = data.get("changes", [])
         out = [f"# MR !{iid}: {data.get('title', '')}"]
-        out.append(f"state={data.get('state', '')}  target_branch={data.get('target_branch', '')}")
+        out.append(
+            f"state={data.get('state', '')}  target_branch={data.get('target_branch', '')}"
+        )
         for change in changes:
-            out.append(f"\n== {change.get('new_path', '')} "
-                       f"(+{change.get('new_file', False)} "
-                       f"-{change.get('deleted_file', False)})")
+            out.append(
+                f"\n== {change.get('new_path', '')} "
+                f"(+{change.get('new_file', False)} "
+                f"-{change.get('deleted_file', False)})"
+            )
             diff = change.get("diff", "")
             out.append(diff[:max_chars])
         return "\n".join(out)
@@ -145,9 +149,7 @@ class GitLabPostNoteTool(_GitLabBase):
         url = f"{self.url}/api/v4{path}"
         headers = {"PRIVATE-TOKEN": self.token}
         async with httpx.AsyncClient(timeout=30) as client:
-            response = await client.post(
-                url, headers=headers, json={"body": body}
-            )
+            response = await client.post(url, headers=headers, json={"body": body})
             if response.status_code >= 400:
                 raise ValueError(
                     f"GitLab POST {path} -> HTTP {response.status_code}: "

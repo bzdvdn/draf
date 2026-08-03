@@ -14,7 +14,6 @@ from draf.checkpoint import DEFAULT_OWNER
 from draf.graph import Graph
 from draf.stream import StreamEvent
 from draf.tool import Tool
-
 from src.graphs.state import STATE_REDUCERS
 from src.storage import load_or_seed
 

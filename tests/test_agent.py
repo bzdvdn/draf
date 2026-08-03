@@ -4,8 +4,8 @@ import pytest
 class TestReActAgent:
     @pytest.mark.asyncio
     async def test_agent_responds_directly(self, monkeypatch):
-        from draf.node.agent import ReActAgent
         from draf.graph import Graph
+        from draf.node.agent import ReActAgent
 
         monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
 
@@ -38,8 +38,8 @@ class TestReActAgent:
 
     @pytest.mark.asyncio
     async def test_agent_tool_cycle(self, monkeypatch):
+        from draf.graph import Edge, Graph
         from draf.node.agent import ReActAgent, ToolExec
-        from draf.graph import Graph, Edge
         from draf.tool import Tool
 
         monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
@@ -111,8 +111,8 @@ class TestReActAgent:
 
     @pytest.mark.asyncio
     async def test_agent_loop_exceeds_max_iterations(self, monkeypatch):
+        from draf.graph import Edge, Graph
         from draf.node.agent import ReActAgent, ToolExec
-        from draf.graph import Graph, Edge
 
         monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
 
@@ -175,10 +175,11 @@ class TestReActAgent:
 class TestParallelToolExecution:
     @pytest.mark.asyncio
     async def test_multiple_tools_fan_out_in_parallel(self, monkeypatch):
-        from draf.node.agent import ReActAgent, ToolExec
-        from draf.graph import Graph, Edge
-        from draf.tool import Tool
         import asyncio
+
+        from draf.graph import Edge, Graph
+        from draf.node.agent import ReActAgent, ToolExec
+        from draf.tool import Tool
 
         monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
 
@@ -242,7 +243,12 @@ class TestParallelToolExecution:
         g = Graph(
             nodes={
                 "agent": ReActAgent(
-                    {"model": "gpt-4", "input_key": "input", "output_key": "output", "use_tools": ["slowtool"]}
+                    {
+                        "model": "gpt-4",
+                        "input_key": "input",
+                        "output_key": "output",
+                        "use_tools": ["slowtool"],
+                    }
                 ),
                 "tool": ToolExec({"use_tools": ["slowtool"]}),
             },
@@ -264,10 +270,11 @@ class TestParallelToolExecution:
 
     @pytest.mark.asyncio
     async def test_single_round_parallel_saves_a_round(self, monkeypatch):
-        from draf.node.agent import ReActAgent, ToolExec
-        from draf.graph import Graph, Edge
-        from draf.tool import Tool
         import asyncio
+
+        from draf.graph import Edge, Graph
+        from draf.node.agent import ReActAgent, ToolExec
+        from draf.tool import Tool
 
         monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
 
@@ -351,8 +358,8 @@ class TestParallelToolExecution:
 class TestToolErrorMode:
     @pytest.mark.asyncio
     async def test_tool_error_becomes_message_by_default(self, monkeypatch):
+        from draf.graph import Edge, Graph
         from draf.node.agent import ReActAgent, ToolExec
-        from draf.graph import Graph, Edge
         from draf.tool import Tool
 
         monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
@@ -401,7 +408,12 @@ class TestToolErrorMode:
         g = Graph(
             nodes={
                 "agent": ReActAgent(
-                    {"model": "gpt-4", "input_key": "input", "output_key": "output", "use_tools": ["boom"]}
+                    {
+                        "model": "gpt-4",
+                        "input_key": "input",
+                        "output_key": "output",
+                        "use_tools": ["boom"],
+                    }
                 ),
                 "tool": ToolExec({"use_tools": ["boom"]}),
             },
@@ -419,9 +431,9 @@ class TestToolErrorMode:
 
     @pytest.mark.asyncio
     async def test_tool_error_raise_routes_to_error_edge(self, monkeypatch):
-        from draf.node.agent import ReActAgent, ToolExec
-        from draf.graph import Graph, Edge
+        from draf.graph import Edge, Graph
         from draf.node import Transform
+        from draf.node.agent import ReActAgent, ToolExec
         from draf.tool import Tool
 
         monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
@@ -466,7 +478,12 @@ class TestToolErrorMode:
         g = Graph(
             nodes={
                 "agent": ReActAgent(
-                    {"model": "gpt-4", "input_key": "input", "output_key": "output", "use_tools": ["boom"]}
+                    {
+                        "model": "gpt-4",
+                        "input_key": "input",
+                        "output_key": "output",
+                        "use_tools": ["boom"],
+                    }
                 ),
                 "tool": ToolExec({"tool_error_mode": "raise", "use_tools": ["boom"]}),
                 "fallback": Transform(

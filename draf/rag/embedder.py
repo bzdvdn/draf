@@ -1,7 +1,7 @@
 """Embedding service using provider APIs."""
 
-from dataclasses import dataclass
 import os
+from dataclasses import dataclass
 
 import httpx
 

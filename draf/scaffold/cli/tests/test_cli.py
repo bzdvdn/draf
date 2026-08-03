@@ -64,6 +64,7 @@ class _MockTransport:
         content = self._content_for(kwargs.get("json") or {})
 
         if args and args[0] == "POST":  # streaming path
+
             class _StreamResp:
                 def raise_for_status(self):
                     pass
@@ -112,7 +113,9 @@ def test_run_command_streams_one_turn(runner):
     assert "run_end: ok" in result.output
     # the final LLM answer is always printed, not only streamed tokens
     assert "== assistant ==" in result.output
-    assert "1. Research. 2. Draft. 3. Review." in result.output.split("== assistant ==")[1]
+    assert (
+        "1. Research. 2. Draft. 3. Review." in result.output.split("== assistant ==")[1]
+    )
 
 
 def test_run_command_accepts_session(runner):

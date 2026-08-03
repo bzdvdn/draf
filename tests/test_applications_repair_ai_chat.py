@@ -14,7 +14,9 @@ from pathlib import Path
 import httpx
 import pytest
 
-_EXAMPLE = Path(__file__).resolve().parents[1] / "examples" / "applications" / "repair-ai-chat"
+_EXAMPLE = (
+    Path(__file__).resolve().parents[1] / "examples" / "applications" / "repair-ai-chat"
+)
 if str(_EXAMPLE) not in sys.path:
     sys.path.insert(0, str(_EXAMPLE))
 
@@ -24,6 +26,7 @@ from src.graphs.state import STATE_REDUCERS, initial_state  # noqa: E402
 
 def _stub_embedder(client) -> None:
     """Swap the app catalog's embedder for a deterministic offline stub."""
+
     async def _embed_many(texts):
         return [
             list(__import__("numpy").random.default_rng(sum(map(ord, t))).random(4))
@@ -41,15 +44,12 @@ def _stub_embedder(client) -> None:
 def test_catalog_load_and_update(tmp_path):
     """POST /api/catalog/load ingests a CSV in batches; update rebuilds."""
     pytest.importorskip("fastapi")
-    from fastapi.testclient import TestClient
-
     from app import create_app
+    from fastapi.testclient import TestClient
 
     csv_path = tmp_path / "prices.csv"
     csv_path.write_text(
-        "Наименование,Цена,Ед\n"
-        "Кирпич М-150,24.2,₽/шт\n"
-        "Плитка Керама-Белый,780,₽/м²\n",
+        "Наименование,Цена,Ед\nКирпич М-150,24.2,₽/шт\nПлитка Керама-Белый,780,₽/м²\n",
         encoding="utf-8",
     )
 
@@ -121,7 +121,9 @@ class _MockTransport:
 
     def _content_for(self, body: dict) -> str:
         system = "".join(
-            m.get("content", "") for m in body.get("messages", []) if m.get("role") == "system"
+            m.get("content", "")
+            for m in body.get("messages", [])
+            if m.get("role") == "system"
         )
         self.calls.append(system[:40])
         if "Supervisor" in system:
@@ -145,6 +147,7 @@ class _MockTransport:
         content = self._content_for(kwargs.get("json") or {})
 
         if args and args[0] == "POST":  # streaming path
+
             class _StreamResp:
                 def raise_for_status(self):
                     pass
@@ -221,9 +224,7 @@ async def test_route_loop_runs_end_to_end(transport):
     assert events[-1].data["status"] == "ok"
 
     # the decider and the routed agents all reported as nodes
-    node_types = {
-        ev.node_type for ev in events if ev.type == "node_start"
-    }
+    node_types = {ev.node_type for ev in events if ev.type == "node_start"}
     assert "supervisor" in node_types
     assert "subflow" in node_types
 
@@ -297,9 +298,7 @@ async def test_catalog_reingest_task_detects_changes(tmp_path, monkeypatch):
 
     state_file = tmp_path / "ingest_state.json"
     monkeypatch.setattr("src.queue.ingest._state_path", lambda: state_file)
-    monkeypatch.setattr(
-        "src.queue.ingest.DEFAULT_CATALOG", tmp_path / "prices.csv"
-    )
+    monkeypatch.setattr("src.queue.ingest.DEFAULT_CATALOG", tmp_path / "prices.csv")
     monkeypatch.setattr("src.queue.ingest.DEFAULT_PRICE_LIST", tmp_path / "prices.csv")
 
     # first run embeds; fingerprint recorded
@@ -340,9 +339,8 @@ def test_queue_fingerprint_tracks_content():
 def test_api_chat_and_stream(transport, tmp_path):
     """The FastAPI server serves chat + SSE and persists sessions."""
     pytest.importorskip("fastapi")
-    from fastapi.testclient import TestClient
-
     from app import create_app
+    from fastapi.testclient import TestClient
 
     client = TestClient(
         create_app(checkpoint_dir=str(tmp_path)), raise_server_exceptions=False

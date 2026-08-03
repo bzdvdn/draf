@@ -592,7 +592,7 @@ class TestChromaVectorStore:
 
 class TestRAGTool:
     def test_constructs_with_all_deps(self):
-        from draf.rag import RAGTool, Embedder, Chunker
+        from draf.rag import Chunker, Embedder, RAGTool
         from draf.rag.stores import InMemoryVectorStore
 
         store = InMemoryVectorStore(dim=4)
@@ -778,7 +778,7 @@ class TestRAGTool:
     def test_arun_similarity_threshold(self):
         import asyncio
 
-        from draf.rag import RAGTool, Chunker
+        from draf.rag import Chunker, RAGTool
         from draf.rag.stores import InMemoryVectorStore
 
         store = InMemoryVectorStore(dim=4)
@@ -795,7 +795,7 @@ class TestRAGTool:
     def test_arun_max_tokens(self):
         import asyncio
 
-        from draf.rag import RAGTool, Chunker
+        from draf.rag import Chunker, RAGTool
         from draf.rag.stores import InMemoryVectorStore
 
         store = InMemoryVectorStore(dim=4)
@@ -812,7 +812,7 @@ class TestRAGTool:
     def test_arun_uses_configured_filter(self):
         import asyncio
 
-        from draf.rag import RAGTool, Chunker
+        from draf.rag import Chunker, RAGTool
         from draf.rag.stores import InMemoryVectorStore
 
         store = InMemoryVectorStore(dim=4)
@@ -838,7 +838,7 @@ class TestRAGTool:
     def test_parent_chunks_and_retrieval(self):
         import asyncio
 
-        from draf.rag import RAGTool, Chunker
+        from draf.rag import Chunker, RAGTool
         from draf.rag.stores import InMemoryVectorStore
 
         store = InMemoryVectorStore(dim=4)
@@ -858,7 +858,7 @@ class TestRAGTool:
     def test_arun_hybrid_ranking(self):
         import asyncio
 
-        from draf.rag import RAGTool, Chunker
+        from draf.rag import Chunker, RAGTool
         from draf.rag.stores import InMemoryVectorStore
 
         store = InMemoryVectorStore(dim=4)
@@ -944,9 +944,9 @@ class TestDocumentLoaders:
         assert docs == [("row one", {"id": "e1"})]
 
     def test_pdf_without_pypdf_raises_helpful_error(self, monkeypatch):
-        from draf.rag.tool import load_documents_pdf
-
         import builtins
+
+        from draf.rag.tool import load_documents_pdf
 
         real_import = builtins.__import__
 
@@ -997,9 +997,7 @@ class TestPDFTool:
         from draf.rag import PDFTool
 
         docs = [("hello page", {"page": 1}), ("world page", {"page": 2})]
-        monkeypatch.setattr(
-            "draf.rag.pdf_tool.load_documents_pdf", lambda path: docs
-        )
+        monkeypatch.setattr("draf.rag.pdf_tool.load_documents_pdf", lambda path: docs)
         result = PDFTool().run("fake.pdf")
         assert "--- page 1 ---\nhello page" in result
         assert "--- page 2 ---\nworld page" in result
@@ -1032,9 +1030,7 @@ class TestImageTool:
                     return None
 
                 def json(self):
-                    return {
-                        "choices": [{"message": {"content": "INVOICE TOTAL 100"}}]
-                    }
+                    return {"choices": [{"message": {"content": "INVOICE TOTAL 100"}}]}
 
             return R()
 

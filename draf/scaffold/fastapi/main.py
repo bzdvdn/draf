@@ -21,7 +21,6 @@ def main() -> None:
     args = parser.parse_args()
 
     import uvicorn
-
     from app import create_app
 
     uvicorn.run(create_app(), host=args.host, port=args.port)

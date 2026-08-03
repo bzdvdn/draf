@@ -95,8 +95,10 @@ def load_plugins(
         else:
             load_plugin_file(p)
             loaded.append(p)
-    folder = default_folder if os.path.isabs(default_folder) else os.path.join(
-        base_dir, default_folder
+    folder = (
+        default_folder
+        if os.path.isabs(default_folder)
+        else os.path.join(base_dir, default_folder)
     )
     if os.path.isdir(folder):
         loaded.extend(load_plugin_dir(folder))

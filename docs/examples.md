@@ -1,0 +1,34 @@
+# Examples
+
+Runnable examples live under `examples/` — one per feature. Most require
+local [Ollama](https://ollama.com) (no API keys); check each directory's
+README for exact commands.
+
+| Example | What it shows |
+| ------- | ------------- |
+| [basic_pipeline](https://github.com/bzdvdn/draf/tree/main/examples/basic_pipeline/) | Minimal YAML pipeline, no API keys |
+| [branching](https://github.com/bzdvdn/draf/tree/main/examples/branching/) | Conditional edges + Flow API |
+| [parallel](https://github.com/bzdvdn/draf/tree/main/examples/parallel/) | Concurrent branches + typed `State` reducers |
+| [map_repair_plans](https://github.com/bzdvdn/draf/tree/main/examples/map_repair_plans/) | Dynamic fan-out (`Map`) + `{key}` prompt templates + typed `State` |
+| [human_in_loop](https://github.com/bzdvdn/draf/tree/main/examples/human_in_loop/) | Approve/Edit LLM output via `Interrupt` + `loop()` + resume (Python and YAML) |
+| [react_agent](https://github.com/bzdvdn/draf/tree/main/examples/react_agent/) | ReAct agent loop with a calculator tool and live token streaming |
+| [harness_agent](https://github.com/bzdvdn/draf/tree/main/examples/harness_agent/) | `flow.harness()` — parallel tool calls in one round + `__error__` fallback |
+| [agent_approval](https://github.com/bzdvdn/draf/tree/main/examples/agent_approval/) | Tool approval (HITL) — every tool call pauses for human sign-off and resumes |
+| [agent_resilience](https://github.com/bzdvdn/draf/tree/main/examples/agent_resilience/) | Retries, model failover, context trimming and a token budget (mocked, no API key) |
+| [skills](https://github.com/bzdvdn/draf/tree/main/examples/skills/) | Skills folder (`SKILL.md`) — instructions + tool scoping on a harness agent |
+| [pdf_agent](https://github.com/bzdvdn/draf/tree/main/examples/pdf_agent/) | Skill with its own tools — vendored `pdf` skill whose bundled scripts run via the shell tool |
+| [mcp](https://github.com/bzdvdn/draf/tree/main/examples/mcp/) | ReAct agent calling tools from an MCP server (stdio) |
+| [plugins](https://github.com/bzdvdn/draf/tree/main/examples/plugins/) | Custom nodes/tools via decorators and via subclasses; offline + agent variants |
+| [streaming](https://github.com/bzdvdn/draf/tree/main/examples/streaming/) | Live LLM tokens + graph events via `graph.stream()` |
+| [structured_output](https://github.com/bzdvdn/draf/tree/main/examples/structured_output/) | Schema-validated LLM JSON via `output_type` / `json_schema` |
+| [rag_search](https://github.com/bzdvdn/draf/tree/main/examples/rag_search/) | RAG over a local CSV, in-memory store |
+| [rag_stores](https://github.com/bzdvdn/draf/tree/main/examples/rag_stores/) | Same RAG agent on every vector store |
+| [checkpoint_resume](https://github.com/bzdvdn/draf/tree/main/examples/checkpoint_resume/) | Crash/resume in a few lines |
+| [checkpoint_stores](https://github.com/bzdvdn/draf/tree/main/examples/checkpoint_stores/) | Durable workflow on file/sqlite/pg |
+| [release_features](https://github.com/bzdvdn/draf/tree/main/examples/release_features/) | Release API tour — validation, typed errors, `draf eval`, cost reports, response cache (mocked, no API key) |
+| [simple_router](https://github.com/bzdvdn/draf/tree/main/examples/simple_router/) | Minimal `Flow.route()` supervisor — two agents, a bounded loop (can't hang), offline tests |
+| [repair-ai-chat](https://github.com/bzdvdn/draf/tree/main/examples/applications/repair-ai-chat/) | Full FastAPI app built on `route()` — five agents, tools, RAG, streaming (Russian repair workflow) |
+
+All LLM examples use `llama3.1:8b` (`ollama pull llama3.1:8b`);
+[pdf_agent](https://github.com/bzdvdn/draf/tree/main/examples/pdf_agent/) uses `qwen2.5:7b`
+(`ollama pull qwen2.5:7b`).

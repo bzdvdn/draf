@@ -26,7 +26,7 @@ class FAISSVectorStore(VectorStore):
         self._index = faiss.IndexFlatIP(dim)
         if path:
             if os.path.exists(path):
-                self._index = faiss.read_index(path)
+                self._index = faiss.read_index(path)  # type: ignore[assignment]
             meta_path = path + ".meta.json"
             if os.path.exists(meta_path):
                 with open(meta_path, encoding="utf-8") as f:

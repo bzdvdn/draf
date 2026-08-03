@@ -93,9 +93,7 @@ def build_flow() -> Flow:
     flow = Flow("repo_health")
     flow.step(
         ContextBuilder(
-            sections={
-                "priority_csv": "File priority table (CSV: file,owner,priority)"
-            },
+            sections={"priority_csv": "File priority table (CSV: file,owner,priority)"},
             messages_key="messages",
             output_key="input",
             reset_keys=("messages", "_tool_call_name", "_tool_calls"),

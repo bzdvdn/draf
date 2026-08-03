@@ -3,7 +3,8 @@ import pytest
 
 class TestTypedState:
     def test_reducers_from_typeddict_extracts_annotated(self):
-        from typing import TypedDict, Annotated
+        from typing import Annotated, TypedDict
+
         from draf.state import reducers_from_typeddict
 
         def dummy_reducer(old, new):
@@ -21,6 +22,7 @@ class TestTypedState:
 
     def test_reducers_from_typeddict_no_annotations_returns_empty(self):
         from typing import TypedDict
+
         from draf.state import reducers_from_typeddict
 
         class Plain(TypedDict):
@@ -139,8 +141,8 @@ class TestTypedState:
 
     @pytest.mark.asyncio
     async def test_graph_run_with_reducers(self):
+        from draf.graph import Edge, Graph
         from draf.node import Node
-        from draf.graph import Graph, Edge
 
         class AppendOne(Node):
             type = "ao"
@@ -164,8 +166,8 @@ class TestTypedState:
 
     @pytest.mark.asyncio
     async def test_graph_run_without_reducers_backward_compat(self):
+        from draf.graph import Edge, Graph
         from draf.node import Node
-        from draf.graph import Graph, Edge
 
         class WriteX(Node):
             type = "wx"
@@ -189,9 +191,10 @@ class TestTypedState:
 
     @pytest.mark.asyncio
     async def test_reducers_via_typeddict(self):
-        from typing import TypedDict, Annotated
+        from typing import Annotated, TypedDict
+
+        from draf.graph import Edge, Graph
         from draf.node import Node
-        from draf.graph import Graph, Edge
         from draf.state import reducers_from_typeddict
 
         class ChatState(TypedDict):
@@ -222,6 +225,7 @@ class TestTypedState:
 class TestStateClass:
     def test_construct_and_access(self):
         from typing import TypedDict
+
         from draf.state import State
 
         class S(TypedDict):
@@ -235,7 +239,8 @@ class TestStateClass:
         assert "name" in state
 
     def test_merge_with_reducers(self):
-        from typing import TypedDict, Annotated
+        from typing import Annotated, TypedDict
+
         from draf.state import State
 
         class S(TypedDict):
@@ -248,7 +253,8 @@ class TestStateClass:
         assert state["x"] == "new"
 
     def test_merge_keep(self):
-        from typing import TypedDict, Annotated
+        from typing import Annotated, TypedDict
+
         from draf.state import State
 
         class S(TypedDict):
@@ -259,7 +265,8 @@ class TestStateClass:
         assert state["first"] == "original"
 
     def test_merge_callable_reducer(self):
-        from typing import TypedDict, Annotated
+        from typing import Annotated, TypedDict
+
         from draf.state import State
 
         def add(old, new):
@@ -273,7 +280,8 @@ class TestStateClass:
         assert state["total"] == 8
 
     def test_setitem_direct(self):
-        from typing import TypedDict, Annotated
+        from typing import Annotated, TypedDict
+
         from draf.state import State
 
         class S(TypedDict):
@@ -285,6 +293,7 @@ class TestStateClass:
 
     def test_dict_methods(self):
         from typing import TypedDict
+
         from draf.state import State
 
         class S(TypedDict):
@@ -298,6 +307,7 @@ class TestStateClass:
 
     def test_get_with_default(self):
         from typing import TypedDict
+
         from draf.state import State
 
         class S(TypedDict):
@@ -309,6 +319,7 @@ class TestStateClass:
 
     def test_copy_returns_dict(self):
         from typing import TypedDict
+
         from draf.state import State
 
         class S(TypedDict):
@@ -321,6 +332,7 @@ class TestStateClass:
 
     def test_repr(self):
         from typing import TypedDict
+
         from draf.state import State
 
         class S(TypedDict):
@@ -330,8 +342,8 @@ class TestStateClass:
         assert repr(state) == "{'x': 'hello'}"
 
     def test_load_workflow_parses_state_schema_and_initial(self):
-        import tempfile
         import os
+        import tempfile
 
         yaml_content = """
 name: test
@@ -362,8 +374,8 @@ edges: []
             os.unlink(path)
 
     def test_load_workflow_no_state_returns_empty(self):
-        import tempfile
         import os
+        import tempfile
 
         yaml_content = """
 name: test
@@ -386,9 +398,10 @@ edges: []
             os.unlink(path)
 
     def test_roundtrip_via_graph(self):
-        from typing import TypedDict, Annotated
+        from typing import Annotated, TypedDict
+
+        from draf.graph import Edge, Graph
         from draf.node import Node
-        from draf.graph import Graph, Edge
         from draf.state import State
 
         class S(TypedDict):

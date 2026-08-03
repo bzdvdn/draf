@@ -29,8 +29,7 @@ class GitTool(Tool):
 
     name = "git"
     description = (
-        "Inspect a git repository read-only (status, log, diff, ls_files, "
-        "branch, show)"
+        "Inspect a git repository read-only (status, log, diff, ls_files, branch, show)"
     )
 
     _READ_ONLY_ACTIONS = ("status", "log", "diff", "ls_files", "branch", "show")
@@ -62,11 +61,9 @@ class GitTool(Tool):
             raise ValueError(f"unknown action: {action}")
         if a == "status":
             out = self._git("status", "--short")
-            return (out.strip()[:max_chars] or "clean working tree")
+            return out.strip()[:max_chars] or "clean working tree"
         if a == "log":
-            out = self._git(
-                "log", "-n", str(int(limit)), "--oneline", "--decorate"
-            )
+            out = self._git("log", "-n", str(int(limit)), "--oneline", "--decorate")
             return out.strip()[:max_chars] or "no commits"
         if a == "diff":
             args = ["diff"]

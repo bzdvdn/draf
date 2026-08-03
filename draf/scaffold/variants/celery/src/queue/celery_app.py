@@ -16,7 +16,6 @@ import asyncio
 from pathlib import Path
 
 from celery import Celery
-
 from src.config.config import get_settings
 from src.queue.ingest import reingest_if_changed
 

@@ -12,6 +12,10 @@ runtime magic.
 - **Durable** — checkpoint/resume across file, SQLite, and PostgreSQL backends.
 - **Embeddable** — a library, not a platform. You import us; we never import you.
 
+Full documentation (guide, node/tool/provider references, and an auto-generated
+API reference) lives in [`docs/`](docs/). Build it locally with
+`uv run pip install -e ".[docs]"` then `uv run mkdocs serve`.
+
 ## Install
 
 ```bash
@@ -36,13 +40,13 @@ state:
 steps:
   - id: trim
     type: transform
-    config: {action: trim, input_key: title, output_key: trimmed}
+    config: { action: trim, input_key: title, output_key: trimmed }
   - id: uppercase
     type: transform
-    config: {action: uppercase, input_key: trimmed, output_key: loud}
+    config: { action: uppercase, input_key: trimmed, output_key: loud }
   - id: count
     type: transform
-    config: {action: count_lines, input_key: loud, output_key: line_count}
+    config: { action: count_lines, input_key: loud, output_key: line_count }
 
 edges:
   - from: trim
@@ -55,10 +59,12 @@ edges:
 import asyncio
 from draf.yaml import load_workflow
 
+
 async def main():
     graph, tools, state, reducers = load_workflow("workflow.yaml")
     result = await graph.run(state, tools=tools, reducers=reducers)
     print(result)
+
 
 asyncio.run(main())
 ```
@@ -73,21 +79,30 @@ from draf.node import LLM, Transform
 
 set_defaults(provider="ollama")
 
+
 async def main():
     flow = Flow("sentiment-router")
-    flow.step(LLM(
-        model="llama3.1:8b",
-        system='Classify the sentiment. Reply "positive" or "negative".',
-        input_key="text", output_key="sentiment",
-    ))
+    flow.step(
+        LLM(
+            model="llama3.1:8b",
+            system='Classify the sentiment. Reply "positive" or "negative".',
+            input_key="text",
+            output_key="sentiment",
+        )
+    )
     flow.branch(
         "sentiment",
-        Case("positive").add(Transform(action="value", value="Glad you liked it!", output_key="reply")),
-        Case("negative").add(Transform(action="value", value="Sorry to hear that.", output_key="reply")),
+        Case("positive").add(
+            Transform(action="value", value="Glad you liked it!", output_key="reply")
+        ),
+        Case("negative").add(
+            Transform(action="value", value="Sorry to hear that.", output_key="reply")
+        ),
     ).converge(Transform(action="uppercase", input_key="reply", output_key="result"))
 
     result = await flow.compile().run(state={"text": "I love this product!"})
     print(result)
+
 
 asyncio.run(main())
 ```
@@ -133,7 +148,7 @@ reducers.
 
 ### Multi-tenant checkpoints (owner scoping)
 
-Pass `owner=` to scope checkpoints to a user/session/tenant.  The same
+Pass `owner=` to scope checkpoints to a user/session/tenant. The same
 `checkpoint_id` under different owners never collides, so one store can serve
 many users without composite key conventions:
 
@@ -141,18 +156,18 @@ many users without composite key conventions:
 await graph.run(state, checkpointer=cp, checkpoint_id="chat-1", owner="alice")
 await graph.run(state, checkpointer=cp, checkpoint_id="chat-1", owner="bob")  # separate
 
-chats = await cp.list("alice")   # ["chat-1", ...] — enumerate a user's runs
+chats = await cp.list("alice")  # ["chat-1", ...] — enumerate a user's runs
 ```
 
 **Use `owner` for anything that should be isolated per end-user** — a user id,
-session id, or tenant.  Every owner gets its own namespace: file checkpoints
+session id, or tenant. Every owner gets its own namespace: file checkpoints
 land in an `owner/` subdirectory, SQLite/PG store a composite
 `(owner, checkpoint_id)` primary key (existing single-owner databases migrate
 automatically).
 
 When `owner` is omitted, runs fall under the default owner `"default"`
 (`draf.checkpoint.DEFAULT_OWNER`) — so single-tenant callers work unchanged,
-and you can still list them with `cp.list()`.  The CLI exposes the same knob:
+and you can still list them with `cp.list()`. The CLI exposes the same knob:
 `--checkpoint-owner` on `draf run` and `draf inspect` (defaults to `default`).
 
 ## Parallel branches
@@ -166,10 +181,14 @@ of overwriting each other.
 from draf.flow import Flow
 from draf.node import Transform
 
-flow = Flow("p").parallel(
-    [Transform(action="uppercase", input_key="title", output_key="title")],
-    [Transform(action="uppercase", input_key="body", output_key="body")],
-).converge(Transform(action="value", value="done", output_key="status"))
+flow = (
+    Flow("p")
+    .parallel(
+        [Transform(action="uppercase", input_key="title", output_key="title")],
+        [Transform(action="uppercase", input_key="body", output_key="body")],
+    )
+    .converge(Transform(action="value", value="done", output_key="status"))
+)
 
 result = await flow.compile().run(state={"title": "hi", "body": "world"})
 # -> title/body uppercased in parallel, then status="done"
@@ -186,7 +205,7 @@ an LLM merges the summaries into a report file, and a final LLM reviews it
 
 ## Prompt templates
 
-LLM nodes read *multiple* state keys into one prompt with `{key}` templates
+LLM nodes read _multiple_ state keys into one prompt with `{key}` templates
 (also supported in `system`)::
 
 ```python
@@ -205,7 +224,7 @@ Values are stringified; a placeholder referencing a missing state key raises
 
 ## Dynamic fan-out (Map)
 
-`Flow.map()` fans a state *list* out into parallel branches at runtime —
+`Flow.map()` fans a state _list_ out into parallel branches at runtime —
 branch count is derived from the data, not declared up front. The processor
 reads the same keys the Map fans out, so no glue node is needed::
 
@@ -216,13 +235,16 @@ flow = Flow("repair-plans").map(
         prompt="Составь план для ремонта {type} на сумму {summ} рублей.",
         output_key="plan",
     ),
-    input_keys=["type", "summ"],   # lists zipped per index
-    output_key="plans",            # list of per-item results
+    input_keys=["type", "summ"],  # lists zipped per index
+    output_key="plans",  # list of per-item results
     max_concurrency=2,
 )
-result = await flow.compile().run(state={
-    "type": ["кухни", "санузел"], "summ": [150000, 80000],
-})
+result = await flow.compile().run(
+    state={
+        "type": ["кухни", "санузел"],
+        "summ": [150000, 80000],
+    }
+)
 # -> {"plans": ["план для кухни...", "план для санузла..."]}
 ```
 
@@ -233,7 +255,7 @@ workflow as YAML for `draf -f workflow.yaml`).
 
 ## Human-in-the-loop (interrupts)
 
-Pause a workflow for operator input with an `Interrupt` node.  When
+Pause a workflow for operator input with an `Interrupt` node. When
 execution reaches it, `graph.run()` raises `GraphInterrupt`; resume with
 the same `checkpoint_id` plus a `resume` dict::
 
@@ -245,7 +267,9 @@ from draf.flow import Flow
 flow = Flow("approval")
 flow.step(LLM(model="llama3.1:8b", prompt="Составь план: {task}", output_key="draft"))
 flow.interrupt(key="approved", prompt="Одобрить? (да / правки)")
-flow.step(LLM(model="llama3.1:8b", prompt="{draft}\nВердикт: {approved}", output_key="final"))
+flow.step(
+    LLM(model="llama3.1:8b", prompt="{draft}\nВердикт: {approved}", output_key="final")
+)
 
 graph = flow.compile()
 cp = JSONFileCheckpointer("checkpoints")
@@ -253,16 +277,18 @@ cp = JSONFileCheckpointer("checkpoints")
 try:
     await graph.run(state=state, checkpointer=cp, checkpoint_id="run-1")
 except GraphInterrupt as interrupt:
-    print(interrupt.prompt)          # "Одобрить? (да / правки)"
+    print(interrupt.prompt)  # "Одобрить? (да / правки)"
     answer = input("> ")
     result = await graph.run(
-        state=state, checkpointer=cp,
-        checkpoint_id="run-1", resume={"approved": answer},
+        state=state,
+        checkpointer=cp,
+        checkpoint_id="run-1",
+        resume={"approved": answer},
     )
 ```
 
 The answer lands in `state["approved"]` and execution continues past the
-interrupt.  Interrupts require a `checkpointer`; the resume value for an
+interrupt. Interrupts require a `checkpointer`; the resume value for an
 already-paused run is requested again if `resume` is missing.
 
 The same pause/resume mechanics gate risky tool calls on an agent: a
@@ -282,15 +308,18 @@ flow.loop(
     key="approved",
     until="да",
     done=LLM(model="llama3.1:8b", prompt="{draft}", output_key="final"),
-    body=LLM(model="llama3.1:8b",
-             prompt="Переработай {draft} с учётом: {approved}", output_key="draft"),
+    body=LLM(
+        model="llama3.1:8b",
+        prompt="Переработай {draft} с учётом: {approved}",
+        output_key="draft",
+    ),
 )
 ```
 
 `loop()` wires `decider --key=until--> done` (stop) and
 `decider --key!=until--> body -> decider` (repeat), so the graph returns
-to the same `Interrupt` after each edit.  `max_iterations` caps the
-rounds.  The decider can be any node that writes `key`, not just an
+to the same `Interrupt` after each edit. `max_iterations` caps the
+rounds. The decider can be any node that writes `key`, not just an
 `Interrupt` — `loop()` also works for pure LLM self-check loops.
 
 The same loop is described declaratively in YAML — conditional edges
@@ -302,7 +331,7 @@ running it still needs a `checkpointer` and a `resume` loop in Python.
 
 `graph.stream()` runs the same execution core as `graph.run()` but yields
 a `StreamEvent` for every observable step, so callers can render tokens and
-progress before the run finishes.  Build the graph with the `Flow` API (or
+progress before the run finishes. Build the graph with the `Flow` API (or
 directly with `Graph`) and stream it:
 
 ```python
@@ -324,7 +353,7 @@ Event types: `run_start`, `node_start`, `node_end`, `node_error`, `edge`,
 `checkpoint`, `run_end`.
 LLM tokens are emitted as they arrive (any node without tool calls streams
 automatically in this mode); routing decisions, checkpoints, and interrupt
-pauses are streamed the same way.  `stream()` accepts the same parameters as
+pauses are streamed the same way. `stream()` accepts the same parameters as
 `run()` — tools, checkpointer, resume, tracer, `max_iterations`.
 
 See [streaming](examples/streaming/) — `run.py` (Flow) and `graph.py`
@@ -333,16 +362,18 @@ See [streaming](examples/streaming/) — `run.py` (Flow) and `graph.py`
 ## Structured output
 
 Guarantee the LLM returns a schema-conforming JSON object instead of free
-text.  Pass a JSON Schema (`json_schema`) or a Python type spec
+text. Pass a JSON Schema (`json_schema`) or a Python type spec
 (`output_type` — `TypedDict`, dataclass, or `dict[str, type]`):
 
 ```python
 from typing import TypedDict
 from draf import Flow, LLM
 
+
 class Weather(TypedDict):
     city: str
     temp: float
+
 
 flow = Flow("weather")
 flow.step(LLM(model="llama3.1:8b", output_key="weather", output_type=Weather))
@@ -353,10 +384,10 @@ result["weather"]  # {"city": "...", "temp": 12.5} — a parsed dict, validated
 ```
 
 The response is parsed as JSON, validated against the schema, and re-asked
-with the validation error fed back (up to `max_retries`, default 2).  If
+with the validation error fed back (up to `max_retries`, default 2). If
 all attempts fail, a `StructuredOutputError` is raised — route it with an
-`__error__` edge.  Schema errors are recorded as `structured` events in the
-tracer and the stream.  Without a schema, `parse=True` still parses the
+`__error__` edge. Schema errors are recorded as `structured` events in the
+tracer and the stream. Without a schema, `parse=True` still parses the
 response into a dict (no validation).
 
 The same field map works in YAML:
@@ -368,7 +399,12 @@ steps:
     config:
       model: llama3.1:8b
       output_key: weather
-      json_schema: {type: object, properties: {city: {type: string}, temp: {type: number}}, required: [city, temp]}
+      json_schema:
+        {
+          type: object,
+          properties: { city: { type: string }, temp: { type: number } },
+          required: [city, temp],
+        }
 ```
 
 ## Agents (ReAct loop)
@@ -382,14 +418,19 @@ from draf import Flow
 from draf.node import Transform
 from draf.tool import Tool
 
+
 class Search(Tool):
     name = "search"
     description = "Search a local index"
-    def run(self, query: str = "") -> str:   # type: ignore[override]
+
+    def run(self, query: str = "") -> str:  # type: ignore[override]
         return f"results for {query}"
 
+
 flow = Flow("agent")
-flow.react(model="gpt-4", system="Answer using tools.", input_key="query", output_key="answer")
+flow.react(
+    model="gpt-4", system="Answer using tools.", input_key="query", output_key="answer"
+)
 flow.step(Transform(action="uppercase", input_key="answer", output_key="result"))
 
 graph = flow.compile()
@@ -397,13 +438,13 @@ result = await graph.run({"query": "draf"}, tools=[Search()], max_iterations=10)
 ```
 
 The agent calls the model; if it requests tools, the executor runs them
-**all in parallel** in one round (`asyncio.gather`) and loops back.  When
+**all in parallel** in one round (`asyncio.gather`) and loops back. When
 the model answers without a tool call, the response lands at `output_key`
-and execution continues with whatever is chained after.  `max_iterations`
+and execution continues with whatever is chained after. `max_iterations`
 on `graph.run()` caps the loop.
 
 `flow.harness()` is the full API (an alias, `flow.react()` is kept for
-backwards compatibility).  It accepts extra knobs:
+backwards compatibility). It accepts extra knobs:
 
 - `max_tool_rounds` — max model calls per graph visit (default 10).
 - `tool_error_mode` — `"message"` (default: a failed tool becomes a `tool`
@@ -414,7 +455,7 @@ backwards compatibility).  It accepts extra knobs:
 - `temperature` / `max_tokens` / `response_format` — sampling knobs.
 - `tool_timeout` / `tool_retries` — bound each tool call with a timeout and
   re-attempt it on failure.
-- `tool_approval` — gate risky tools.  A callable (or `"interactive"`) can
+- `tool_approval` — gate risky tools. A callable (or `"interactive"`) can
   `approve` / `deny` a call; returning `"pause"` raises a `GraphInterrupt`
   so a human can sign off and resume with `resume={"tool_approval": value}`
   (see [agent_approval](examples/agent_approval/)).
@@ -445,7 +486,7 @@ flow.harness(
 ## Skills
 
 Bundle instructions **and** a tool scope into a reusable folder following
-the open *Agent Skills* layout — `skills/<name>/SKILL.md` with YAML
+the open _Agent Skills_ layout — `skills/<name>/SKILL.md` with YAML
 frontmatter plus markdown instructions:
 
 ```markdown
@@ -456,7 +497,7 @@ allowed-tools: [city_weather, city_population]
 disallowed-tools: [secret_tool]
 ---
 
-You are a city guide.  When asked to compare cities, call BOTH
+You are a city guide. When asked to compare cities, call BOTH
 `city_weather` and `city_population` in the SAME turn.
 ```
 
@@ -476,13 +517,14 @@ flow.step(LLM(model="llama3.1:8b", skills=["city-guide"], use_tools=True))
 ```
 
 A mounted skill:
+
 - merges its instructions into the system prompt;
 - narrows the visible tools: `allowed-tools` intersects with the node's set,
   `disallowed-tools` removes tools outright — so `secret_tool` above stays
   out of the model's reach even though it is registered for the run.
 
 Bare names resolve against `skill_dir`; you can also pass skill paths or
-already-loaded `Skill` objects.  `use_tools` gives the same per-node scope
+already-loaded `Skill` objects. `use_tools` gives the same per-node scope
 without skills: `True` (all), `False` (none), or a list of names.
 
 ## Built-in tools
@@ -491,47 +533,57 @@ A library of ready-made `Tool` subclasses registers itself when `draf.tool.built
 is imported (the `load_workflow` YAML helper and the examples do this for you).
 Most are dependency-free; the marked ones need `pip install draf[tools]`.
 
-| Tool | Name | Dependencies | What it does |
-|------|------|--------------|--------------|
-| CalculatorTool | `calculator` | — | AST-based safe math evaluation |
-| ShellTool | `shell` | — | Run shell commands with a blocklist/whitelist sandbox |
-| ReadFileTool | `read_file` | — | Read a file's contents |
-| WriteFileTool | `write_file` | — | Write content to a file |
-| EditFileTool | `edit_file` | — | Replace text in a file |
-| WebSearchTool | `web_search` | — | DuckDuckGo search, no API key |
-| WebFetchTool | `fetch_url` | `beautifulsoup4` | Fetch a URL and extract its text |
-| PDFReadTool | `read_pdf` | `pypdf` | Extract text from a PDF, page by page |
-| S3Tool | `s3_list` | `boto3` | List objects in an S3 bucket |
-| S3GetTool | `s3_get` | `boto3` | Download an object from S3 |
-| S3PutTool | `s3_put` | `boto3` | Upload content to S3 |
-| SlackSendTool | `slack_send` | `slack-sdk` | Send a message to a Slack channel |
-| SQLQueryTool | `sql_query` | sqlite3 / `psycopg` | Read-only SELECT against SQLite or PostgreSQL |
-| SQLListTablesTool | `sql_list_tables` | sqlite3 / `psycopg` | List tables in a database |
-| SQLDescribeTool | `sql_describe` | sqlite3 / `psycopg` | Describe a table's columns and types |
-| ListDirTool | `list_dir` | — | List files and directories (optionally recursive) |
-| GlobTool | `glob` | — | Find files matching a glob pattern |
-| GetEnvTool | `getenv` | — | Read an env var (secret values masked) |
-| CurrentTimeTool | `current_time` | — | Current date/time in an IANA timezone |
-| JsonParseTool | `json_parse` | — | Parse and pretty-print JSON |
-| YamlParseTool | `yaml_parse` | — | Parse YAML, dump as JSON |
-| KVStoreTool | `kv_store` | — | Persistent JSON key-value store |
-| PythonEvalTool | `python_eval` | — | Safe AST-whitelist evaluation of Python expressions |
-| HttpRequestTool | `http_request` | httpx | Arbitrary HTTP requests (method, headers, body) |
-| SendEmailTool | `send_email` | smtplib | Send email via SMTP |
-| SendTelegramTool | `send_telegram` | httpx | Send a message via a Telegram bot |
+| Tool              | Name              | Dependencies        | What it does                                          |
+| ----------------- | ----------------- | ------------------- | ----------------------------------------------------- |
+| CalculatorTool    | `calculator`      | —                   | AST-based safe math evaluation                        |
+| ShellTool         | `shell`           | —                   | Run shell commands with a blocklist/whitelist sandbox |
+| ReadFileTool      | `read_file`       | —                   | Read a file's contents                                |
+| WriteFileTool     | `write_file`      | —                   | Write content to a file                               |
+| EditFileTool      | `edit_file`       | —                   | Replace text in a file                                |
+| WebSearchTool     | `web_search`      | —                   | DuckDuckGo search, no API key                         |
+| WebFetchTool      | `fetch_url`       | `beautifulsoup4`    | Fetch a URL and extract its text                      |
+| PDFReadTool       | `read_pdf`        | `pypdf`             | Extract text from a PDF, page by page                 |
+| S3Tool            | `s3_list`         | `boto3`             | List objects in an S3 bucket                          |
+| S3GetTool         | `s3_get`          | `boto3`             | Download an object from S3                            |
+| S3PutTool         | `s3_put`          | `boto3`             | Upload content to S3                                  |
+| SlackSendTool     | `slack_send`      | `slack-sdk`         | Send a message to a Slack channel                     |
+| SQLQueryTool      | `sql_query`       | sqlite3 / `psycopg` | Read-only SELECT against SQLite or PostgreSQL         |
+| SQLListTablesTool | `sql_list_tables` | sqlite3 / `psycopg` | List tables in a database                             |
+| SQLDescribeTool   | `sql_describe`    | sqlite3 / `psycopg` | Describe a table's columns and types                  |
+| ListDirTool       | `list_dir`        | —                   | List files and directories (optionally recursive)     |
+| GlobTool          | `glob`            | —                   | Find files matching a glob pattern                    |
+| GetEnvTool        | `getenv`          | —                   | Read an env var (secret values masked)                |
+| CurrentTimeTool   | `current_time`    | —                   | Current date/time in an IANA timezone                 |
+| JsonParseTool     | `json_parse`      | —                   | Parse and pretty-print JSON                           |
+| YamlParseTool     | `yaml_parse`      | —                   | Parse YAML, dump as JSON                              |
+| KVStoreTool       | `kv_store`        | —                   | Persistent JSON key-value store                       |
+| PythonEvalTool    | `python_eval`     | —                   | Safe AST-whitelist evaluation of Python expressions   |
+| HttpRequestTool   | `http_request`    | httpx               | Arbitrary HTTP requests (method, headers, body)       |
+| SendEmailTool     | `send_email`      | smtplib             | Send email via SMTP                                   |
+| SendTelegramTool  | `send_telegram`   | httpx               | Send a message via a Telegram bot                     |
 
-Tools are configured through the registry — either a constructor that accepts a
-config dict (like `SQLQueryTool({"db_type": "postgres", "dsn": "…"})`), or a
-keyword constructor with attributes set from the YAML `config:` block:
+Tools are plain classes, so you can construct them directly with keyword
+arguments — `ShellTool(root_dir=..., allowed_commands=[...])`,
+`WebSearchTool(provider="google")`, `SQLQueryTool({"db_type": "sqlite",
+"path": "./v.db"})`. The registry (used by YAML `tools:` blocks) maps a config
+dict onto the constructor: a dict passed to constructors that take a `config`
+dict, or keyword arguments for keyword constructors:
 
 ```yaml
 tools:
   - type: sql_query
-    config: {db_type: sqlite, path: ./vectors.db}
+    config: { db_type: sqlite, path: ./vectors.db }
   - type: shell
-    config: {root_dir: /tmp, allowed_commands: [echo, ls]}
+    config: { root_dir: /tmp, allowed_commands: [echo, ls] }
   - type: s3_list
-    config: {bucket: my-bucket, region: eu-central-1, verify: false}
+    config: { bucket: my-bucket, region: eu-central-1, verify: false }
+```
+
+```python
+from draf.tool.registry import default_tool_registry
+
+sql = default_tool_registry.create("sql_query", {"db_type": "sqlite", "path": "./v.db"})
+shell = default_tool_registry.create("shell", {"root_dir": "/tmp", "allowed_commands": ["echo"]})
 ```
 
 Security notes: `shell` enforces a blocklist of dangerous commands plus an
@@ -545,9 +597,9 @@ AST subset (`math.*`, builtins like `len`/`abs`/`sum`, comparisons).
 
 Connect any [Model Context Protocol](https://modelcontextprotocol.io) server
 and use its tools anywhere built-in tools work — LLM nodes, the ReAct agent,
-registries.  Tools are fetched from the server (schema included) and wrapped
+registries. Tools are fetched from the server (schema included) and wrapped
 as ordinary `Tool` instances, so `graph.run(state, tools=tools)` needs no
-changes.  Install `draf[mcp]`; the `mcp` SDK is imported lazily.
+changes. Install `draf[mcp]`; the `mcp` SDK is imported lazily.
 
 ```python
 from draf import Flow
@@ -568,7 +620,7 @@ async with mcp_tools(command=["uvx", "mcp-server-git"]) as tools:
 ```
 
 `command` starts a stdio server (split into argv), `url` connects to a
-Streamable HTTP endpoint.  The session stays open for the `async with` block.
+Streamable HTTP endpoint. The session stays open for the `async with` block.
 A runnable pair — a tiny server plus a ReAct agent calling it — lives in
 [`examples/mcp/`](examples/mcp/).
 
@@ -578,7 +630,7 @@ A runnable pair — a tiny server plus a ReAct agent calling it — lives in
 store (`InMemoryVectorStore`, `SQLite`, `Chroma`, `Qdrant`, `PGVector`,
 `FAISS`, `Lance`, `Milvus`, `Weaviate`, `Pinecone`) using raw HTTP embeddings
 (`Embedder`: OpenAI, Ollama, Mistral, Voyage, Jina, Together, Groq, or any
-OpenAI-compatible `/v1/embeddings` endpoint).  Documents load
+OpenAI-compatible `/v1/embeddings` endpoint). Documents load
 from CSV, TXT (glob), PDF (`draf[rag-pdf]`), and Excel (`draf[rag-excel]`).
 All vector stores (including the embedded/external ones) are installed via
 `draf[embedding]`.
@@ -586,18 +638,20 @@ All vector stores (including the embedded/external ones) are installed via
 ```python
 from draf import RAGTool
 
-rag = RAGTool({
-    "embedder": {"provider": "ollama", "model": "nomic-embed-text"},
-    "store": {"type": "sqlite", "path": "vectors.db", "dim": 768},
-    "documents": [
-        {"type": "txt", "path": "docs/*.txt"},
-        {"type": "csv", "path": "meta.csv", "text_column": "content"},
-    ],
-    "filter": {"topic": "news"},   # metadata filter (DSL below)
-    "similarity_threshold": 0.5,   # drop low-score hits
-    "max_tokens": 1024,            # context token budget
-    "hybrid": True,                # keyword + semantic blend
-})
+rag = RAGTool(
+    {
+        "embedder": {"provider": "ollama", "model": "nomic-embed-text"},
+        "store": {"type": "sqlite", "path": "vectors.db", "dim": 768},
+        "documents": [
+            {"type": "txt", "path": "docs/*.txt"},
+            {"type": "csv", "path": "meta.csv", "text_column": "content"},
+        ],
+        "filter": {"topic": "news"},  # metadata filter (DSL below)
+        "similarity_threshold": 0.5,  # drop low-score hits
+        "max_tokens": 1024,  # context token budget
+        "hybrid": True,  # keyword + semantic blend
+    }
+)
 result = await rag.arun("what changed in v2?")
 ```
 
@@ -606,7 +660,7 @@ similarity_threshold=..., max_tokens=..., parent_retrieval=...)`.
 
 - **Metadata filters** — `{"category": "news"}` (equality),
   `{"category": ["news", "tech"]}` (membership, or shared element for list
-  fields), and `"$and"` / `"$or"` combinators.  Honoured by every store.
+  fields), and `"$and"` / `"$or"` combinators. Honoured by every store.
 - **Hybrid search** — blends a lexical keyword score with the embedding score
   (weight `alpha`, default 0.4) in `InMemoryVectorStore`, `SQLiteVectorStore`,
   and the new embedded/external stores (hybrid + metadata filters are applied
@@ -620,39 +674,39 @@ similarity_threshold=..., max_tokens=..., parent_retrieval=...)`.
 Embedder providers (all OpenAI-compatible `/v1/embeddings`; the `model` key is
 optional — a per-provider default is used when omitted):
 
-| `provider` | Default `model` | API key env var |
-| ---------- | --------------- | --------------- |
-| `openai` | `text-embedding-ada-002` | `OPENAI_API_KEY` |
-| `ollama` | `nomic-embed-text` | — (local) |
-| `mistral` | `mistral-embed` | `MISTRAL_API_KEY` |
-| `voyage` | `voyage-3` | `VOYAGE_API_KEY` |
-| `jina` | `jina-embeddings-v3` | `JINA_API_KEY` |
+| `provider` | Default `model`                             | API key env var    |
+| ---------- | ------------------------------------------- | ------------------ |
+| `openai`   | `text-embedding-ada-002`                    | `OPENAI_API_KEY`   |
+| `ollama`   | `nomic-embed-text`                          | — (local)          |
+| `mistral`  | `mistral-embed`                             | `MISTRAL_API_KEY`  |
+| `voyage`   | `voyage-3`                                  | `VOYAGE_API_KEY`   |
+| `jina`     | `jina-embeddings-v3`                        | `JINA_API_KEY`     |
 | `together` | `togethercomputer/m2-bert-80M-8k-retrieval` | `TOGETHER_API_KEY` |
-| `groq` | `nomic-embed-text-v1.5` | `GROQ_API_KEY` |
+| `groq`     | `nomic-embed-text-v1.5`                     | `GROQ_API_KEY`     |
 
 Store types and their config keys:
 
-| `type` | Config | Notes |
-| ------ | ------ | ----- |
-| `in_memory` | `dim` | default; in-process only |
-| `sqlite` | `path`, `dim` | stdlib file persistence |
-| `chroma` | `path`, `collection` | embedded |
-| `qdrant` | `host`, `port`, `collection` | needs a server |
-| `pgvector` | `dsn`, `table` | needs PostgreSQL + pgvector |
-| `faiss` | `dim`, `path` | FAISS flat index + `.meta.json` sidecar |
-| `lance` / `lancedb` | `path`, `table`, `dim` | embedded columnar store |
-| `milvus` | `uri`, `token`, `collection`, `dim` | `uri` can be a local `./file.db` (Milvus Lite) |
-| `weaviate` | `collection`, `embedded`, `host`, `http_port`, `grpc_port`, `api_key`, `headers`, `dim` | `embedded: true` for the in-process server |
-| `pinecone` | `index_name`, `api_key`, `host`, `namespace`, `dim` | API key from `PINECONE_API_KEY` |
+| `type`              | Config                                                                                  | Notes                                          |
+| ------------------- | --------------------------------------------------------------------------------------- | ---------------------------------------------- |
+| `in_memory`         | `dim`                                                                                   | default; in-process only                       |
+| `sqlite`            | `path`, `dim`                                                                           | stdlib file persistence                        |
+| `chroma`            | `path`, `collection`                                                                    | embedded                                       |
+| `qdrant`            | `host`, `port`, `collection`                                                            | needs a server                                 |
+| `pgvector`          | `dsn`, `table`                                                                          | needs PostgreSQL + pgvector                    |
+| `faiss`             | `dim`, `path`                                                                           | FAISS flat index + `.meta.json` sidecar        |
+| `lance` / `lancedb` | `path`, `table`, `dim`                                                                  | embedded columnar store                        |
+| `milvus`            | `uri`, `token`, `collection`, `dim`                                                     | `uri` can be a local `./file.db` (Milvus Lite) |
+| `weaviate`          | `collection`, `embedded`, `host`, `http_port`, `grpc_port`, `api_key`, `headers`, `dim` | `embedded: true` for the in-process server     |
+| `pinecone`          | `index_name`, `api_key`, `host`, `namespace`, `dim`                                     | API key from `PINECONE_API_KEY`                |
 
 Vector stores expose management operations beyond search:
 
 ```python
-await store.count()                              # number of vectors
-await store.entries(limit=100, offset=0)         # (id, metadata) pairs
-await store.get(["chunk_0", "chunk_1"])          # by id
+await store.count()  # number of vectors
+await store.entries(limit=100, offset=0)  # (id, metadata) pairs
+await store.get(["chunk_0", "chunk_1"])  # by id
 await store.update_metadata("chunk_0", {"starred": True})  # merge
-await store.clear()                              # wipe everything
+await store.clear()  # wipe everything
 ```
 
 Runnable examples: [`examples/rag_search/`](examples/rag_search/) (CSV corpus,
@@ -671,8 +725,8 @@ from draf import Graph, RunTracer
 tracer = RunTracer()
 await graph.run(state, tracer=tracer)
 
-print(tracer.to_json())        # {"summary": {...}, "events": [...]}
-print(tracer.summary())        # RunSummary(status, total_ms, nodes, tokens, ...)
+print(tracer.to_json())  # {"summary": {...}, "events": [...]}
+print(tracer.summary())  # RunSummary(status, total_ms, nodes, tokens, ...)
 ```
 
 The CLI exposes the same report: `draf -f workflow.yaml --trace`.
@@ -708,12 +762,12 @@ tests run offline with no API keys.
 Feature **variants** are additive overlays enabled with `--with` (comma-separated,
 any subset output by `draf new --help`):
 
-* `postgres` — adds a pgvector `deploy/compose.yaml` + `.env.example`; the DSN
+- `postgres` — adds a pgvector `deploy/compose.yaml` + `.env.example`; the DSN
   (`DRAF_DATABASE_URL`) points durable sessions (and RAG vectors) at Postgres.
-* `rag` — a document catalog over `data/documents/` with RAG search tools wired
+- `rag` — a document catalog over `data/documents/` with RAG search tools wired
   into the writer agent (embedded lazily on the first search, so tests stay
   offline).
-* `celery` — a Celery worker + beat pair that re-embeds the catalog whenever
+- `celery` — a Celery worker + beat pair that re-embeds the catalog whenever
   the seed documents change (requires the `queue` extra).
 
 Every generated app wires its graph, tools, checkpointer and assistant through a
@@ -722,9 +776,9 @@ server and worker behave identically.
 
 ## Cost & token reports
 
-`RunSummary` folds the trace into cost and token figures.  Costs are
+`RunSummary` folds the trace into cost and token figures. Costs are
 estimated from an internal model-price table (exact name match, then
-prefix match; unknown and local models cost $0).  Secrets are redacted
+prefix match; unknown and local models cost $0). Secrets are redacted
 from every reported value, so API keys never leak into logs or the CLI.
 
 ```python
@@ -734,9 +788,9 @@ tracer = RunTracer()
 await graph.run(state, tracer=tracer)
 
 summary = tracer.summary()
-print(summary.cost_usd)      # estimated spend in USD
-print(summary.tokens)        # prompt/completion totals
-summary.to_dict()            # JSON-serialisable (redacted)
+print(summary.cost_usd)  # estimated spend in USD
+print(summary.tokens)  # prompt/completion totals
+summary.to_dict()  # JSON-serialisable (redacted)
 summary.to_json()
 ```
 
@@ -744,15 +798,15 @@ summary.to_json()
 
 The built-in table cannot cover aggregators and custom providers (OpenRouter,
 Kilo, vLLM, …) that keep their **own** rates and use their **own** model names
-(e.g. `openai/gpt-4o`).  Register custom USD-per-1M-token pricing at runtime;
+(e.g. `openai/gpt-4o`). Register custom USD-per-1M-token pricing at runtime;
 it takes precedence over the built-in table:
 
 ```python
 from draf import set_model_pricing, set_provider_pricing, model_pricing
 
 set_model_pricing("openrouter", "openai/gpt-4o", 3.0, 12.0)
-set_provider_pricing("kilo", 0.1, 0.4)          # whole-provider default
-print(model_pricing("openai/gpt-4o", "openrouter"))   # (3.0, 12.0)
+set_provider_pricing("kilo", 0.1, 0.4)  # whole-provider default
+print(model_pricing("openai/gpt-4o", "openrouter"))  # (3.0, 12.0)
 ```
 
 Load a whole file at once — `load_pricing("pricing.yaml")` (or a dict):
@@ -760,15 +814,15 @@ Load a whole file at once — `load_pricing("pricing.yaml")` (or a dict):
 ```yaml
 providers:
   openrouter:
-    default: {input: 0.1, output: 0.4}
+    default: { input: 0.1, output: 0.4 }
     models:
-      "openai/gpt-4o": {input: 3.0, output: 12.0}
+      "openai/gpt-4o": { input: 3.0, output: 12.0 }
 ```
 
 Resolution order: exact `(provider, model)` → provider-prefixed custom entry →
-provider-wide default → built-in table → $0 for unknown/local models.  When
+provider-wide default → built-in table → $0 for unknown/local models. When
 the cost is computed from a tracer, the provider recorded on each LLM event is
-used automatically.  `clear_pricing()` resets everything to the built-in table.
+used automatically. `clear_pricing()` resets everything to the built-in table.
 
 ## Providers
 
@@ -776,33 +830,33 @@ used automatically.  `clear_pricing()` resets everything to the built-in table.
 chat-completions format by default and ships presets for several providers —
 just pick a provider key and an API key env var:
 
-| `provider` | API key env var | Notes |
-| ---------- | --------------- | ----- |
-| `openai` | `OPENAI_API_KEY` | default |
-| `anthropic` | `ANTHROPIC_API_KEY` | responses normalised to OpenAI shape |
-| `deepseek` | `DEEPSEEK_API_KEY` | |
-| `mistral` | `MISTRAL_API_KEY` | |
-| `together` | `TOGETHER_API_KEY` | |
-| `groq` | `GROQ_API_KEY` | |
-| `openrouter` | `OPENROUTER_API_KEY` | |
-| `gemini` | `GEMINI_API_KEY` | Google's OpenAI-compatible endpoint |
-| `openai_compatible` | `OPENAI_API_KEY` | any custom endpoint (vLLM, LM Studio, Azure) |
-| `ollama` | — (local) | |
+| `provider`          | API key env var      | Notes                                        |
+| ------------------- | -------------------- | -------------------------------------------- |
+| `openai`            | `OPENAI_API_KEY`     | default                                      |
+| `anthropic`         | `ANTHROPIC_API_KEY`  | responses normalised to OpenAI shape         |
+| `deepseek`          | `DEEPSEEK_API_KEY`   |                                              |
+| `mistral`           | `MISTRAL_API_KEY`    |                                              |
+| `together`          | `TOGETHER_API_KEY`   |                                              |
+| `groq`              | `GROQ_API_KEY`       |                                              |
+| `openrouter`        | `OPENROUTER_API_KEY` |                                              |
+| `gemini`            | `GEMINI_API_KEY`     | Google's OpenAI-compatible endpoint          |
+| `openai_compatible` | `OPENAI_API_KEY`     | any custom endpoint (vLLM, LM Studio, Azure) |
+| `ollama`            | — (local)            |                                              |
 
 ```python
 from draf.harness import Harness
 
 harness = Harness(
     model="claude-3-5-sonnet-latest",
-    provider="anthropic",          # uses ANTHROPIC_API_KEY
-    fallbacks=["gpt-4o"],          # fail over to another provider/model
+    provider="anthropic",  # uses ANTHROPIC_API_KEY
+    fallbacks=["gpt-4o"],  # fail over to another provider/model
 )
 reply = await harness.call([{"role": "user", "content": "hi"}])
 print(reply.content, reply.cached, reply.latency_ms)
 ```
 
 `Harness.from_config(cfg)` builds a harness from a node config dict (the same
-keys `LLM` / `ReActAgent` accept), so Python and YAML stay in lockstep.  In
+keys `LLM` / `ReActAgent` accept), so Python and YAML stay in lockstep. In
 YAML the `llm_chat` / `react_agent` nodes map `provider`, `base_url`,
 `api_key_env`, `chat_path`, `fallbacks`, `cache`, `max_retries`, and the
 other transport keys straight through.
@@ -811,13 +865,13 @@ other transport keys straight through.
 
 `cache=True` dedupes model calls: the request body is hashed and a cached
 reply is returned for identical re-calls, so checkpoint resumes and eval
-re-runs never pay for the same request twice.  Cached replies report
-`ModelReply.cached == True`.  A custom mutable mapping can be supplied
+re-runs never pay for the same request twice. Cached replies report
+`ModelReply.cached == True`. A custom mutable mapping can be supplied
 instead of a plain dict; streaming responses are not cached.
 
 ```python
 harness = Harness(model="gpt-4o", cache=True)
-first = await harness.call(messages)   # network round-trip
+first = await harness.call(messages)  # network round-trip
 second = await harness.call(messages)  # served from cache
 assert first.cached is False and second.cached is True
 ```
@@ -827,14 +881,14 @@ assert first.cached is False and second.cached is True
 `set_provider_concurrency(provider, limit)` caps concurrent model calls
 globally for a provider — across every `Harness` instance, so parallel
 branches (each with its own harness) throttle together instead of blowing
-past provider rate limits.  The explicit limit is authoritative over a
+past provider rate limits. The explicit limit is authoritative over a
 per-harness `max_parallel`.
 
 ```python
 from draf.harness import set_provider_concurrency
 
-set_provider_concurrency("openai", 8)   # global cap
-set_provider_concurrency("openai", 0)   # remove the cap
+set_provider_concurrency("openai", 8)  # global cap
+set_provider_concurrency("openai", 0)  # remove the cap
 ```
 
 ## Workflow validation & typed errors
@@ -872,7 +926,7 @@ DrafError
 ```python
 try:
     graph = draf.from_yaml("name: bad\nsteps:\n  - id: s1\n    type: react_agnt\n")
-except draf.ConfigError as exc:      # also catchable as KeyError
+except draf.ConfigError as exc:  # also catchable as KeyError
     print(exc)
 ```
 
@@ -891,7 +945,7 @@ dataset.jsonl   # one JSON object per line
 ```
 
 Every key except `id` / `expected` is merged into the workflow state as an
-initial override (on top of the workflow's own `state.initial`).  `.json`
+initial override (on top of the workflow's own `state.initial`). `.json`
 and `.csv` datasets are also accepted.
 
 ```bash
@@ -908,7 +962,7 @@ from draf.eval import load_dataset, run_eval, format_report
 workflow = load_workflow("workflow.yaml")
 dataset = load_dataset("dataset.jsonl")
 report = await run_eval(workflow, dataset, exact=True)
-print(format_report(report))   # total=… passed=… failed=… unscored=… errors=…
+print(format_report(report))  # total=… passed=… failed=… unscored=… errors=…
 ```
 
 `--exact` scores by normalised string equality; otherwise an LLM judge
@@ -918,29 +972,29 @@ looks through common keys first), `--max-examples` caps the run.
 
 ## Examples
 
-| Example | What it shows |
-| ------- | ------------- |
-| [basic_pipeline](examples/basic_pipeline/) | Minimal YAML pipeline, no API keys |
-| [branching](examples/branching/) | Conditional edges + Flow API |
-| [parallel](examples/parallel/) | Concurrent branches + typed `State` reducers |
-| [map_repair_plans](examples/map_repair_plans/) | Dynamic fan-out (`Map`) + `{key}` prompt templates + typed `State` |
-| [human_in_loop](examples/human_in_loop/) | Approve/Edit LLM output via `Interrupt` + `loop()` + resume (Python and YAML) |
-| [react_agent](examples/react_agent/) | ReAct agent loop with a calculator tool and live token streaming |
-| [harness_agent](examples/harness_agent/) | `flow.harness()` — parallel tool calls in one round + `__error__` fallback |
-| [agent_approval](examples/agent_approval/) | Tool approval (HITL) — every tool call pauses for human sign-off and resumes |
-| [agent_resilience](examples/agent_resilience/) | Retries, model failover, context trimming and a token budget (mocked, no API key) |
-| [skills](examples/skills/) | Skills folder (`SKILL.md`) — instructions + tool scoping on a harness agent |
-| [pdf_agent](examples/pdf_agent/) | Skill with its own tools — vendored `pdf` skill whose bundled scripts run via the shell tool; mounted on both a harness and a plain `LLM` node |
-| [mcp](examples/mcp/) | ReAct agent calling tools from an MCP server (stdio) |
-| [streaming](examples/streaming/) | Live LLM tokens + graph events via `graph.stream()` |
-| [structured_output](examples/structured_output/) | Schema-validated LLM JSON via `output_type`/`json_schema` |
-| [rag_search](examples/rag_search/) | RAG over a local CSV, in-memory store |
-| [rag_stores](examples/rag_stores/) | Same RAG agent on every vector store (in-memory, sqlite, chroma, faiss, lance, milvus, weaviate, qdrant, pgvector, pinecone) |
-| [checkpoint_resume](examples/checkpoint_resume/) | Crash/resume in a few lines |
-| [checkpoint_stores](examples/checkpoint_stores/) | Durable workflow on file/sqlite/pg |
-| [release_features](examples/release_features/) | Release API tour — validation, typed errors, `draf eval`, cost reports, response cache (mocked, no API key) |
-| [simple_router](examples/simple_router/) | Minimal `Flow.route()` supervisor — two agents, a bounded loop (can't hang), offline tests |
-| [repair-ai-chat](examples/applications/repair-ai-chat/) | Full FastAPI app built on `route()` — five agents, tools, RAG, streaming (Russian repair workflow) |
+| Example                                                 | What it shows                                                                                                                                  |
+| ------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| [basic_pipeline](examples/basic_pipeline/)              | Minimal YAML pipeline, no API keys                                                                                                             |
+| [branching](examples/branching/)                        | Conditional edges + Flow API                                                                                                                   |
+| [parallel](examples/parallel/)                          | Concurrent branches + typed `State` reducers                                                                                                   |
+| [map_repair_plans](examples/map_repair_plans/)          | Dynamic fan-out (`Map`) + `{key}` prompt templates + typed `State`                                                                             |
+| [human_in_loop](examples/human_in_loop/)                | Approve/Edit LLM output via `Interrupt` + `loop()` + resume (Python and YAML)                                                                  |
+| [react_agent](examples/react_agent/)                    | ReAct agent loop with a calculator tool and live token streaming                                                                               |
+| [harness_agent](examples/harness_agent/)                | `flow.harness()` — parallel tool calls in one round + `__error__` fallback                                                                     |
+| [agent_approval](examples/agent_approval/)              | Tool approval (HITL) — every tool call pauses for human sign-off and resumes                                                                   |
+| [agent_resilience](examples/agent_resilience/)          | Retries, model failover, context trimming and a token budget (mocked, no API key)                                                              |
+| [skills](examples/skills/)                              | Skills folder (`SKILL.md`) — instructions + tool scoping on a harness agent                                                                    |
+| [pdf_agent](examples/pdf_agent/)                        | Skill with its own tools — vendored `pdf` skill whose bundled scripts run via the shell tool; mounted on both a harness and a plain `LLM` node |
+| [mcp](examples/mcp/)                                    | ReAct agent calling tools from an MCP server (stdio)                                                                                           |
+| [streaming](examples/streaming/)                        | Live LLM tokens + graph events via `graph.stream()`                                                                                            |
+| [structured_output](examples/structured_output/)        | Schema-validated LLM JSON via `output_type`/`json_schema`                                                                                      |
+| [rag_search](examples/rag_search/)                      | RAG over a local CSV, in-memory store                                                                                                          |
+| [rag_stores](examples/rag_stores/)                      | Same RAG agent on every vector store (in-memory, sqlite, chroma, faiss, lance, milvus, weaviate, qdrant, pgvector, pinecone)                   |
+| [checkpoint_resume](examples/checkpoint_resume/)        | Crash/resume in a few lines                                                                                                                    |
+| [checkpoint_stores](examples/checkpoint_stores/)        | Durable workflow on file/sqlite/pg                                                                                                             |
+| [release_features](examples/release_features/)          | Release API tour — validation, typed errors, `draf eval`, cost reports, response cache (mocked, no API key)                                    |
+| [simple_router](examples/simple_router/)                | Minimal `Flow.route()` supervisor — two agents, a bounded loop (can't hang), offline tests                                                     |
+| [repair-ai-chat](examples/applications/repair-ai-chat/) | Full FastAPI app built on `route()` — five agents, tools, RAG, streaming (Russian repair workflow)                                             |
 
 All LLM examples run on local Ollama — no API keys. Most use `llama3.1:8b`
 (`ollama pull llama3.1:8b`); [pdf_agent](examples/pdf_agent/) uses
@@ -949,12 +1003,50 @@ All LLM examples run on local Ollama — no API keys. Most use `llama3.1:8b`
 ## Development
 
 ```bash
-uv sync                        # install deps
+uv sync --all-extras           # install deps (incl. optional extras used by tests)
 uv run pytest tests/ -q        # tests
 uv run ruff check .            # lint
 uv run ruff format --check .   # formatting
 uv run mypy .                  # types
+uv run mkdocs build            # docs (requires: pip install -e ".[docs]")
 ```
+
+## CI & release
+
+The repo ships three GitHub Actions workflows in [`.github/workflows/`](.github/workflows/):
+
+| Trigger          | What runs                                                                                                |
+| ---------------- | -------------------------------------------------------------------------------------------------------- |
+| Pull request     | `ci.yml` — lint (`ruff check`, `ruff format --check`, `mypy`) **and** tests across Python 3.11/3.12/3.13 |
+| Push to `master` | `ci.yml` — tests only (fast feedback, no redundant lint)                                                 |
+| Tag `v*`         | `release.yml` — tests → build sdist/wheel → publish to PyPI → GitHub Release → docs to GitHub Pages      |
+
+Tests install the full optional surface (`uv sync --frozen --all-extras`) so the
+RAG-store, FastAPI, and scaffold tests exercise real integrations; the suite is
+fully offline (no API keys), and the LLM examples that need Ollama are not run.
+
+### Cutting a release
+
+1. Bump the version in `pyproject.toml` **and** `draf/_version.py`
+   (they must stay in sync), commit, push to `master`.
+2. Tag and push — the tag is what triggers the pipeline:
+
+   ```bash
+   git tag v0.1.0
+   git push origin v0.1.0
+   ```
+
+3. `release.yml` runs tests, builds the package, publishes it to PyPI,
+   attaches the artifacts to a GitHub Release, and deploys the docs.
+
+### One-time setup
+
+- **PyPI** — the publish step uses [trusted publishing](https://docs.pypi.org/trusted-publishers/),
+  so no API token is stored. In your PyPI account add a pending publisher for
+  `draf`: owner `bzdvdn`, repository `draf`, workflow `release.yml`, environment
+  `release` (the publish job pins `environment: release`).
+- **GitHub Pages** — enable Pages on the repository and set the source to
+  _GitHub Actions_; the `docs` job deploys `site/` on every release.
 
 See [CONSTITUTION.md](CONSTITUTION.md) for the framework's principles and
 non-negotiable rules.

@@ -1,0 +1,222 @@
+# Flow builder (full API)
+
+`Flow` is the ergonomic, chainable way to assemble a `Graph` in Python. Every
+method returns `self`, so a whole workflow compiles in one expression. The
+result of `flow.compile()` is a `Graph` you can run or stream, and
+`flow.to_yaml()` exports it as a deployable workflow.
+
+```python
+from draf.flow import Flow, Case
+from draf.node import LLM, Transform
+
+flow = Flow("my-flow")  # optional name
+flow.step(LLM(model="gpt-4", output_key="answer"))
+result = await flow.compile().run(state={"..."})
+```
+
+## Linear chain
+
+### `step(node)`
+
+Append a node to the linear chain. Accepts any `Node` — built-in or custom:
+
+```python
+flow.step(Transform(action="uppercase"))
+flow.step(LLM(model="gpt-4"))
+flow.step(custom_node)
+```
+
+### `llm(...)` and `transform(...)`
+
+Shorthands for the two most common node classes. Accept either a pre-built
+instance (to reuse a shared node) or keyword config:
+
+```python
+flow.llm(model="gpt-4", system="You are helpful", output_key="answer")
+flow.llm(LLM(model="gpt-4", parse=True, output_key="data"))
+
+flow.transform(action="uppercase", input_key="text", output_key="shout")
+flow.transform(Transform(action="value", value="done", output_key="status"))
+```
+
+Passing both an instance and kwargs raises `TypeError`.
+
+### `add_flow(flow, ...)` / `SubFlow`
+
+Embed a whole sub-flow as a single node. The inner `Flow` is compiled and
+wrapped in a `SubFlow`:
+
+```python
+inner = Flow("inner")
+inner.step(LLM(model="gpt-4", output_key="tmp"))
+
+outer = Flow("outer")
+outer.step(prepare_node)
+outer.add_flow(inner, input_map={"user": "question"}, output_map={"tmp": "result"})
+outer.step(use_result_node)
+```
+
+`SubFlow` keys:
+
+| Key | Description |
+| --- | ----------- |
+| `input_map` | Parent state key → sub-graph key (default: full passthrough). |
+| `output_map` | Sub-graph key → parent state key (default: full passthrough). |
+| `max_iterations` | Max node executions inside the sub-graph (`None` = unlimited). |
+
+The sub-graph runs on isolated copies and streams its node/token/llm events
+through (its own `run_start`/`run_end` are stripped). Tools from the outer
+context are forwarded to the inner run.
+
+## Branching
+
+### `branch(key, *cases, default=...)` + `Case`
+
+Conditional routing from the last added node, based on a state key:
+
+```python
+flow.branch(
+    "sentiment",  # state key to inspect
+    Case("positive").add(on_pos_llm),  # when sentiment == "positive"
+    Case("negative").add(on_neg_llm),  # when sentiment == "negative"
+    default=fallback_llm,  # anything else
+).converge(Transform(action="uppercase", input_key="reply", output_key="result"))
+```
+
+- Each `Case(value)` produces an edge `key=value`; a `Case` can hold several
+  chained nodes via repeated `.add(node)`.
+- `default=` (or the `default(node)` method) adds an edge
+  `key!=<all case values>`.
+
+### `converge(node)`
+
+Merge every branch end into a single node. Call it after `branch()` or
+`parallel()` to rejoin paths before continuing the chain.
+
+### `loop(key, until, done=..., body=...)`
+
+Repeat a `body` chain until `state[key] == until`, then run `done` and
+continue after the loop:
+
+```python
+flow.step(draft_llm)
+flow.interrupt("approved", "Одобрить? (да / правки)")  # decider
+flow.loop(
+    key="approved",
+    until="да",
+    done=final_llm,
+    body=edit_llm,
+)
+```
+
+Wires `decider --key=until--> done` (stop) and
+`decider --key!=until--> body -> ... -> decider` (repeat). The decider is any
+node that writes `key` — an `Interrupt`, an `LLM`, a `Transform`, etc.
+
+### `route(key, *, finish=..., **agents)`
+
+The supervisor loop — route between agent chains, looping back to a decider
+until it says `finish`. See [Multi-agent supervisors](supervisors.md).
+
+## Concurrency
+
+### `parallel(*branches)`
+
+Run branch chains concurrently from the last node via `asyncio.gather`, on
+isolated copies of state. Per-key reducers merge their updates back:
+
+```python
+flow.parallel(
+    [Transform(action="uppercase", input_key="a", output_key="a")],
+    [Transform(action="uppercase", input_key="b", output_key="b")],
+).converge(Transform(action="value", value="done", output_key="status"))
+```
+
+A branch is a single `Node`, a list of nodes (sequential inside the branch),
+or a `Flow` (embedded as `SubFlow`). The underlying node works directly too:
+`Parallel([[node1], [node2]])`.
+
+### `map(processor, *, input_keys, output_key, chunk_size=..., max_concurrency=...)`
+
+Dynamically fan a state **list** out across parallel branches — branch count
+comes from the data at runtime:
+
+```python
+flow.map(
+    LLM(model="llama3.1:8b", input_key="chunk", output_key="summary"),
+    input_keys=["chunks"],  # list key(s); multiple are zipped per index
+    output_key="summaries",  # list of per-item results
+    max_concurrency=2,
+)
+```
+
+`chunk_size` batches items per branch, `result_key` overrides which per-item
+key is collected.
+
+## Human input
+
+### `interrupt(key, prompt="")`
+
+Pause for a human. `graph.run()` raises `GraphInterrupt`; resume with the same
+`checkpoint_id` and `resume={key: answer}`. Requires a checkpointer. See
+[Durable execution](durable.md).
+
+## Agents
+
+### `harness(...)` / `react(...)`
+
+Build the ReAct loop (agent node ↔ tool executor) inside the flow. See
+[Agents](agents.md) and [Supervisors](supervisors.md).
+
+### Custom agent node
+
+Pass a pre-built `ReActAgent` instance or subclass to override behaviour:
+
+```python
+flow.react(agent=MyAgent(model="gpt-4", system="..."))
+flow.react(agent=MyAgentClass, model="gpt-4", system="...")
+```
+
+## Export & run
+
+### `compile()`
+
+Compile into a `Graph` ready for `run()`/`stream()`. Raises `ValueError` if
+no nodes were added.
+
+### `to_yaml(tools=..., initial=..., reducers=...)`
+
+Export the compiled flow as a `workflow.yaml` document — including the ReAct
+loop wiring. `Flow` does not track tools/state, so pass them explicitly:
+
+```python
+from draf import Flow
+from draf.tool.builtin.git import GitTool
+
+yaml_text = (
+    Flow("repo").react(model="llama3.1:8b", use_tools="all").to_yaml(tools=[GitTool()])
+)
+with open("workflow.yaml", "w") as f:
+    f.write(yaml_text)
+```
+
+The result validates with `draf validate` and round-trips through
+`draf.yaml.load_workflow`.
+
+## Quick reference
+
+| Method | Builds | See |
+| ------ | ------ | --- |
+| `step(node)` | one node in the chain | [Nodes](../reference/nodes.md) |
+| `llm(...)` / `transform(...)` | shorthand for `LLM`/`Transform` | [Nodes](../reference/nodes.md) |
+| `add_flow(flow)` | nested `SubFlow` node | — |
+| `branch(key, *cases)` | conditional edges | [State](state.md) |
+| `default(node)` / `converge(node)` | fallback / rejoin | — |
+| `loop(key, until, ...)` | repeat-until cycle | [Durable](durable.md) |
+| `route(key, **agents)` | supervisor loop | [Supervisors](supervisors.md) |
+| `parallel(*branches)` | concurrent branches | [State](state.md) |
+| `map(processor, ...)` | dynamic fan-out | [State](state.md) |
+| `interrupt(key, prompt)` | human-in-the-loop | [Durable](durable.md) |
+| `react(...)` / `harness(...)` | ReAct agent loop | [Agents](agents.md) |
+| `compile()` | runnable `Graph` | — |
+| `to_yaml(...)` | deployable workflow | [YAML workflows](yaml-workflows.md) |

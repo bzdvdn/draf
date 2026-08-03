@@ -1,0 +1,95 @@
+site_name: Draf
+site_description: Workflow as data, agents as graphs. Python async framework for durable AI agents and workflows.
+repo_url: https://github.com/bzdvdn/draf
+edit_uri: edit/main/docs/
+theme:
+  name: material
+  language: en
+  features:
+    - navigation.instant
+    - navigation.tabs
+    - navigation.sections
+    - navigation.expand
+    - navigation.top
+    - toc.integrate
+    - search.suggest
+    - search.highlight
+    - content.code.copy
+    - content.tabs.link
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+
+plugins:
+  - search
+  - gen-files:
+      scripts:
+        - docs/gen_ref_pages.py
+  - mkdocstrings:
+      handlers:
+        python:
+          options:
+            show_source: true
+            show_root_heading: true
+            show_root_toc_entry: true
+            show_symbol_type_heading: true
+            summary: true
+            separate_signature: true
+            line_length: 88
+
+hooks:
+  - docs/hooks.py
+
+validation:
+  nav:
+    omitted_files: ignore
+
+site_dir: site
+
+markdown_extensions:
+  - admonition
+  - pymdownx.superfences
+  - pymdownx.details
+  - pymdownx.tabbed
+  - toc:
+      permalink: true
+
+nav:
+  - Home: index.md
+  - Getting started:
+      - Install: getting-started/install.md
+      - Quick start: getting-started/quickstart.md
+      - Concepts: getting-started/concepts.md
+  - Guide:
+      - YAML workflows: guide/yaml-workflows.md
+      - Flow builder: guide/flow-builder.md
+      - Agents: guide/agents.md
+      - Multi-agent supervisors: guide/supervisors.md
+      - Structured output: guide/structured-output.md
+      - State: guide/state.md
+      - Durable (checkpoints): guide/durable.md
+      - RAG: guide/rag.md
+      - Skills: guide/skills.md
+      - Plugins: guide/plugins.md
+      - Evaluation: guide/evaluation.md
+      - Streaming: guide/streaming.md
+  - Reference:
+      - Overview: reference.md
+      - Nodes: reference/nodes.md
+      - Tools: reference/tools.md
+      - Providers: reference/providers.md
+      - Top-level helpers: reference/helpers.md
+  - CLI Reference: cli.md
+  - API Reference:
+      - Overview: api/index.md
+      - Top level (draf): api/draf.md
+  - Examples: examples.md
+  - Reference: reference.md

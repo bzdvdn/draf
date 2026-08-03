@@ -6,7 +6,7 @@ import pytest
 class TestEdgeConditions:
     @pytest.mark.asyncio
     async def test_equals(self):
-        from draf.graph import Graph, Edge
+        from draf.graph import Edge, Graph
         from draf.node import Node
 
         class PN(Node):
@@ -32,7 +32,7 @@ class TestEdgeConditions:
 
     @pytest.mark.asyncio
     async def test_not_equals(self):
-        from draf.graph import Graph, Edge
+        from draf.graph import Edge, Graph
         from draf.node import Node
 
         class PN(Node):
@@ -60,7 +60,7 @@ class TestEdgeConditions:
 
     @pytest.mark.asyncio
     async def test_comma_disjunction(self):
-        from draf.graph import Graph, Edge
+        from draf.graph import Edge, Graph
         from draf.node import Node
 
         class PN(Node):
@@ -90,8 +90,8 @@ class TestEdgeConditions:
 class TestErrorEdges:
     @pytest.mark.asyncio
     async def test_error_edge_catches_exception(self):
+        from draf.graph import Edge, Graph
         from draf.node import Node
-        from draf.graph import Graph, Edge
 
         class Crash(Node):
             type = "cr"
@@ -116,8 +116,8 @@ class TestErrorEdges:
 
     @pytest.mark.asyncio
     async def test_no_error_edge_re_raises(self):
+        from draf.graph import Edge, Graph
         from draf.node import Node
-        from draf.graph import Graph, Edge
 
         class Crash(Node):
             type = "cr"
@@ -141,8 +141,8 @@ class TestErrorEdges:
 
     @pytest.mark.asyncio
     async def test_error_edge_does_not_interfere_with_normal_routing(self):
+        from draf.graph import Edge, Graph
         from draf.node import Node
-        from draf.graph import Graph, Edge
 
         class Normal(Node):
             type = "n"
@@ -163,8 +163,8 @@ class TestErrorEdges:
 class TestHooks:
     @pytest.mark.asyncio
     async def test_on_node_start_called(self):
-        from draf.node import Node
         from draf.graph import Graph
+        from draf.node import Node
 
         class Simple(Node):
             type = "s"
@@ -182,8 +182,8 @@ class TestHooks:
 
     @pytest.mark.asyncio
     async def test_on_node_end_called(self):
-        from draf.node import Node
         from draf.graph import Graph
+        from draf.node import Node
 
         class Simple(Node):
             type = "s"
@@ -202,8 +202,8 @@ class TestHooks:
 
     @pytest.mark.asyncio
     async def test_on_node_error_called_before_fallback(self):
+        from draf.graph import Edge, Graph
         from draf.node import Node
-        from draf.graph import Graph, Edge
 
         class Crash(Node):
             type = "cr"
@@ -235,8 +235,8 @@ class TestHooks:
 class TestNodeTimeout:
     @pytest.mark.asyncio
     async def test_timeout_triggers_error_edge(self):
+        from draf.graph import Edge, Graph
         from draf.node import Node
-        from draf.graph import Graph, Edge
 
         class Slow(Node):
             type = "slow"
@@ -262,8 +262,8 @@ class TestNodeTimeout:
 
     @pytest.mark.asyncio
     async def test_timeout_raises_without_error_edge(self):
-        from draf.node import Node
         from draf.graph import Graph
+        from draf.node import Node
 
         class Slow(Node):
             type = "slow"
@@ -282,8 +282,8 @@ class TestNodeTimeout:
 
     @pytest.mark.asyncio
     async def test_no_timeout_completes_normally(self):
-        from draf.node import Node
         from draf.graph import Graph
+        from draf.node import Node
 
         class Fast(Node):
             type = "fast"
@@ -302,8 +302,8 @@ class TestNodeTimeout:
 
     @pytest.mark.asyncio
     async def test_timeout_hook_called(self):
-        from draf.node import Node
         from draf.graph import Graph
+        from draf.node import Node
 
         class Slow(Node):
             type = "slow"

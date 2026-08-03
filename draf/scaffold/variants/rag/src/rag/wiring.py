@@ -10,11 +10,11 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from draf.rag.embedder import Embedder
-from draf.rag.stores import PGVectorStore, SQLiteVectorStore
-
 from src.config.config import Settings, get_settings
 from src.rag.catalog import DocumentCatalog
+
+from draf.rag.embedder import Embedder
+from draf.rag.stores import PGVectorStore, SQLiteVectorStore
 
 #: Where the catalog looks for documents (relative to the project root).
 DEFAULT_DOCUMENTS = Path(__file__).resolve().parents[2] / "data" / "documents"

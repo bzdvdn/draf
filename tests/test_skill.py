@@ -225,7 +225,7 @@ class TestSkillIntegration:
     async def test_llm_merges_instructions_and_scopes_tools(
         self, monkeypatch, tmp_path
     ):
-        from draf.node import ExecContext, LLM
+        from draf.node import LLM, ExecContext
 
         monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
 
@@ -280,7 +280,7 @@ class TestSkillIntegration:
     async def test_llm_skill_instructions_with_braces(self, monkeypatch, tmp_path):
         """Skill bodies may contain ``{...}`` (e.g. code samples) — they must
         not be interpolated as template placeholders on a plain LLM node."""
-        from draf.node import ExecContext, LLM
+        from draf.node import LLM, ExecContext
 
         monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
 
@@ -414,9 +414,10 @@ class TestSkillIntegration:
 def test_skill_scopes_foreign_mcp_tools(tmp_path):
     """Scoping works over tools described outside the framework (MCP)."""
     pytest.importorskip("mcp")
+    from mcp.types import Tool as McpToolSpec
+
     from draf.skill import load_skill, scope_tools
     from draf.tool import McpTool
-    from mcp.types import Tool as McpToolSpec
 
     d = tmp_path / "repo-helper"
     d.mkdir()
@@ -466,10 +467,11 @@ def test_skill_scopes_foreign_mcp_tools(tmp_path):
 @pytest.mark.asyncio
 async def test_react_agent_body_scopes_foreign_tools(monkeypatch, tmp_path):
     pytest.importorskip("mcp")
+    from mcp.types import Tool as McpToolSpec
+
     from draf.node import ExecContext
     from draf.node.agent import ReActAgent
     from draf.tool import McpTool
-    from mcp.types import Tool as McpToolSpec
 
     monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
 

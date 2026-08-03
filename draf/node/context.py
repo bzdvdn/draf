@@ -17,8 +17,8 @@ from draf.node.node import Node
 from draf.tool.tool import Tool
 
 if typing.TYPE_CHECKING:
-    from draf.trace import RunTracer
     from draf.stream import StreamEvent
+    from draf.trace import RunTracer
 
 
 def last_user_message(messages: list) -> str:
@@ -116,7 +116,9 @@ class AppendAssistant(Node):
         content = state.get(self.config["output_key"], "")
         if not content:
             return {}
-        return {self.config["messages_key"]: [{"role": "assistant", "content": content}]}
+        return {
+            self.config["messages_key"]: [{"role": "assistant", "content": content}]
+        }
 
 
 class ExecContext:

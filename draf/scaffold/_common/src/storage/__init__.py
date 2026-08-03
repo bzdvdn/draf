@@ -25,14 +25,20 @@ from draf.checkpoint import (
     PGCheckpointer,
     SQLiteCheckpointer,
 )
-
 from src.graphs.state import initial_state
 
 #: Relative to the project root; points at ``data/checkpoints/``.
 DEFAULT_CHECKPOINT_DIR = Path(__file__).resolve().parents[2] / "data" / "checkpoints"
 
 #: Transient state keys recomputed each run (not part of the conversation).
-_TRANSIENT_KEYS = ("next_agent", "input", "plan", "draft", "review", "supervisor_rounds")
+_TRANSIENT_KEYS = (
+    "next_agent",
+    "input",
+    "plan",
+    "draft",
+    "review",
+    "supervisor_rounds",
+)
 
 
 def _is_dsn(value: str | Path | None) -> bool:

@@ -5,13 +5,13 @@ import re
 
 import yaml
 
-from draf.graph import Graph, Edge
 from draf.errors import ConfigError
+from draf.graph import Edge, Graph
 from draf.node.node import Node
-from draf.tool.tool import Tool
-from draf.tool.registry import default_tool_registry
 from draf.state.state import Reducer, reducers_from_yaml_schema
-from draf.yaml_schema import validate_workflow, raise_for_validation
+from draf.tool.registry import default_tool_registry
+from draf.tool.tool import Tool
+from draf.yaml_schema import raise_for_validation, validate_workflow
 
 
 def _safe_load(source):
@@ -33,9 +33,7 @@ def _interpolate_env(value):
     stay valid offline; set the variable to inject the secret.
     """
     if isinstance(value, str):
-        return _ENV_VAR.sub(
-            lambda m: os.environ.get(m.group(1), m.group(0)), value
-        )
+        return _ENV_VAR.sub(lambda m: os.environ.get(m.group(1), m.group(0)), value)
     if isinstance(value, dict):
         return {k: _interpolate_env(v) for k, v in value.items()}
     if isinstance(value, list):
@@ -216,8 +214,8 @@ def load_workflow(path: str) -> tuple[Graph, list[Tool], dict, dict[str, Reducer
 
     load_plugins_from_document(data, os.path.dirname(os.path.abspath(path)))
 
-    import draf.tool.builtin  # noqa: F401 — registers built-in tools
     import draf.rag  # noqa: F401 — registers the "rag" tool
+    import draf.tool.builtin  # noqa: F401 — registers built-in tools
 
     raise_for_validation(validate_workflow(data), source=path)
 

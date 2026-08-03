@@ -113,9 +113,7 @@ class WaitForTool(Tool):
                 raise ValueError(f"timed out after {timeout:.0f}s")
             time.sleep(interval)
 
-    def _poll_url(
-        self, url: str, timeout: float, interval: float, status: str
-    ) -> None:
+    def _poll_url(self, url: str, timeout: float, interval: float, status: str) -> None:
         if status not in ("success", "any") and not str(status).isdigit():
             raise ValueError(f"unknown status expectation: {status}")
 
@@ -123,9 +121,7 @@ class WaitForTool(Tool):
             import httpx
 
             try:
-                response = httpx.get(
-                    url, timeout=interval + 2, follow_redirects=True
-                )
+                response = httpx.get(url, timeout=interval + 2, follow_redirects=True)
             except Exception:
                 return False
             code = response.status_code

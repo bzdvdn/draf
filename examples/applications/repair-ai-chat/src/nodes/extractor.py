@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from draf.node.llm import LLM
-
 from src.graphs.prompts import EXTRACTOR_SYSTEM_PROMPT
 from src.graphs.schemas import PROJECT_INFO_SCHEMA
 
@@ -42,7 +41,6 @@ class Extractor(LLM):
     async def execute(self, ctx, state: dict) -> dict:
         cfg = self.config
         messages_key = cfg.get("messages_key", "messages")
-        output_key = cfg.get("output_key", "project_info")
         system = cfg.get("system", "")
 
         history = list(state.get(messages_key, []))

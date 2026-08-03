@@ -8,7 +8,6 @@ one place.  Each feature owns a sub-package with its own ``router.py``:
 from __future__ import annotations
 
 from fastapi import APIRouter, Request
-
 from src.api.auth.router import router as auth_router
 from src.api.chat.router import router as chat_router
 from src.api.run.router import router as run_router

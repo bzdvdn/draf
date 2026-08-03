@@ -31,7 +31,6 @@ from __future__ import annotations
 from draf.harness import Harness
 from draf.node.llm import LLM
 from draf.node.node import Node
-
 from src.graphs.prompts import SUPERVISOR_PROMPT
 from src.nodes.context import last_user_message
 
@@ -156,8 +155,10 @@ class Supervisor(Node):
         # resolves to "finish") before any output slot is filled, route to
         # *fallback_agent* instead so the user still gets a real answer.
         fallback_agent = cfg.get("fallback_agent") or ""
-        if agent == "finish" and fallback_agent and not any(
-            state.get(k) for k in done_keys
+        if (
+            agent == "finish"
+            and fallback_agent
+            and not any(state.get(k) for k in done_keys)
         ):
             agent = fallback_agent
 

@@ -2,7 +2,6 @@
 
 import pytest
 
-
 CUSTOM_NODE = """\
 from draf.node.registry import node
 from draf.tool.registry import tool

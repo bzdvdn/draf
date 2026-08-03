@@ -32,9 +32,7 @@ def main() -> None:
     c.acroForm.textfield(name="quantity", x=200, y=640, width=60, height=20)
 
     c.drawString(72, 610, "Priority shipping:")
-    c.acroForm.checkbox(
-        name="priority", x=200, y=600, buttonStyle="check"
-    )
+    c.acroForm.checkbox(name="priority", x=200, y=600, buttonStyle="check")
 
     c.acroForm.radio(name="size", value="S", x=72, y=560, buttonStyle="circle")
     c.drawString(95, 562, "Small")

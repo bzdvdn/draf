@@ -351,8 +351,8 @@ class TestFlowLoop:
 
 class TestInterruptTrace:
     def test_tracer_records_interrupt(self, tmp_path):
-        from draf.checkpoint import JSONFileCheckpointer
         from draf import RunTracer
+        from draf.checkpoint import JSONFileCheckpointer
 
         g = _build_flow()
         cp = JSONFileCheckpointer(str(tmp_path))

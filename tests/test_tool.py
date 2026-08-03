@@ -18,8 +18,9 @@ class TestTool:
         assert t.run(x=21) == 42
 
     def test_arun_falls_back_to_run(self):
-        from draf.tool import Tool
         import asyncio
+
+        from draf.tool import Tool
 
         class MyTool(Tool):
             name = "calc"
@@ -95,8 +96,9 @@ class TestToolDecorator:
         assert t.run(name="World") == "Hello World"
 
     def test_async_tool(self):
-        from draf.tool import default_tool_registry, tool
         import asyncio
+
+        from draf.tool import default_tool_registry, tool
 
         @tool("async_hello")
         async def greet(name: str = "") -> str:
@@ -109,7 +111,7 @@ class TestToolDecorator:
 
 class TestToolRegistry:
     def test_register_and_list(self):
-        from draf.tool import ToolRegistry, Tool
+        from draf.tool import Tool, ToolRegistry
 
         class FT(Tool):
             name = "ft"
@@ -123,6 +125,29 @@ class TestToolRegistry:
         assert "ft" in reg.list()
         t = reg.create("ft")
         assert t.run() == "ok"
+
+    def test_create_passes_config_dict_to_config_constructor(self):
+        from draf.tool import ToolRegistry
+        from draf.tool.builtin import SQLQueryTool
+
+        reg = ToolRegistry()
+        reg.register(SQLQueryTool)
+        t = reg.create("sql_query", {"db_type": "sqlite", "path": "x.db"})
+        assert t.db_type == "sqlite"
+        assert t.path == "x.db"
+
+    def test_create_passes_config_as_kwargs_to_keyword_constructor(self):
+        from draf.tool import ToolRegistry
+        from draf.tool.builtin import ShellTool, WebSearchTool
+
+        reg = ToolRegistry()
+        reg.register(ShellTool)
+        reg.register(WebSearchTool)
+        shell = reg.create("shell", {"root_dir": "/tmp", "allowed_commands": ["echo"]})
+        assert shell.root_dir == "/tmp"
+        assert shell._allowed == ["echo"]
+        search = reg.create("web_search", {"provider": "google"})
+        assert search.provider == "google"
 
 
 class TestBuiltinTools:
@@ -143,7 +168,7 @@ class TestBuiltinTools:
         assert "ok" in r
 
     def test_file_tools(self, tmp_path):
-        from draf.tool.builtin.file import WriteFileTool, ReadFileTool, EditFileTool
+        from draf.tool.builtin.file import EditFileTool, ReadFileTool, WriteFileTool
 
         path = str(tmp_path / "test.txt")
         wt = WriteFileTool()
@@ -165,10 +190,11 @@ class TestExtendedBuiltinTools:
 
     @pytest.mark.asyncio
     async def test_web_fetch_missing_bs4(self, monkeypatch):
-        from draf.tool.builtin import WebFetchTool
-
         import builtins
+
         import httpx
+
+        from draf.tool.builtin import WebFetchTool
 
         real_import = builtins.__import__
 
@@ -209,9 +235,9 @@ class TestExtendedBuiltinTools:
             PDFReadTool().run()
 
     def test_pdf_read_missing_pypdf(self, monkeypatch):
-        from draf.tool.builtin import PDFReadTool
-
         import builtins
+
+        from draf.tool.builtin import PDFReadTool
 
         real_import = builtins.__import__
 
@@ -246,9 +272,9 @@ class TestExtendedBuiltinTools:
             S3PutTool({"bucket": "b"}).run()
 
     def test_s3_missing_boto3(self, monkeypatch):
-        from draf.tool.builtin import S3Tool
-
         import builtins
+
+        from draf.tool.builtin import S3Tool
 
         real_import = builtins.__import__
 
@@ -274,9 +300,9 @@ class TestExtendedBuiltinTools:
             SlackSendTool({"token": "x"}).run(text="hi")
 
     def test_slack_missing_sdk(self, monkeypatch):
-        from draf.tool.builtin import SlackSendTool
-
         import builtins
+
+        from draf.tool.builtin import SlackSendTool
 
         real_import = builtins.__import__
 
@@ -290,8 +316,9 @@ class TestExtendedBuiltinTools:
             SlackSendTool({"token": "x", "channel": "#c"}).run(text="hi")
 
     def test_sql_query_sqlite_select(self, tmp_path):
-        from draf.tool.builtin import SQLQueryTool
         import sqlite3
+
+        from draf.tool.builtin import SQLQueryTool
 
         db = tmp_path / "test.db"
         conn = sqlite3.connect(str(db))
@@ -330,9 +357,9 @@ class TestExtendedBuiltinTools:
             SQLQueryTool().run()
 
     def test_sql_query_postgres_missing_psycopg(self, monkeypatch):
-        from draf.tool.builtin import SQLQueryTool
-
         import builtins
+
+        from draf.tool.builtin import SQLQueryTool
 
         real_import = builtins.__import__
 
@@ -508,9 +535,9 @@ class TestDataTools:
 class TestHttpTool:
     @pytest.mark.asyncio
     async def test_http_request(self, monkeypatch):
-        from draf.tool.builtin import HttpRequestTool
-
         import httpx
+
+        from draf.tool.builtin import HttpRequestTool
 
         class FakeResponse:
             status_code = 200
@@ -548,8 +575,9 @@ class TestHttpTool:
 
 class TestSQLSchemaTools:
     def test_sql_list_tables(self, tmp_path):
-        from draf.tool.builtin import SQLListTablesTool
         import sqlite3
+
+        from draf.tool.builtin import SQLListTablesTool
 
         db = tmp_path / "db.sqlite"
         conn = sqlite3.connect(str(db))
@@ -563,8 +591,9 @@ class TestSQLSchemaTools:
         assert "orders" in result
 
     def test_sql_describe(self, tmp_path):
-        from draf.tool.builtin import SQLDescribeTool
         import sqlite3
+
+        from draf.tool.builtin import SQLDescribeTool
 
         db = tmp_path / "db.sqlite"
         conn = sqlite3.connect(str(db))
@@ -616,9 +645,9 @@ class TestNotifyTools:
 
     @pytest.mark.asyncio
     async def test_send_telegram(self, monkeypatch):
-        from draf.tool.builtin import SendTelegramTool
-
         import httpx
+
+        from draf.tool.builtin import SendTelegramTool
 
         class FakeResponse:
             def raise_for_status(self):

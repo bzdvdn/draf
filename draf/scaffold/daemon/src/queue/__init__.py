@@ -50,9 +50,7 @@ def pending(queue_dir: str | Path | None = None) -> list[str]:
     return sorted(p.name[: -len(".json")] for p in base.glob("*.json"))
 
 
-def load_job(
-    job_id: str, *, queue_dir: str | Path | None = None
-) -> dict:
+def load_job(job_id: str, *, queue_dir: str | Path | None = None) -> dict:
     """Read one pending job's payload."""
     return json.loads((_queue_path(queue_dir) / f"{job_id}.json").read_text("utf-8"))
 

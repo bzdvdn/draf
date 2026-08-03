@@ -42,9 +42,7 @@ class TestGitLabTools:
                     return FakeResponse(payload)
 
                 async def post(self, url, headers=None, json=None):
-                    calls.append(
-                        {"method": "POST", "url": url, "json": json}
-                    )
+                    calls.append({"method": "POST", "url": url, "json": json})
                     payload = canned_responses[self._idx]
                     self._idx += 1
                     return FakeResponse(payload)
@@ -123,9 +121,7 @@ class TestGitLabTools:
         from draf.tool.builtin import GitLabPostNoteTool
 
         self._make_client([{"id": 99}])
-        tool = GitLabPostNoteTool(
-            {"url": "https://gitlab.example.com", "token": "tok"}
-        )
+        tool = GitLabPostNoteTool({"url": "https://gitlab.example.com", "token": "tok"})
         result = await tool.arun(project="group/repo", iid="5", body="Please fix this")
         assert "note posted on !5" in result
         assert self._calls[0]["method"] == "POST"
@@ -135,9 +131,7 @@ class TestGitLabTools:
         from draf.tool.builtin import GitLabApproveTool
 
         self._make_client([{}])
-        tool = GitLabApproveTool(
-            {"url": "https://gitlab.example.com", "token": "tok"}
-        )
+        tool = GitLabApproveTool({"url": "https://gitlab.example.com", "token": "tok"})
         result = await tool.arun(project="group/repo", iid="5")
         assert "approved MR !5" in result
         assert self._calls[0]["method"] == "POST"
@@ -159,14 +153,14 @@ class TestGitLabTools:
         from draf.tool.builtin import GitLabListOpenMRsTool
 
         with pytest.raises(ValueError, match="project"):
-            await GitLabListOpenMRsTool(
-                {"url": "https://x", "token": "tok"}
-            ).arun(project="")
+            await GitLabListOpenMRsTool({"url": "https://x", "token": "tok"}).arun(
+                project=""
+            )
 
     async def test_http_error_surfaces(self, monkeypatch):
-        from draf.tool.builtin import GitLabListOpenMRsTool
-
         import httpx
+
+        from draf.tool.builtin import GitLabListOpenMRsTool
 
         class FakeResponse:
             status_code = 500
@@ -186,9 +180,7 @@ class TestGitLabTools:
                 return FakeResponse()
 
         monkeypatch.setattr(httpx, "AsyncClient", lambda **kw: FakeClient())
-        tool = GitLabListOpenMRsTool(
-            {"url": "https://x", "token": "tok"}
-        )
+        tool = GitLabListOpenMRsTool({"url": "https://x", "token": "tok"})
         with pytest.raises(ValueError, match="HTTP 500"):
             await tool.arun(project="g/r")
 
@@ -209,6 +201,9 @@ class TestGitLabTools:
         ):
             params = tool_to_schema(tool)["function"]["parameters"]
             assert "project" in params["required"]
-        assert "iid" in tool_to_schema(GitLabApproveTool({"url": "u", "token": "t"}))[
-            "function"
-        ]["parameters"]["required"]
+        assert (
+            "iid"
+            in tool_to_schema(GitLabApproveTool({"url": "u", "token": "t"}))[
+                "function"
+            ]["parameters"]["required"]
+        )

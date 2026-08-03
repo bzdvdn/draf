@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from abc import ABC, abstractmethod
 import math
+from abc import ABC, abstractmethod
 
 
 def match_filter(metadata: dict, filter: dict | None) -> bool:

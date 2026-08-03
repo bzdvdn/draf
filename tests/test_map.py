@@ -7,8 +7,7 @@ class TestMapNode:
     @pytest.mark.asyncio
     async def test_fans_out_over_list(self):
         from draf.graph import Graph
-        from draf.node import Map
-        from draf.node import Transform
+        from draf.node import Map, Transform
 
         node = Map(
             processor=Transform(
@@ -24,8 +23,7 @@ class TestMapNode:
     @pytest.mark.asyncio
     async def test_zipped_input_keys(self):
         from draf.graph import Graph
-        from draf.node import Map
-        from draf.node import Transform
+        from draf.node import Map, Transform
 
         node = Map(
             processor=Transform(action="value", input_key="summ", output_key="s"),
@@ -39,8 +37,7 @@ class TestMapNode:
     @pytest.mark.asyncio
     async def test_empty_list(self):
         from draf.graph import Graph
-        from draf.node import Map
-        from draf.node import Transform
+        from draf.node import Map, Transform
 
         node = Map(
             processor=Transform(action="uppercase", input_key="chunks", output_key="s"),
@@ -54,8 +51,7 @@ class TestMapNode:
     @pytest.mark.asyncio
     async def test_chunk_size_batches(self):
         from draf.graph import Graph
-        from draf.node import Map
-        from draf.node import Node
+        from draf.node import Map, Node
 
         class Join(Node):
             type = "join"
@@ -77,8 +73,7 @@ class TestMapNode:
     @pytest.mark.asyncio
     async def test_result_key_override(self):
         from draf.graph import Graph
-        from draf.node import Map
-        from draf.node import Node
+        from draf.node import Map, Node
 
         class Produce(Node):
             type = "produce"
@@ -99,8 +94,7 @@ class TestMapNode:
     @pytest.mark.asyncio
     async def test_max_concurrency_limits_branches(self):
         from draf.graph import Graph
-        from draf.node import Map
-        from draf.node import Node
+        from draf.node import Map, Node
 
         active = {"now": 0, "peak": 0}
 
@@ -129,8 +123,7 @@ class TestMapNode:
     @pytest.mark.asyncio
     async def test_exception_propagates(self):
         from draf.graph import Graph
-        from draf.node import Map
-        from draf.node import Node
+        from draf.node import Map, Node
 
         class Boom(Node):
             type = "boom"
@@ -146,8 +139,7 @@ class TestMapNode:
     @pytest.mark.asyncio
     async def test_state_isolation_between_branches(self):
         from draf.graph import Graph
-        from draf.node import Map
-        from draf.node import Node
+        from draf.node import Map, Node
 
         class Inc(Node):
             type = "inc"
@@ -169,8 +161,7 @@ class TestMapNode:
     @pytest.mark.asyncio
     async def test_traced_with_nested_ids(self):
         from draf.graph import Graph
-        from draf.node import Map
-        from draf.node import Transform
+        from draf.node import Map, Transform
         from draf.trace import RunTracer
 
         node = Map(

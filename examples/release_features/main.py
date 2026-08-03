@@ -27,7 +27,7 @@ PRICING = "examples/release_features/pricing.yaml"
 
 def demo_validation_and_errors() -> None:
     print("== 1. validation + typed errors ==")
-    from draf.yaml_schema import validate_workflow_file, format_errors
+    from draf.yaml_schema import format_errors, validate_workflow_file
 
     errors = validate_workflow_file(WORKFLOW)
     if not errors:
@@ -36,9 +36,7 @@ def demo_validation_and_errors() -> None:
         print(format_errors(errors, source=WORKFLOW))
 
     try:
-        draf.from_yaml(
-            "name: bad\nsteps:\n  - id: s1\n    type: react_agnt\n"
-        )
+        draf.from_yaml("name: bad\nsteps:\n  - id: s1\n    type: react_agnt\n")
     except draf.ConfigError as exc:
         print(f"  ConfigError caught (also a KeyError): {exc}")
     try:
@@ -49,8 +47,8 @@ def demo_validation_and_errors() -> None:
 
 async def demo_eval() -> None:
     print("\n== 2. draf eval (exact mode) ==")
+    from draf.eval import format_report, load_dataset, run_eval
     from draf.yaml import load_workflow
-    from draf.eval import load_dataset, run_eval, format_report
 
     workflow = load_workflow(WORKFLOW)
     dataset = load_dataset(DATASET)
@@ -113,10 +111,24 @@ async def demo_cost_and_cache() -> None:
         messages = [{"role": "user", "content": "hello"}]
         first = await harness.call(messages)
         second = await harness.call(messages)
-        tracer.llm("openai", harness.model, first.usage["prompt"], first.usage["completion"], first.latency_ms)
-        tracer.llm("openai", harness.model, second.usage["prompt"], second.usage["completion"], second.latency_ms)
+        tracer.llm(
+            "openai",
+            harness.model,
+            first.usage["prompt"],
+            first.usage["completion"],
+            first.latency_ms,
+        )
+        tracer.llm(
+            "openai",
+            harness.model,
+            second.usage["prompt"],
+            second.usage["completion"],
+            second.latency_ms,
+        )
 
-        print(f"  network calls: {transport.calls} (expected 1 — 2nd served from cache)")
+        print(
+            f"  network calls: {transport.calls} (expected 1 — 2nd served from cache)"
+        )
         print(f"  1st cached={first.cached}, 2nd cached={second.cached}")
         summary = tracer.summary()
         print("  RunSummary:", json.dumps(summary.to_dict(), indent=2))
@@ -130,10 +142,18 @@ def demo_custom_pricing() -> None:
     from draf.trace import clear_pricing, load_pricing, model_pricing
 
     load_pricing(PRICING)
-    print(f"  openrouter 'openai/gpt-4o'        -> {model_pricing('openai/gpt-4o', 'openrouter')}")
-    print(f"  openrouter default                 -> {model_pricing('openai/gpt-5', 'openrouter')}")
-    print(f"  kilo 'kilo/mega'                  -> {model_pricing('kilo/mega', 'kilo')}")
-    print(f"  kilo default                       -> {model_pricing('anything-else', 'kilo')}")
+    print(
+        f"  openrouter 'openai/gpt-4o'        -> {model_pricing('openai/gpt-4o', 'openrouter')}"
+    )
+    print(
+        f"  openrouter default                 -> {model_pricing('openai/gpt-5', 'openrouter')}"
+    )
+    print(
+        f"  kilo 'kilo/mega'                  -> {model_pricing('kilo/mega', 'kilo')}"
+    )
+    print(
+        f"  kilo default                       -> {model_pricing('anything-else', 'kilo')}"
+    )
     clear_pricing()
 
 

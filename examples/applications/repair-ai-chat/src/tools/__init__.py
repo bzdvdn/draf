@@ -4,9 +4,6 @@ Every tool is a :class:`~draf.tool.Tool` subclass; the set an agent may
 call is narrowed per-agent via ``use_tools`` in the graph builder.
 """
 
-from src.domain.services.budget import BudgetService
-from src.domain.services.material import MaterialService
-from src.domain.services.room import RoomService
 from src.tools.budget import EstimateMaterialCost, EstimateTotal
 from src.tools.material import (
     CalculateLaminate,

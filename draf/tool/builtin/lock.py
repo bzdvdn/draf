@@ -64,15 +64,9 @@ class LockTool(_RedisBase):
                 return "acquired" if ok else "held by someone else"
             if a == "release":
                 released = client.eval(_DEL_IF_MATCH, 1, key, self.token)
-                return (
-                    "released"
-                    if released
-                    else "not held (or owned by someone else)"
-                )
+                return "released" if released else "not held (or owned by someone else)"
             if a == "renew":
-                renewed = client.eval(
-                    _EXPIRE_IF_MATCH, 1, key, self.token, int(ttl)
-                )
+                renewed = client.eval(_EXPIRE_IF_MATCH, 1, key, self.token, int(ttl))
                 return (
                     f"renewed {key} for {ttl}s"
                     if renewed

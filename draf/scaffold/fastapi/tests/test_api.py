@@ -18,9 +18,8 @@ import pytest
 
 pytest.importorskip("fastapi")
 
-from fastapi.testclient import TestClient  # noqa: E402
-
 from app import create_app  # noqa: E402
+from fastapi.testclient import TestClient  # noqa: E402
 from src.config.config import Settings  # noqa: E402
 
 
@@ -76,6 +75,7 @@ class _MockTransport:
         content = self._content_for(kwargs.get("json") or {})
 
         if args and args[0] == "POST":  # streaming path
+
             class _StreamResp:
                 def raise_for_status(self):
                     pass
@@ -201,7 +201,9 @@ def test_api_key_gates_routes_when_configured(tmp_path, monkeypatch):
     denied = client.post("/api/chat", json={"message": "hi"})
     assert denied.status_code == 401
 
-    ok = client.post("/api/chat", json={"message": "hi"}, headers={"X-API-Key": "s3cret"})
+    ok = client.post(
+        "/api/chat", json={"message": "hi"}, headers={"X-API-Key": "s3cret"}
+    )
     assert ok.status_code == 200
 
     bad = client.get("/api/auth/verify", headers={"X-API-Key": "wrong"})

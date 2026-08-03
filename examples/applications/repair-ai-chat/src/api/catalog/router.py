@@ -18,7 +18,6 @@ import tempfile
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
-
 from src.api.auth.router import require_api_key
 from src.core.deps import PRODUCT_FIELDMAP
 

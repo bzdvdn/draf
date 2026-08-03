@@ -64,6 +64,7 @@ class _MockTransport:
         content = self._content_for(kwargs.get("json") or {})
 
         if args and args[0] == "POST":  # streaming path
+
             class _StreamResp:
                 def raise_for_status(self):
                     pass
@@ -121,7 +122,9 @@ async def test_route_loop_runs_and_terminates(transport):
     state = initial_state()
     state["messages"] = [{"role": "user", "content": "list files with python"}]
 
-    result = await graph.run(state, tools=[], reducers=STATE_REDUCERS, max_iterations=80)
+    result = await graph.run(
+        state, tools=[], reducers=STATE_REDUCERS, max_iterations=80
+    )
 
     # happy path: coder runs, then the done guard finishes deterministically —
     # a single supervisor LLM call, two supervisor rounds
@@ -147,7 +150,9 @@ async def test_bounded_loop_terminates_when_never_finish(monkeypatch):
     state = initial_state()
     state["messages"] = [{"role": "user", "content": "list files with python"}]
 
-    result = await graph.run(state, tools=[], reducers=STATE_REDUCERS, max_iterations=100)
+    result = await graph.run(
+        state, tools=[], reducers=STATE_REDUCERS, max_iterations=100
+    )
 
     # the done guard finishes once the agent has answered, without a hang
     assert result["supervisor_rounds"] <= 6
@@ -176,10 +181,9 @@ async def test_assistant_turn_is_durable(transport, tmp_path):
 
 def test_cli_run_shows_final_answer(transport, tmp_path, monkeypatch):
     """The CLI prints the final LLM answer, not just streamed tokens."""
-    from typer.testing import CliRunner
-
     from cli import app
     from src.config.config import get_settings
+    from typer.testing import CliRunner
 
     get_settings.cache_clear()
     monkeypatch.setenv("DRAF_CHECKPOINT_DIR", str(tmp_path))

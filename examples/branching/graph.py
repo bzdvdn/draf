@@ -6,8 +6,9 @@ Usage:
 """
 
 import asyncio
+
 from draf import set_defaults
-from draf.graph import Graph, Edge
+from draf.graph import Edge, Graph
 from draf.node import LLM, Transform
 from draf.state.state import reducers_from_yaml_schema
 

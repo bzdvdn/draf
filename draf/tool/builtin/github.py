@@ -42,7 +42,9 @@ class _GitHubBase(Tool):
             raise ValueError("repo is required as 'owner/repo'")
         return repo
 
-    async def _request(self, method: str, path: str, json_body: dict | None = None) -> str:
+    async def _request(
+        self, method: str, path: str, json_body: dict | None = None
+    ) -> str:
         self._require()
         import httpx
 

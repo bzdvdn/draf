@@ -66,10 +66,7 @@ async def _drain_once(
         result = await _process_job(
             assistant, job_id, queue_dir=queue_dir, results_dir=results_dir
         )
-        print(
-            f"== done {job_id}: ok={result.get('ok')} "
-            f"error={result.get('error')!r}"
-        )
+        print(f"== done {job_id}: ok={result.get('ok')} error={result.get('error')!r}")
         processed += 1
     return processed
 

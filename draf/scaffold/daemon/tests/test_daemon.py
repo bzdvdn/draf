@@ -17,8 +17,8 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from src.queue import enqueue, load_job, pending  # noqa: E402
 from daemon import _process_job  # noqa: E402
+from src.queue import enqueue, load_job, pending  # noqa: E402
 
 
 def _reply(content: str) -> dict:
@@ -64,6 +64,7 @@ class _MockTransport:
         content = self._content_for(kwargs.get("json") or {})
 
         if args and args[0] == "POST":  # streaming path
+
             class _StreamResp:
                 def raise_for_status(self):
                     pass
@@ -96,7 +97,10 @@ class _MockTransport:
 
 @pytest.fixture
 def dirs(tmp_path):
-    return {"queue_dir": str(tmp_path / "queue"), "results_dir": str(tmp_path / "results")}
+    return {
+        "queue_dir": str(tmp_path / "queue"),
+        "results_dir": str(tmp_path / "results"),
+    }
 
 
 @pytest.fixture
@@ -171,7 +175,5 @@ def test_process_failed_turn_records_error(dirs, monkeypatch):
 
 def await_process(dirs, assistant, job_id):
     import asyncio
-
-    from daemon import _process_job
 
     return asyncio.run(_process_job(assistant, job_id, **dirs))

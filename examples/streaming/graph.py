@@ -13,7 +13,7 @@ Usage:
 import asyncio
 
 from draf import set_defaults
-from draf.graph import Graph, Edge
+from draf.graph import Edge, Graph
 from draf.node import LLM
 
 set_defaults(provider="ollama")

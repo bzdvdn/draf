@@ -25,12 +25,12 @@ ROOT = Path(__file__).resolve().parent
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from draf.checkpoint import DEFAULT_OWNER  # noqa: E402
-
 from src.config.config import get_settings  # noqa: E402
 from src.graphs.build import build_flow  # noqa: E402
 from src.service.assistant import Assistant  # noqa: E402
 from src.storage import build_checkpointer  # noqa: E402
+
+from draf.checkpoint import DEFAULT_OWNER  # noqa: E402
 
 #: State keys that add noise to the debug ledger — always hidden.
 _HIDDEN_KEYS = {"next_agent", "input", "supervisor_rounds", "tool_approval"}
@@ -131,17 +131,18 @@ async def main() -> None:
         "--session", default="default", help="session id — reuse it to continue"
     )
 
-    load_p = sub.add_parser(
-        "load", help="ingest CSVs into the vector store in batches"
-    )
+    load_p = sub.add_parser("load", help="ingest CSVs into the vector store in batches")
     load_p.add_argument("files", nargs="+", type=Path, help="CSV file(s) to load")
     load_p.add_argument("--batch-size", type=int, default=250)
     load_p.add_argument(
         "--rebuild", action="store_true", help="clear + re-embed the whole catalog"
     )
-    load_p.add_argument("--provider", default=settings.rag_embedder or settings.provider)    #: Durable vector-store file to load into (defaults to the shared catalog db).
     load_p.add_argument(
-        "--db", dest="catalog_db",
+        "--provider", default=settings.rag_embedder or settings.provider
+    )  #: Durable vector-store file to load into (defaults to the shared catalog db).
+    load_p.add_argument(
+        "--db",
+        dest="catalog_db",
         default=settings.database_url or settings.catalog_db,
     )
 
@@ -153,7 +154,10 @@ async def main() -> None:
 
     if args.command == "load":
         await _load(
-            args.files, args.batch_size, args.rebuild, args.provider,
+            args.files,
+            args.batch_size,
+            args.rebuild,
+            args.provider,
             catalog_db=args.catalog_db,
         )
         return
@@ -173,15 +177,15 @@ async def main() -> None:
         await chat(assistant, args.session)
 
 
-async def _load(files, batch_size: int, rebuild: bool, provider: str,
-            catalog_db=None) -> None:
+async def _load(
+    files, batch_size: int, rebuild: bool, provider: str, catalog_db=None
+) -> None:
     """Ingest CSV(s) into the durable catalog store in *batch_size* chunks."""
-    from draf.rag.embedder import Embedder
-    from draf.rag.stores import SQLiteVectorStore
-
+    from src.core.deps import DEFAULT_CATALOG_DB, PRODUCT_FIELDMAP
     from src.rag.catalog import MaterialCatalog
 
-    from src.core.deps import DEFAULT_CATALOG_DB, PRODUCT_FIELDMAP
+    from draf.rag.embedder import Embedder
+    from draf.rag.stores import SQLiteVectorStore
 
     store = SQLiteVectorStore(path=str(catalog_db or DEFAULT_CATALOG_DB), dim=768)
     catalog = MaterialCatalog(embedder=Embedder(provider=provider), store=store)

@@ -11,8 +11,8 @@ from draf.harness import (
     tool_to_schema,
 )
 from draf.node.interrupt import GraphInterrupt
-from draf.node.node import Node
 from draf.node.llm import LLM
+from draf.node.node import Node
 from draf.skill import resolve_skills, scope_tools, skills_instructions
 from draf.stream import StreamEvent
 
@@ -278,7 +278,7 @@ class ToolExec(Node):
         tool_error_mode: str = "message",
         tool_timeout: float | None = None,
         tool_retries: int = 0,
-tool_approval: typing.Any = None,
+        tool_approval: typing.Any = None,
         use_tools: str | list[str] | None = None,
         skills: list | None = None,
         skill_dir: str = "skills",

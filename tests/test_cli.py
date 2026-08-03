@@ -53,8 +53,9 @@ class TestLoadWorkflow:
         assert tools[0].name == "calculator"
 
     def test_runs_to_completion(self, tmp_path):
-        from draf.yaml import load_workflow
         import asyncio
+
+        from draf.yaml import load_workflow
 
         path = tmp_path / "wf.yaml"
         path.write_text(SIMPLE_YAML)

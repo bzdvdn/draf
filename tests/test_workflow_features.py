@@ -269,9 +269,7 @@ class TestPluginsExample:
         graph, tools, initial, reducers = load_workflow(
             f"{PLUGINS_EXAMPLE}/workflow.yaml"
         )
-        result = asyncio.run(
-            graph.run(state=initial, tools=tools, reducers=reducers)
-        )
+        result = asyncio.run(graph.run(state=initial, tools=tools, reducers=reducers))
         assert result["slug"] == "hello-world-draf-plugins"
         assert result["count"] == "4"
         assert json.loads(result["report"]) == {
@@ -288,9 +286,7 @@ class TestPluginsExample:
         path = f"{PLUGINS_EXAMPLE}/workflow-classes.yaml"
         assert validate_workflow_file(path) == []
         graph, tools, initial, reducers = load_workflow(path)
-        result = asyncio.run(
-            graph.run(state=initial, tools=tools, reducers=reducers)
-        )
+        result = asyncio.run(graph.run(state=initial, tools=tools, reducers=reducers))
         assert result["shouted"] == "HELLO PLUGINS"
 
 

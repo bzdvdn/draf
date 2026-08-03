@@ -38,6 +38,9 @@ Thumbs.db
 .env
 .env.*
 
+# Docs build output (mkdocs)
+site/
+
 # Runtime artifacts (examples)
 *.db
 *.sqlite3

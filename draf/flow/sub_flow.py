@@ -2,8 +2,8 @@
 
 from typing import Awaitable, Callable
 
-from draf.node.node import Node
 from draf.graph import Graph
+from draf.node.node import Node
 from draf.stream import StreamEvent
 
 

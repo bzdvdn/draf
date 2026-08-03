@@ -76,9 +76,7 @@ async def run_parallel() -> None:
 
     t0 = time.monotonic()
     result = await graph.run(
-        state={
-            "query": "Compare Oslo and Tokyo: which is hotter and which is bigger?"
-        },
+        state={"query": "Compare Oslo and Tokyo: which is hotter and which is bigger?"},
         tools=[CityWeather(), CityPopulation()],
         max_iterations=10,
     )

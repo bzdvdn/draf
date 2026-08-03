@@ -3,9 +3,10 @@ import pytest
 
 class TestFlow:
     def test_compile_linear(self):
+        import asyncio
+
         from draf.flow import Flow
         from draf.node import Transform
-        import asyncio
 
         flow = Flow("test")
         flow.step(
@@ -23,9 +24,10 @@ class TestFlow:
             Flow("x").compile()
 
     def test_branch_routing(self):
-        from draf.flow import Flow, Case
-        from draf.node import Node
         import asyncio
+
+        from draf.flow import Case, Flow
+        from draf.node import Node
 
         class CN(Node):
             type = "cn"
@@ -47,9 +49,10 @@ class TestFlow:
         assert r["result"] == "A"
 
     def test_default_fallback(self):
-        from draf.flow import Flow, Case
-        from draf.node import Node
         import asyncio
+
+        from draf.flow import Case, Flow
+        from draf.node import Node
 
         class CN(Node):
             type = "cn"
@@ -82,9 +85,10 @@ class TestFlow:
 
 class TestStep:
     def test_step_accepts_node_instance(self):
-        from draf.node import Node
-        from draf.flow import Flow
         import asyncio
+
+        from draf.flow import Flow
+        from draf.node import Node
 
         class MyNode(Node):
             type = "my"
@@ -113,9 +117,10 @@ class TestStep:
             flow.step({"action": "uppercase"})  # type: ignore[arg-type]
 
     def test_step_with_transform_node(self):
+        import asyncio
+
         from draf.flow import Flow
         from draf.node import Transform
-        import asyncio
 
         flow = Flow("default").step(
             Transform(action="uppercase", input_key="text", output_key="out")
@@ -125,9 +130,10 @@ class TestStep:
         assert r["out"] == "HI"
 
     def test_step_chaining(self):
+        import asyncio
+
         from draf.flow import Flow
         from draf.node import Transform
-        import asyncio
 
         flow = (
             Flow("chain")
@@ -208,8 +214,9 @@ class TestFlowTransform:
             Flow("t").transform(Transform(action="uppercase"), action="lowercase")
 
     def test_transform_runs(self):
-        from draf.flow import Flow
         import asyncio
+
+        from draf.flow import Flow
 
         flow = (
             Flow("t")
@@ -283,9 +290,10 @@ class TestReActAgentOverride:
 
 class TestSubFlow:
     def test_subflow_basic(self):
+        import asyncio
+
         from draf.flow import Flow
         from draf.node import Node
-        import asyncio
 
         class AddOne(Node):
             type = "ao"
@@ -304,9 +312,10 @@ class TestSubFlow:
         assert r["val"] == 2
 
     def test_subflow_with_maps(self):
+        import asyncio
+
         from draf.flow import Flow
         from draf.node import Transform
-        import asyncio
 
         sub = Flow("inner")
         sub.step(
@@ -321,9 +330,10 @@ class TestSubFlow:
         assert r["result"] == "HELLO"
 
     def test_subflow_state_isolation(self):
+        import asyncio
+
         from draf.flow import Flow
         from draf.node import Node
-        import asyncio
 
         class SetFoo(Node):
             type = "sf"
@@ -345,9 +355,7 @@ class TestSubFlow:
         from draf.flow import Flow
         from draf.node import Transform
 
-        sub = Flow("inner").transform(
-            action="uppercase", input_key="x", output_key="y"
-        )
+        sub = Flow("inner").transform(action="uppercase", input_key="x", output_key="y")
         parent = Flow("outer")
         parent.step(Transform(action="trim", input_key="x", output_key="x"))
         parent.add_flow(sub)
@@ -363,7 +371,9 @@ class TestSubFlow:
 
         # both the outer transform and the inner transform stream node events
         transform_starts = [
-            ev for ev in events if ev.type == "node_start" and ev.node_type == "transform"
+            ev
+            for ev in events
+            if ev.type == "node_start" and ev.node_type == "transform"
         ]
         assert len(transform_starts) == 2
 
@@ -377,7 +387,7 @@ class TestSubFlow:
 class TestCyclicGraph:
     @pytest.mark.asyncio
     async def test_simple_cycle_terminates_by_condition(self):
-        from draf.graph import Graph, Edge
+        from draf.graph import Edge, Graph
         from draf.node import Node
 
         class Counter(Node):
@@ -409,7 +419,7 @@ class TestCyclicGraph:
 
     @pytest.mark.asyncio
     async def test_max_iterations_raises(self):
-        from draf.graph import Graph, Edge
+        from draf.graph import Edge, Graph
         from draf.node import Node
 
         class InfLoop(Node):
@@ -430,7 +440,7 @@ class TestCyclicGraph:
 
     @pytest.mark.asyncio
     async def test_max_iterations_linear_completes(self):
-        from draf.graph import Graph, Edge
+        from draf.graph import Edge, Graph
         from draf.node import Node
 
         class AddOne(Node):
@@ -451,9 +461,10 @@ class TestCyclicGraph:
 
 class TestRoute:
     def test_route_basic_loop(self):
+        import asyncio
+
         from draf.flow import Flow
         from draf.node import Node
-        import asyncio
 
         class Decider(Node):
             type = "decider"
@@ -489,9 +500,10 @@ class TestRoute:
         assert r["log"] == ["planned", "final"]
 
     def test_route_multiple_agents(self):
+        import asyncio
+
         from draf.flow import Flow
         from draf.node import Node
-        import asyncio
 
         class Decider(Node):
             type = "decider"
@@ -567,9 +579,10 @@ class TestRoute:
         assert ("mark_2", "decider_1", None) not in edges
 
     def test_route_loops_back_to_decider(self):
+        import asyncio
+
         from draf.flow import Flow
         from draf.node import Node
-        import asyncio
 
         class Decider(Node):
             type = "decider"
@@ -604,9 +617,10 @@ class TestRoute:
         assert r["log"] == ["agent", "agent"]
 
     def test_route_finish_none_terminates(self):
+        import asyncio
+
         from draf.flow import Flow
         from draf.node import Node
-        import asyncio
 
         class Decider(Node):
             type = "decider"
@@ -654,9 +668,10 @@ class TestRoute:
             Flow("x").step(Decider({})).route("next_agent")
 
     def test_route_finish_chain_continues(self):
+        import asyncio
+
         from draf.flow import Flow
         from draf.node import Node
-        import asyncio
 
         class Decider(Node):
             type = "decider"
@@ -723,9 +738,10 @@ class TestRoute:
             flow.step(Mark({}))
 
     def test_route_accepts_chains(self):
+        import asyncio
+
         from draf.flow import Flow
         from draf.node import Node
-        import asyncio
 
         class Decider(Node):
             type = "decider"
@@ -814,9 +830,9 @@ class TestFlowToYaml:
         assert [t.name for t in tools] == ["calculator"]
         assert initial == {"status": "active"}
         assert reducers == {"messages": "append"}
-        assert reducers_from_yaml_schema(
-            {"messages": {"reducer": "append"}}
-        ) == {"messages": "append"}
+        assert reducers_from_yaml_schema({"messages": {"reducer": "append"}}) == {
+            "messages": "append"
+        }
 
     def test_graph_to_yaml_back_compat(self):
         from draf.flow import Flow

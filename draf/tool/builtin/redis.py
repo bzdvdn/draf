@@ -163,9 +163,7 @@ class RedisTool(_RedisBase):
                     raise ValueError("key is required")
                 members = client.smembers(key)
                 return (
-                    "\n".join(sorted(str(m) for m in members))
-                    if members
-                    else "empty"
+                    "\n".join(sorted(str(m) for m in members)) if members else "empty"
                 )
             if a == "hset":
                 if not key or not field:
@@ -181,9 +179,7 @@ class RedisTool(_RedisBase):
                     raise ValueError("key is required")
                 data = client.hgetall(key)
                 return (
-                    "\n".join(f"{k}={v}" for k, v in data.items())
-                    if data
-                    else "empty"
+                    "\n".join(f"{k}={v}" for k, v in data.items()) if data else "empty"
                 )
             if a == "publish":
                 if not channel:

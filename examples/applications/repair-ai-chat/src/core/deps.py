@@ -8,7 +8,6 @@ from types import SimpleNamespace
 from draf.rag.base import VectorStore
 from draf.rag.embedder import Embedder
 from draf.rag.stores import PGVectorStore, SQLiteVectorStore
-
 from src.domain.services.budget import BudgetService
 from src.domain.services.material import MaterialService
 from src.domain.services.room import RoomService

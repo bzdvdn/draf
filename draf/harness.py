@@ -51,7 +51,7 @@ from dataclasses import dataclass, field
 import httpx
 
 from draf.errors import WorkflowError
-from draf.schema import extract_json_object, _py_to_schema
+from draf.schema import _py_to_schema, extract_json_object
 from draf.tool.tool import Tool, coerce_args
 
 PROVIDER_DEFAULTS = {

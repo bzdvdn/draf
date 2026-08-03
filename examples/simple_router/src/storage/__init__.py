@@ -11,7 +11,6 @@ from __future__ import annotations
 from pathlib import Path
 
 from draf.checkpoint import DEFAULT_OWNER, Checkpoint, JSONFileCheckpointer
-
 from src.graphs.state import initial_state
 
 #: Relative to the project root; points at ``data/checkpoints/``.

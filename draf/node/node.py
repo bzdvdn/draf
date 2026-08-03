@@ -1,7 +1,7 @@
 """Abstract base for all graph nodes."""
 
-from abc import ABC, abstractmethod
 import typing
+from abc import ABC, abstractmethod
 
 
 class Node(ABC):

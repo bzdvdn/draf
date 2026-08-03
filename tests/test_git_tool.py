@@ -53,7 +53,9 @@ class TestGitTool:
         assert calls[0][4:6] == ["-n", "5"]
 
     def test_diff(self, monkeypatch):
-        calls = self._patch(monkeypatch, lambda cmd: FakeProc("@@ -1 +1 @@\n-old\n+new\n"))
+        calls = self._patch(
+            monkeypatch, lambda cmd: FakeProc("@@ -1 +1 @@\n-old\n+new\n")
+        )
         result = self._tool().run(action="diff")
         assert "+new" in result
         assert calls[0][3:] == ["diff"]

@@ -67,7 +67,7 @@ class TestStreamLifecycle:
 class TestStreamEdges:
     @pytest.mark.asyncio
     async def test_emits_conditional_edge_events(self):
-        from draf.graph import Graph, Edge
+        from draf.graph import Edge, Graph
         from draf.node import Transform
 
         g = Graph(
@@ -258,7 +258,7 @@ class TestStreamInterrupt:
     @pytest.mark.asyncio
     async def test_interrupt_event_and_resume(self, tmp_path):
         from draf.checkpoint import JSONFileCheckpointer
-        from draf.graph import Graph, Edge
+        from draf.graph import Edge, Graph
         from draf.node import Interrupt, Transform
 
         g = Graph(
@@ -297,7 +297,7 @@ class TestStreamInterrupt:
     @pytest.mark.asyncio
     async def test_stream_matches_run_state(self, tmp_path):
         from draf.checkpoint import JSONFileCheckpointer
-        from draf.graph import Graph, Edge
+        from draf.graph import Edge, Graph
         from draf.node import Interrupt, Transform
 
         g = Graph(

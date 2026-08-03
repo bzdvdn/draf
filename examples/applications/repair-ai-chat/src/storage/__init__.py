@@ -18,13 +18,10 @@ from draf.checkpoint import (
     PGCheckpointer,
     SQLiteCheckpointer,
 )
-
 from src.graphs.state import initial_state
 
 #: Relative to the example root; points at ``data/checkpoints/``.
-DEFAULT_CHECKPOINT_DIR = (
-    Path(__file__).resolve().parents[2] / "data" / "checkpoints"
-)
+DEFAULT_CHECKPOINT_DIR = Path(__file__).resolve().parents[2] / "data" / "checkpoints"
 
 #: Transient state keys recomputed each run (not part of the conversation).
 _TRANSIENT_KEYS = (

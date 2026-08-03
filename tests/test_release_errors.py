@@ -6,12 +6,12 @@ import pytest
 class TestErrorHierarchy:
     def test_all_errors_derive_from_draf_error(self):
         from draf.errors import (
-            DrafError,
             ConfigError,
-            WorkflowError,
-            NodeError,
-            LLMError,
+            DrafError,
             InterruptError,
+            LLMError,
+            NodeError,
+            WorkflowError,
         )
 
         for cls in (ConfigError, WorkflowError, NodeError, LLMError, InterruptError):

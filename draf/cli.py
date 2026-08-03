@@ -296,9 +296,7 @@ def daemon(
     interval: float = typer.Option(
         60.0, "--interval", "-i", help="Seconds between ticks"
     ),
-    once: bool = typer.Option(
-        False, "--once", help="Run a single tick and exit"
-    ),
+    once: bool = typer.Option(False, "--once", help="Run a single tick and exit"),
     trace: bool = typer.Option(
         False, "--trace", "-t", help="Print a JSON run trace to stderr"
     ),
@@ -437,7 +435,7 @@ def validate(
     file: str = typer.Argument(..., help="Path to workflow YAML file"),
 ) -> None:
     """Validate a workflow YAML file without running it."""
-    from draf.yaml_schema import validate_workflow_file, format_errors
+    from draf.yaml_schema import format_errors, validate_workflow_file
 
     try:
         errors = validate_workflow_file(file)
@@ -479,8 +477,8 @@ def eval_(
     """Evaluate a workflow against a dataset and report pass/fail."""
     import json as _json
 
+    from draf.eval import format_report, load_dataset, run_eval
     from draf.yaml import load_workflow
-    from draf.eval import load_dataset, run_eval, format_report
 
     try:
         workflow = load_workflow(file)

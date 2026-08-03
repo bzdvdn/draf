@@ -183,7 +183,7 @@ def mock_llm(monkeypatch):
 class TestLLMStructuredOutput:
     @pytest.mark.asyncio
     async def test_valid_schema_returns_dict(self, mock_llm, monkeypatch):
-        from draf.node import ExecContext, LLM
+        from draf.node import LLM, ExecContext
 
         monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
         mock = mock_llm(['{"name": "Иван", "age": 30}'])
@@ -207,7 +207,7 @@ class TestLLMStructuredOutput:
 
     @pytest.mark.asyncio
     async def test_retries_on_invalid_then_succeeds(self, mock_llm, monkeypatch):
-        from draf.node import ExecContext, LLM
+        from draf.node import LLM, ExecContext
 
         monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
         mock = mock_llm(
@@ -239,7 +239,7 @@ class TestLLMStructuredOutput:
 
     @pytest.mark.asyncio
     async def test_raises_after_exhausting_retries(self, mock_llm, monkeypatch):
-        from draf.node import ExecContext, LLM, StructuredOutputError
+        from draf.node import LLM, ExecContext, StructuredOutputError
 
         monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
         mock = mock_llm(['{"name": 123}'] * 3)
@@ -264,7 +264,7 @@ class TestLLMStructuredOutput:
     async def test_output_type_typeddict(self, mock_llm, monkeypatch):
         from typing import TypedDict
 
-        from draf.node import ExecContext, LLM
+        from draf.node import LLM, ExecContext
 
         monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
         mock = mock_llm(['{"city": "Москва", "temp": 22.5}'])
@@ -280,7 +280,7 @@ class TestLLMStructuredOutput:
 
     @pytest.mark.asyncio
     async def test_ollama_uses_format_json(self, mock_llm, monkeypatch):
-        from draf.node import ExecContext, LLM
+        from draf.node import LLM, ExecContext
 
         monkeypatch.setenv("OLLAMA_API_KEY", "")
         mock = mock_llm([{"message": {"content": '{"ok": true}'}}])
@@ -301,7 +301,7 @@ class TestLLMStructuredOutput:
 
     @pytest.mark.asyncio
     async def test_parse_without_schema(self, mock_llm, monkeypatch):
-        from draf.node import ExecContext, LLM
+        from draf.node import LLM, ExecContext
 
         monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
         mock_llm(['here is the json: {"a": [1, 2]}'])
@@ -311,7 +311,7 @@ class TestLLMStructuredOutput:
 
     @pytest.mark.asyncio
     async def test_parse_failure_raises(self, mock_llm, monkeypatch):
-        from draf.node import ExecContext, LLM, StructuredOutputError
+        from draf.node import LLM, ExecContext, StructuredOutputError
 
         monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
         mock_llm(["not json"])
@@ -321,7 +321,7 @@ class TestLLMStructuredOutput:
 
     @pytest.mark.asyncio
     async def test_tracer_records_structured_events(self, mock_llm, monkeypatch):
-        from draf.node import ExecContext, LLM
+        from draf.node import LLM, ExecContext
         from draf.trace import RunTracer
 
         monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
@@ -352,7 +352,7 @@ class TestLLMStructuredOutput:
 
     @pytest.mark.asyncio
     async def test_stream_emits_structured_event(self, mock_llm, monkeypatch):
-        from draf.node import ExecContext, LLM
+        from draf.node import LLM, ExecContext
         from draf.stream import StreamEvent
 
         monkeypatch.setenv("OPENAI_API_KEY", "sk-test")

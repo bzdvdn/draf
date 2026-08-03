@@ -232,7 +232,7 @@ class TestConcurrency:
             set_provider_concurrency("openai", 0)
 
     def test_set_and_get_concurrency(self):
-        from draf.harness import set_provider_concurrency, provider_concurrency
+        from draf.harness import provider_concurrency, set_provider_concurrency
 
         set_provider_concurrency("openai", 3)
         assert provider_concurrency("openai") == 3

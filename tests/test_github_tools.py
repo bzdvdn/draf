@@ -36,7 +36,14 @@ class TestGitHubTools:
                     return False
 
                 async def request(self, method, url, headers=None, json=None):
-                    calls.append({"method": method, "url": url, "headers": headers or {}, "json": json})
+                    calls.append(
+                        {
+                            "method": method,
+                            "url": url,
+                            "headers": headers or {},
+                            "json": json,
+                        }
+                    )
                     payload = canned_responses[self._idx]
                     self._idx += 1
                     return FakeResponse(payload)
@@ -121,7 +128,9 @@ class TestGitHubTools:
     def test_custom_base_url(self):
         from draf.tool.builtin import GitHubListOpenPRsTool
 
-        tool = GitHubListOpenPRsTool({"url": "https://ghe.example.com/", "token": "tok"})
+        tool = GitHubListOpenPRsTool(
+            {"url": "https://ghe.example.com/", "token": "tok"}
+        )
         assert tool.url == "https://ghe.example.com"
 
     async def test_requires_token(self):
@@ -137,9 +146,9 @@ class TestGitHubTools:
             await GitHubListOpenPRsTool({"token": "tok"}).arun(repo="bad")
 
     async def test_http_error_surfaces(self, monkeypatch):
-        from draf.tool.builtin import GitHubListOpenPRsTool
-
         import httpx
+
+        from draf.tool.builtin import GitHubListOpenPRsTool
 
         class FakeResponse:
             status_code = 401

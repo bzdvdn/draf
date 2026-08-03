@@ -256,7 +256,9 @@ class TestRedisTool:
             tool.run(action="hget", field="f")
 
     def test_missing_package_message(self, monkeypatch):
-        monkeypatch.delitem(sys.modules, "redis")
+        # Pinning redis to None makes the lazy import fail with ImportError
+        # whether or not the 'redis' package is installed in the test env.
+        monkeypatch.setitem(sys.modules, "redis", None)
         with pytest.raises(ImportError, match="draf\\[tools\\]"):
             self._tool().run(action="ping")
 

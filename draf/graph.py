@@ -5,17 +5,16 @@ import time
 from dataclasses import dataclass
 from typing import Any, AsyncIterator, Awaitable, Callable
 
-from draf.node.node import Node
-from draf.node.registry import NodeRegistry, default_registry
+from draf.checkpoint import DEFAULT_OWNER, Checkpoint, Checkpointer
+from draf.errors import WorkflowError
 from draf.node.context import ExecContext
 from draf.node.interrupt import GraphInterrupt
-from draf.errors import WorkflowError
-from draf.tool.tool import Tool
+from draf.node.node import Node
+from draf.node.registry import NodeRegistry, default_registry
 from draf.state import Reducer, State, apply_reducers
-from draf.checkpoint import DEFAULT_OWNER, Checkpoint, Checkpointer
-from draf.trace import RunTracer, _ms
 from draf.stream import StreamEvent
-
+from draf.tool.tool import Tool
+from draf.trace import RunTracer, _ms
 
 _ERROR_CONDITION = "__error__"
 _INTERRUPT_KEY = "__interrupt__"
@@ -187,9 +186,7 @@ class Graph:
                 tracer.run_end("error", _ms(started), exc)
             if emit is not None:
                 await emit(
-                    StreamEvent(
-                        "run_end", data={"status": "error", "error": str(exc)}
-                    )
+                    StreamEvent("run_end", data={"status": "error", "error": str(exc)})
                 )
             raise
         if tracer is not None:

@@ -184,8 +184,8 @@ class TestRunTracerErrors:
 class TestRunTracerCheckpoints:
     @pytest.mark.asyncio
     async def test_checkpoint_events_recorded(self, tmp_path):
-        from draf.graph import Graph
         from draf.checkpoint import JSONFileCheckpointer
+        from draf.graph import Graph
         from draf.trace import RunTracer
 
         g = Graph(nodes={"a": _make_node({"x": 1})}, edges=[], entry_point="a")
@@ -200,8 +200,8 @@ class TestRunTracerCheckpoints:
 
     @pytest.mark.asyncio
     async def test_resume_records_load(self, tmp_path):
-        from draf.graph import Graph
         from draf.checkpoint import JSONFileCheckpointer
+        from draf.graph import Graph
         from draf.trace import RunTracer
 
         g = Graph(nodes={"a": _make_node({"x": 1})}, edges=[], entry_point="a")

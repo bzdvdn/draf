@@ -12,7 +12,6 @@ from typing import AsyncIterator
 from draf.checkpoint import DEFAULT_OWNER
 from draf.graph import Graph
 from draf.stream import StreamEvent
-
 from src.graphs.state import STATE_REDUCERS
 from src.storage import load_or_seed
 
@@ -33,7 +32,9 @@ class Assistant:
 
     async def run_turn(self, session_id: str, message: str) -> dict:
         """Run one turn and return the final state."""
-        state, run_kwargs = await load_or_seed(self.graph, self.checkpointer, session_id, message)
+        state, run_kwargs = await load_or_seed(
+            self.graph, self.checkpointer, session_id, message
+        )
         return await self.graph.run(
             state,
             tools=[],
@@ -48,7 +49,9 @@ class Assistant:
         self, session_id: str, message: str
     ) -> AsyncIterator[StreamEvent]:
         """Stream the events of one turn (``run_start`` .. ``run_end``)."""
-        state, run_kwargs = await load_or_seed(self.graph, self.checkpointer, session_id, message)
+        state, run_kwargs = await load_or_seed(
+            self.graph, self.checkpointer, session_id, message
+        )
         async for event in self.graph.stream(
             state,
             tools=[],

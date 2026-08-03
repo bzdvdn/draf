@@ -28,13 +28,13 @@ the file is the whole mechanism*.  There are two equivalent styles:
 from draf.node.registry import node
 from draf.tool.registry import tool
 
+
 @node("slugify_node", SlugConfig)
-async def slugify_node(ctx, config, state):
-    ...
+async def slugify_node(ctx, config, state): ...
+
 
 @tool("slugify", "Convert a string to a lowercase URL slug")
-def slugify(text: str = "") -> str:
-    ...
+def slugify(text: str = "") -> str: ...
 ```
 
 **Subclasses** (`classes.py`):
@@ -45,6 +45,7 @@ from draf.node.registry import default_registry
 from draf.tool.tool import Tool
 from draf.tool.registry import default_tool_registry
 
+
 class UpperTool(Tool):
     name = "upper"
     description = "Uppercase a string"
@@ -52,11 +53,12 @@ class UpperTool(Tool):
     def run(self, text: str = "") -> str:
         return text.upper()
 
+
 class UppercaseNode(Node):
     type = "uppercase_node"
 
-    async def execute(self, ctx, state):
-        ...
+    async def execute(self, ctx, state): ...
+
 
 default_tool_registry.register(UpperTool)
 default_registry.register("uppercase_node", UppercaseNode)

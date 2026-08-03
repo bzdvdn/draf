@@ -9,8 +9,9 @@ class TestNodeABC:
             Node()
 
     def test_subclass_with_execute_works(self):
-        from draf.node import Node
         import asyncio
+
+        from draf.node import Node
 
         class MyNode(Node):
             type = "my"
@@ -28,8 +29,9 @@ class TestNodeABC:
 
 class TestNodeDecorator:
     def test_registers_in_default_registry(self):
-        from draf.node import default_registry, node
         import asyncio
+
+        from draf.node import default_registry, node
 
         @node("test_simple")
         async def fn(ctx, state):
@@ -42,8 +44,9 @@ class TestNodeDecorator:
         assert r == {"done": True}
 
     def test_with_typed_config(self):
-        from draf.node import default_registry, node
         import asyncio
+
+        from draf.node import default_registry, node
 
         @node("test_config", config=dict)
         async def fn(ctx, cfg, state):
@@ -124,8 +127,7 @@ class TestExecContext:
 class TestRetry:
     @pytest.mark.asyncio
     async def test_retry_succeeds_on_second_attempt(self):
-        from draf.node import Node, Retry
-        from draf.node import ExecContext
+        from draf.node import ExecContext, Node, Retry
 
         attempt = 0
 
@@ -147,8 +149,7 @@ class TestRetry:
 
     @pytest.mark.asyncio
     async def test_retry_exhausts_and_raises(self):
-        from draf.node import Node, Retry
-        from draf.node import ExecContext
+        from draf.node import ExecContext, Node, Retry
 
         class AlwaysFail(Node):
             type = "af"
@@ -163,8 +164,7 @@ class TestRetry:
 
     @pytest.mark.asyncio
     async def test_retry_passthrough_on_success(self):
-        from draf.node import Node, Retry
-        from draf.node import ExecContext
+        from draf.node import ExecContext, Node, Retry
 
         class Fast(Node):
             type = "fast"

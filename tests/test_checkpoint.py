@@ -23,9 +23,9 @@ class TestCheckpointBase:
         assert checkpoint_from_dict(checkpoint_to_dict(cp)) == cp
 
     def test_checkpoint_id_required(self):
-        from draf.checkpoint import SQLiteCheckpointer
-
         import asyncio
+
+        from draf.checkpoint import SQLiteCheckpointer
 
         g = _build_linear_graph()
         with pytest.raises(ValueError, match="checkpoint_id"):
@@ -48,9 +48,9 @@ class TestCheckpointBase:
 
 class TestJSONFileCheckpointer:
     def test_save_load_delete(self, tmp_path):
-        from draf.checkpoint import Checkpoint, JSONFileCheckpointer
-
         import asyncio
+
+        from draf.checkpoint import Checkpoint, JSONFileCheckpointer
 
         ck = JSONFileCheckpointer(str(tmp_path))
         asyncio.run(
@@ -66,17 +66,17 @@ class TestJSONFileCheckpointer:
         assert asyncio.run(ck.load("t1")) is None
 
     def test_load_missing(self, tmp_path):
-        from draf.checkpoint import JSONFileCheckpointer
-
         import asyncio
+
+        from draf.checkpoint import JSONFileCheckpointer
 
         ck = JSONFileCheckpointer(str(tmp_path))
         assert asyncio.run(ck.load("missing")) is None
 
     def test_sanitizes_path(self, tmp_path):
-        from draf.checkpoint import Checkpoint, JSONFileCheckpointer
-
         import asyncio
+
+        from draf.checkpoint import Checkpoint, JSONFileCheckpointer
 
         ck = JSONFileCheckpointer(str(tmp_path))
         asyncio.run(
@@ -87,9 +87,9 @@ class TestJSONFileCheckpointer:
 
 class TestSQLiteCheckpointer:
     def test_save_load_overwrite(self, tmp_path):
-        from draf.checkpoint import Checkpoint, SQLiteCheckpointer
-
         import asyncio
+
+        from draf.checkpoint import Checkpoint, SQLiteCheckpointer
 
         ck = SQLiteCheckpointer(str(tmp_path / "ck.db"))
         try:
@@ -115,9 +115,9 @@ class TestSQLiteCheckpointer:
             ck.close()
 
     def test_independent_ids(self, tmp_path):
-        from draf.checkpoint import Checkpoint, SQLiteCheckpointer
-
         import asyncio
+
+        from draf.checkpoint import Checkpoint, SQLiteCheckpointer
 
         ck = SQLiteCheckpointer(str(tmp_path / "ck.db"))
         try:
@@ -386,7 +386,7 @@ class TestCheckpointResume:
 
     async def test_error_edge_checkpoint_points_to_fallback(self, checkpointer):
         """After a node fails and routes via __error__, resume goes to fallback."""
-        from draf.graph import Graph, Edge
+        from draf.graph import Edge, Graph
         from draf.node import Node
 
         class Crash(Node):

@@ -25,6 +25,7 @@ from src.storage import build_checkpointer  # noqa: E402
 
 app = typer.Typer(name="simple_router", help="Minimal draf route() example.")
 
+
 def _build_assistant():
     settings = get_settings()
     flow = build_flow(model=settings.model, provider=settings.provider)

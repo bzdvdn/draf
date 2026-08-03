@@ -5,6 +5,21 @@ import inspect
 from draf.tool.tool import Tool
 
 
+def _accepts_config_dict(cls: type[Tool]) -> bool:
+    """Return True if *cls*'s constructor takes a ``config`` dict positionally."""
+    try:
+        params = list(inspect.signature(cls).parameters.values())
+    except (TypeError, ValueError):
+        return False
+    if not params:
+        return False
+    first = params[0]
+    return first.name == "config" and first.kind in (
+        inspect.Parameter.POSITIONAL_ONLY,
+        inspect.Parameter.POSITIONAL_OR_KEYWORD,
+    )
+
+
 class ToolRegistry:
     """Registry mapping tool names to tool classes."""
 
@@ -26,9 +41,11 @@ class ToolRegistry:
     def create(self, name: str, config: dict | None = None) -> Tool:
         """Instantiate a tool by name.
 
-        If *config* is provided, the tool class is constructed with it as a
-        dict argument when it accepts one; otherwise it is instantiated
-        without arguments and the config values are assigned as attributes.
+        If *config* is provided, it is passed to the tool's constructor as a
+        dict when the constructor accepts one (a leading ``config``
+        parameter); otherwise the config keys are passed as keyword
+        arguments, and if the constructor rejects them the values are
+        assigned as attributes on an argument-less instance.
 
         Raises:
             KeyError: If the name is not registered.
@@ -39,8 +56,10 @@ class ToolRegistry:
         cls = self._tools[name]
         if config is None:
             return cls()
-        try:
+        if _accepts_config_dict(cls):
             return cls(config)  # type: ignore[call-arg]
+        try:
+            return cls(**config)
         except TypeError:
             tool = cls()
             for k, v in config.items():
@@ -73,7 +92,7 @@ def tool(tool_name: str, description: str | None = None):
 
         if is_async:
 
-            class DecoratedTool(Tool):
+            class AsyncTool(Tool):
                 name = tool_name
                 description = tool_desc
 
@@ -85,18 +104,21 @@ def tool(tool_name: str, description: str | None = None):
 
                     return asyncio.run(fn(**kwargs))
 
+            tool_cls = AsyncTool
         else:
 
-            class DecoratedTool(Tool):
+            class SyncTool(Tool):
                 name = tool_name
                 description = tool_desc
 
                 def run(self, **kwargs):
                     return fn(**kwargs)
 
-        DecoratedTool.__name__ = fn.__name__
-        DecoratedTool.__qualname__ = fn.__qualname__
-        default_tool_registry.register(DecoratedTool)
+            tool_cls = SyncTool
+
+        tool_cls.__name__ = fn.__name__
+        tool_cls.__qualname__ = fn.__qualname__
+        default_tool_registry.register(tool_cls)
         return fn
 
     return decorator

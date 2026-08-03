@@ -3,10 +3,9 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Request
+from src.api.auth.router import require_api_key
 
 from draf.checkpoint import DEFAULT_OWNER
-
-from src.api.auth.router import require_api_key
 
 router = APIRouter(dependencies=[Depends(require_api_key)])
 

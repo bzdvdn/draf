@@ -45,7 +45,7 @@ class ChromaVectorStore(VectorStore):
         ids = [v[0] for v in vectors]
         embeddings = [v[1] for v in vectors]
         metadatas = [v[2] for v in vectors]
-        self._collection.add(ids=ids, embeddings=embeddings, metadatas=metadatas)
+        self._collection.add(ids=ids, embeddings=embeddings, metadatas=metadatas)  # type: ignore[arg-type]
 
     async def search(
         self,
@@ -56,7 +56,7 @@ class ChromaVectorStore(VectorStore):
         query_text: str | None = None,
     ) -> list[tuple[str, float, dict]]:
         results = self._collection.query(
-            query_embeddings=[query],
+            query_embeddings=[query],  # type: ignore[arg-type]
             n_results=k,
             where=_to_chroma_where(filter),
             include=["metadatas", "distances"],
@@ -69,7 +69,7 @@ class ChromaVectorStore(VectorStore):
             score = 1.0 - distances[0][i]
             meta = (metadatas[0][i] or {}) if metadatas[0] else {}
             out.append((ids[0][i], score, meta))
-        return out
+        return out  # type: ignore[return-value]
 
     async def delete(self, ids: list[str]) -> None:
         self._collection.delete(ids=ids)
@@ -83,13 +83,13 @@ class ChromaVectorStore(VectorStore):
         res = self._collection.get(limit=limit, offset=offset, include=["metadatas"])
         ids = res.get("ids") or []
         metas = res.get("metadatas") or []
-        return [(ids[i], metas[i] or {}) for i in range(len(ids))]
+        return [(ids[i], metas[i] or {}) for i in range(len(ids))]  # type: ignore[misc]
 
     async def get(self, ids: list[str]) -> list[tuple[str, dict]]:
         res = self._collection.get(ids=ids, include=["metadatas"])
         got = res.get("ids") or []
         metas = res.get("metadatas") or []
-        return [(got[i], metas[i] or {}) for i in range(len(got))]
+        return [(got[i], metas[i] or {}) for i in range(len(got))]  # type: ignore[misc]
 
     async def update_metadata(self, id: str, metadata: dict) -> None:
         res = self._collection.get(ids=[id], include=["metadatas"])

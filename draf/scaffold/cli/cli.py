@@ -104,7 +104,9 @@ def chat(
         if not message:
             continue
         asyncio.run(_stream_turn(container.assistant, session, message))
-        print(f"\n== assistant ==\n{asyncio.run(container.assistant.last_reply(session))}")
+        print(
+            f"\n== assistant ==\n{asyncio.run(container.assistant.last_reply(session))}"
+        )
         print()
 
 

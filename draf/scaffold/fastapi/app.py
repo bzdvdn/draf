@@ -15,9 +15,8 @@ runs at import time, and the LLM provider/model come from
 from __future__ import annotations
 
 from fastapi import FastAPI
-
-from src.config.config import Settings
 from src.api.router import api_router
+from src.config.config import Settings
 from src.core import build_container
 
 

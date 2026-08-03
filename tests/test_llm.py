@@ -32,8 +32,7 @@ class TestParseTextToolCall:
 class TestLLMNode:
     @pytest.mark.asyncio
     async def test_sends_request_and_stores_response(self, monkeypatch):
-        from draf.node import LLM
-        from draf.node import ExecContext
+        from draf.node import LLM, ExecContext
 
         monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
 
@@ -58,8 +57,7 @@ class TestLLMNode:
 
     @pytest.mark.asyncio
     async def test_prompt_template_renders_state_keys(self, monkeypatch):
-        from draf.node import LLM
-        from draf.node import ExecContext
+        from draf.node import LLM, ExecContext
 
         monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
 
@@ -101,8 +99,7 @@ class TestLLMNode:
 
     @pytest.mark.asyncio
     async def test_prompt_template_missing_key_raises(self, monkeypatch):
-        from draf.node import LLM
-        from draf.node import ExecContext
+        from draf.node import LLM, ExecContext
 
         monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
 
@@ -113,8 +110,7 @@ class TestLLMNode:
 
     @pytest.mark.asyncio
     async def test_structured_output_json_mode(self, monkeypatch):
-        from draf.node import LLM
-        from draf.node import ExecContext
+        from draf.node import LLM, ExecContext
 
         monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
 
@@ -139,8 +135,7 @@ class TestLLMNode:
 
     @pytest.mark.asyncio
     async def test_tool_calling_loop(self, monkeypatch):
-        from draf.node import LLM
-        from draf.node import ExecContext
+        from draf.node import LLM, ExecContext
         from draf.tool import Tool
 
         monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
@@ -201,8 +196,7 @@ class TestLLMNode:
 
     @pytest.mark.asyncio
     async def test_tool_calling_executes_and_feeds_back(self, monkeypatch):
-        from draf.node import LLM
-        from draf.node import ExecContext
+        from draf.node import LLM, ExecContext
         from draf.tool import Tool
 
         monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
@@ -263,8 +257,7 @@ class TestLLMNode:
 
     @pytest.mark.asyncio
     async def test_manual_tool_defs_without_use_tools(self, monkeypatch):
-        from draf.node import LLM
-        from draf.node import ExecContext
+        from draf.node import LLM, ExecContext
 
         monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
 
@@ -328,8 +321,7 @@ class TestLLMNode:
 
     @pytest.mark.asyncio
     async def test_streaming_accumulates_content(self, monkeypatch):
-        from draf.node import LLM
-        from draf.node import ExecContext
+        from draf.node import LLM, ExecContext
 
         monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
 
@@ -368,8 +360,7 @@ class TestLLMNode:
 
     @pytest.mark.asyncio
     async def test_streaming_calls_on_token(self, monkeypatch):
-        from draf.node import LLM
-        from draf.node import ExecContext
+        from draf.node import LLM, ExecContext
 
         monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
 
@@ -414,8 +405,7 @@ class TestLLMNode:
 
     @pytest.mark.asyncio
     async def test_streaming_disabled_when_tools_are_used(self, monkeypatch):
-        from draf.node import LLM
-        from draf.node import ExecContext
+        from draf.node import LLM, ExecContext
         from draf.tool import Tool
 
         monkeypatch.setenv("OPENAI_API_KEY", "sk-test")

@@ -10,7 +10,6 @@ from __future__ import annotations
 from typing import Annotated, Any, TypedDict
 
 from draf.state import reducers_from_typeddict
-
 from src.domain.models import merge_project_info
 
 

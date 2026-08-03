@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import uuid
+from typing import Any, Mapping
 
 from draf.rag.base import VectorStore, finalize_results
 
@@ -82,7 +83,7 @@ class WeaviateVectorStore(VectorStore):
         self.dim = dim
 
     @staticmethod
-    def _meta_of(properties: dict) -> dict:
+    def _meta_of(properties: Mapping[str, Any]) -> dict:
         try:
             return json.loads(properties.get("metadata", "{}"))
         except (TypeError, json.JSONDecodeError):
@@ -129,7 +130,7 @@ class WeaviateVectorStore(VectorStore):
             score = 1.0 - float(distance) if distance is not None else 0.0
             doc_id = o.properties.get("doc_id", str(o.uuid))
             candidates.append((doc_id, score, self._meta_of(o.properties)))
-        return finalize_results(candidates, k, filter, hybrid, query_text)
+        return finalize_results(candidates, k, filter, hybrid, query_text)  # type: ignore[arg-type]
 
     async def delete(self, ids: list[str]) -> None:
         if not self._client.collections.exists(self.collection):
@@ -144,7 +145,7 @@ class WeaviateVectorStore(VectorStore):
         if not self._client.collections.exists(self.collection):
             return 0
         col = self._client.collections.get(self.collection)
-        return col.aggregate.over_all(total_count=True).total_count
+        return col.aggregate.over_all(total_count=True).total_count  # type: ignore[return-value]
 
     async def entries(
         self, limit: int = 100, offset: int = 0
@@ -154,7 +155,7 @@ class WeaviateVectorStore(VectorStore):
         col = self._client.collections.get(self.collection)
         res = col.query.fetch_objects(limit=limit, offset=offset)
         return [
-            (o.properties.get("doc_id", str(o.uuid)), self._meta_of(o.properties))
+            (o.properties.get("doc_id", str(o.uuid)), self._meta_of(o.properties))  # type: ignore[misc]
             for o in res.objects
         ]
 
@@ -167,7 +168,7 @@ class WeaviateVectorStore(VectorStore):
         cond = Filter.any_of([Filter.by_property("doc_id").equal(vid) for vid in ids])
         res = col.query.fetch_objects(filters=cond, limit=len(ids))
         return [
-            (o.properties.get("doc_id", str(o.uuid)), self._meta_of(o.properties))
+            (o.properties.get("doc_id", str(o.uuid)), self._meta_of(o.properties))  # type: ignore[misc]
             for o in res.objects
         ]
 

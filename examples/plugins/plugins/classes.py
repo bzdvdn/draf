@@ -36,9 +36,7 @@ class UppercaseNode(Node):
     async def execute(self, ctx, state: dict) -> dict:
         input_key = self.config.get("input_key", "text")
         output_key = self.config.get("output_key", "out")
-        state[output_key] = ctx.tools["upper"].run(
-            text=state.get(input_key, "")
-        )
+        state[output_key] = ctx.tools["upper"].run(text=state.get(input_key, ""))
         return state
 
 

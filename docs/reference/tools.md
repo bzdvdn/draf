@@ -1,0 +1,117 @@
+# Tools reference
+
+Tools implement `Tool` (or use `@tool`) and are shared across nodes. Agents
+receive them through `graph.run(state, tools=tools)` or YAML `tools:`. A
+library of built-in tools registers itself when `draf.tool.builtin` is
+imported (the YAML helpers and examples do this for you). Marked tools need
+`pip install draf[tools]`.
+
+## Registry
+
+```python
+from draf.tool.registry import default_tool_registry
+
+print(default_tool_registry.list())  # all registered names
+```
+
+## Built-in tools
+
+| Name | Class | Deps | What it does |
+| ---- | ----- | ---- | ------------ |
+| `calculator` | `CalculatorTool` | — | AST-based safe math evaluation |
+| `shell` | `ShellTool` | — | Run shell commands behind a block/whitelist sandbox |
+| `read_file` | `ReadFileTool` | — | Read a file's contents |
+| `write_file` | `WriteFileTool` | — | Write content to a file |
+| `edit_file` | `EditFileTool` | — | Replace text in a file |
+| `list_dir` | `ListDirTool` | — | List files/dirs (optionally recursive) |
+| `glob` | `GlobTool` | — | Find files matching a glob pattern |
+| `getenv` | `GetEnvTool` | — | Read an env var (secret values masked) |
+| `current_time` | `CurrentTimeTool` | — | Current date/time in an IANA timezone |
+| `json_parse` | `JsonParseTool` | — | Parse and pretty-print JSON |
+| `yaml_parse` | `YamlParseTool` | — | Parse YAML, dump as JSON |
+| `kv_store` | `KVStoreTool` | — | Persistent JSON key-value store |
+| `python_eval` | `PythonEvalTool` | — | Safe AST-whitelist evaluation of Python expressions |
+| `web_search` | `WebSearchTool` | — | DuckDuckGo search, no API key |
+| `fetch_url` | `WebFetchTool` | `beautifulsoup4` | Fetch a URL and extract its text |
+| `read_pdf` | `PDFReadTool` | `pypdf` | Extract text from a PDF, page by page |
+| `pdf` | `PDFTool` | `pypdf` | RAG-pageable PDF text extraction (RAG) |
+| `image` | `ImageTool` | `httpx` | OCR via an OpenAI-compatible vision model |
+| `s3_list` / `s3_get` / `s3_put` | `S3Tool`/`S3GetTool`/`S3PutTool` | `boto3` | S3 object ops |
+| `slack_send` | `SlackSendTool` | `slack-sdk` | Send a message to a Slack channel |
+| `sql_query` | `SQLQueryTool` | sqlite3/`psycopg` | Read-only SELECT (SQLite/PostgreSQL) |
+| `sql_list_tables` | `SQLListTablesTool` | sqlite3/`psycopg` | List tables |
+| `sql_describe` | `SQLDescribeTool` | sqlite3/`psycopg` | Describe a table's columns |
+| `http_request` | `HttpRequestTool` | `httpx` | Arbitrary HTTP requests |
+| `send_email` | `SendEmailTool` | smtplib | Send email via SMTP |
+| `send_telegram` | `SendTelegramTool` | `httpx` | Send a message via a Telegram bot |
+| `csv_query` | `CSVTool` | — | Query/aggregate a CSV |
+| `git` | `GitTool` | — | git status/log operations |
+| `github_list_open_prs` etc. | `GitHubTool` family | `httpx` | GitHub PR list/changes/comment/approve |
+| `gitlab_list_open_mrs` etc. | `GitLabTool` family | `httpx` | GitLab MR list/changes/comment/approve |
+| `lock` | `LockTool` | — | Distributed-ish lock acquire/release |
+| `redis` | `RedisTool` | `redis` | Redis get/set/hash/list ops |
+| `wait_for` | `WaitForTool` | — | Poll until a condition holds |
+| `rag` | `RAGTool` | `draf[embedding]` | Retrieval over a vector store |
+
+## Configuring tools
+
+Tools are plain classes, so you can construct them directly with keyword
+arguments — `ShellTool(root_dir=..., allowed_commands=[...])`,
+`WebSearchTool(provider="google")`, `SQLQueryTool({"db_type": "sqlite",
+"path": "./v.db"})`. The registry (used by YAML `tools:` blocks) maps a config
+dict onto the constructor: a dict passed to constructors that take a `config`
+dict, or keyword arguments for keyword constructors:
+
+```yaml
+tools:
+  - type: sql_query
+    config: {db_type: sqlite, path: ./vectors.db}
+  - type: shell
+    config: {root_dir: /tmp, allowed_commands: [echo, ls]}
+  - type: s3_list
+    config: {bucket: my-bucket, region: eu-central-1, verify: false}
+```
+
+The same works in Python:
+
+```python
+from draf.tool.registry import default_tool_registry
+
+sql = default_tool_registry.create("sql_query", {"db_type": "sqlite", "path": "./v.db"})
+shell = default_tool_registry.create("shell", {"root_dir": "/tmp", "allowed_commands": ["echo"]})
+```
+
+## Writing a custom tool
+
+```python
+from draf.tool.tool import Tool
+from draf.tool.registry import tool
+
+
+@tool("slugify", "Convert a string to a lowercase URL slug")
+def slugify(text: str = "") -> str:
+    return "-".join(text.lower().split())
+
+
+# or a subclass
+class Search(Tool):
+    name = "search"
+    description = "Search a local index"
+
+    def run(self, query: str = "") -> str:
+        return f"results for {query}"
+```
+
+See [Plugins](../guide/plugins.md) for discovery of custom tools.
+
+## Security notes
+
+- `shell` enforces a blocklist of dangerous commands plus an optional
+  whitelist.
+- `getenv` masks values whose names hint at credentials (`TOKEN`,
+  `API_KEY`, `PASSWORD`, `DSN`, …) unless configured with
+  `mask_secrets: false`.
+- `sql_query` and the other SQL tools are read-only and reject
+  `INSERT`/`UPDATE`/`DELETE`/DDL.
+- `python_eval` only allows a whitelisted AST subset (`math.*`, builtins
+  like `len`/`abs`/`sum`, comparisons).

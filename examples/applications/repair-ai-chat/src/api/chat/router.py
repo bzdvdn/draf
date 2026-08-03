@@ -20,7 +20,6 @@ from pydantic import BaseModel
 from sse_starlette.sse import EventSourceResponse
 
 from draf.checkpoint import DEFAULT_OWNER
-
 from src.api.auth.router import require_api_key
 
 router = APIRouter(dependencies=[Depends(require_api_key)])

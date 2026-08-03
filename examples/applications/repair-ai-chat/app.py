@@ -15,10 +15,9 @@ runs at import time, and the LLM provider/model come from
 from __future__ import annotations
 
 from fastapi import FastAPI
-
+from src.api.router import api_router
 from src.config.config import Settings, get_settings
 from src.core.deps import build_deps
-from src.api.router import api_router
 from src.graphs.build import build_flow
 from src.service.assistant import Assistant
 from src.storage import build_checkpointer
@@ -43,8 +42,10 @@ def create_app(
         provider=settings.provider, catalog_db=settings.catalog_db
     )
     flow, tools = build_flow(
-        model=settings.model, provider=settings.provider,
-        services=services, catalog=catalog,
+        model=settings.model,
+        provider=settings.provider,
+        services=services,
+        catalog=catalog,
     )
     assistant = Assistant(
         flow.compile(),

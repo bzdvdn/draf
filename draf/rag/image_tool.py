@@ -50,9 +50,8 @@ class ImageTool(Tool):
         )
         self.provider: str = provider
         self.model: str = cfg.get("model") or default_model
-        self.base_url: str = (
-            cfg.get("base_url")
-            or os.environ.get(f"{provider.upper()}_BASE_URL", default_url)
+        self.base_url: str = cfg.get("base_url") or os.environ.get(
+            f"{provider.upper()}_BASE_URL", default_url
         )
         self.api_key: str = (
             cfg.get("api_key")

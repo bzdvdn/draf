@@ -29,8 +29,7 @@ class CsvQueryTool(Tool):
 
     name = "csv_query"
     description = (
-        "Read, filter and aggregate a CSV file (read, columns, filter, "
-        "aggregate)"
+        "Read, filter and aggregate a CSV file (read, columns, filter, aggregate)"
     )
 
     def __init__(self, config: dict | None = None):

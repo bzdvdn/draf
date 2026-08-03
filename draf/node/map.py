@@ -4,8 +4,8 @@ import asyncio
 import time
 from typing import Sequence
 
-from draf.node.node import Node
 from draf.node.context import ExecContext
+from draf.node.node import Node
 from draf.state import apply_reducers
 from draf.trace import _ms
 
