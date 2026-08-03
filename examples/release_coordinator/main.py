@@ -38,6 +38,7 @@ import asyncio
 from typing import TypedDict
 
 from draf.flow import Flow, agent_step
+from draf.logging import configure_logging
 from draf.node import LLM, Interrupt, Map
 from draf.node import Supervisor as BaseSupervisor
 from draf.node.interrupt import GraphInterrupt
@@ -312,4 +313,5 @@ async def main() -> None:
 
 
 if __name__ == "__main__":
+    configure_logging()
     asyncio.run(main())

@@ -81,6 +81,7 @@ nav:
       - Plugins: guide/plugins.md
       - Evaluation: guide/evaluation.md
       - Streaming: guide/streaming.md
+      - Logging: guide/logging.md
       - Testing: guide/testing.md
   - Reference:
       - Overview: reference.md

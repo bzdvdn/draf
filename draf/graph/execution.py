@@ -22,6 +22,12 @@ from draf.graph.conditions import (
     resolve_edge,
 )
 from draf.graph.edge import _ERROR_CONDITION, _INTERRUPT_KEY
+from draf.logging import (
+    get_logger,
+    new_run_id,
+    node_id_ctx,
+    run_id_ctx,
+)
 from draf.node.context import ExecContext
 from draf.node.interrupt import GraphInterrupt
 from draf.node.node import Node
@@ -30,6 +36,8 @@ from draf.state import Reducer, State, apply_reducers
 from draf.stream import StreamEvent
 from draf.tool.tool import Tool
 from draf.trace import RunTracer, _ms
+
+log = get_logger(__name__)
 
 __all__ = ["execute"]
 
@@ -54,6 +62,55 @@ def _restore_state(original: dict | State, data: dict) -> dict | State:
 
 
 async def execute(
+    graph,
+    state: dict | State,
+    tools: list[Tool] | None = None,
+    registry: NodeRegistry | None = None,
+    reducers: dict[str, Reducer] | None = None,
+    hooks: dict[str, Callable] | None = None,
+    node_timeout: float | None = None,
+    max_iterations: int | None = None,
+    checkpointer: Checkpointer | None = None,
+    checkpoint_id: str | None = None,
+    owner: str = DEFAULT_OWNER,
+    resume: dict | None = None,
+    tracer: RunTracer | None = None,
+    state_schema: dict | None = None,
+    emit: "Callable[[StreamEvent], Awaitable[None]] | None" = None,
+) -> dict | State:
+    """Run *graph* with run/session correlation ids in the log context."""
+    run = new_run_id()
+    session = checkpoint_id or ""
+    with run_id_ctx(run_id=run, session_id=session):
+        log.info("run_start checkpoint=%s", session or "-")
+        try:
+            result = await _execute_impl(
+                graph,
+                state,
+                tools=tools,
+                registry=registry,
+                reducers=reducers,
+                hooks=hooks,
+                node_timeout=node_timeout,
+                max_iterations=max_iterations,
+                checkpointer=checkpointer,
+                checkpoint_id=checkpoint_id,
+                owner=owner,
+                resume=resume,
+                tracer=tracer,
+                state_schema=state_schema,
+                emit=emit,
+            )
+        except GraphInterrupt:
+            raise
+        except Exception as exc:
+            log.error("run_end status=error error=%r", str(exc))
+            raise
+        log.info("run_end status=ok")
+        return result
+
+
+async def _execute_impl(
     graph,
     state: dict | State,
     tools: list[Tool] | None = None,
@@ -122,6 +179,11 @@ async def execute(
     pending: dict | None = None
     if checkpointer is not None:
         saved = await checkpointer.load(cid, owner=owner)
+        log.debug(
+            "checkpoint action=load checkpoint_id=%s next_node_id=%s",
+            cid,
+            saved.next_node_id if saved is not None else None,
+        )
         if tracer is not None:
             tracer.checkpoint(
                 "load",
@@ -184,85 +246,32 @@ async def execute(
         iteration += 1
 
         node: Node = graph.nodes[current_id]
-        ctx = ExecContext(
-            state,
-            tool_dict,
-            node_id=current_id,
-            node_type=node.type,
-            tracer=tracer,
-            reducers=reducers,
-            emit=emit,
-        )
-        start = time.monotonic()
-
-        if checkpointer is not None:
-            await checkpointer.save(
-                cid,
-                Checkpoint(
-                    state=dict(state),
-                    next_node_id=current_id,
-                    iteration=iteration - 1,
-                ),
-                owner=owner,
+        with node_id_ctx(node_id=current_id, node_type=node.type):
+            log.info("node_start")
+            ctx = ExecContext(
+                state,
+                tool_dict,
+                node_id=current_id,
+                node_type=node.type,
+                tracer=tracer,
+                reducers=reducers,
+                emit=emit,
             )
-            if tracer is not None:
-                tracer.checkpoint("save", cid, current_id)
-            if emit is not None:
-                await emit(
-                    StreamEvent(
-                        "checkpoint",
-                        data={
-                            "action": "save",
-                            "checkpoint_id": cid,
-                            "next_node_id": current_id,
-                        },
-                    )
-                )
+            start = time.monotonic()
 
-        _call_hook(hooks, "on_node_start", current_id, node, state)
-        if tracer is not None:
-            tracer.node_start(current_id, node.type)
-        if emit is not None:
-            await emit(
-                StreamEvent("node_start", node_id=current_id, node_type=node.type)
-            )
-
-        try:
-            if node_timeout is not None:
-                result = await asyncio.wait_for(
-                    node.execute(ctx, state), timeout=node_timeout
-                )
-            else:
-                result = await node.execute(ctx, state)
-        except GraphInterrupt as exc:
-            if tracer is not None:
-                tracer.interrupt(current_id, exc.key, exc.prompt)
-            if emit is not None:
-                await emit(
-                    StreamEvent(
-                        "interrupt",
-                        node_id=current_id,
-                        data={"key": exc.key, "prompt": exc.prompt},
-                    )
-                )
             if checkpointer is not None:
-                pending = dict(state)
-                pending[_INTERRUPT_KEY] = {
-                    "key": exc.key,
-                    "prompt": exc.prompt,
-                    "node_id": current_id,
-                }
                 await checkpointer.save(
                     cid,
                     Checkpoint(
-                        state=pending,
-                        next_node_id=None,
-                        iteration=iteration,
+                        state=dict(state),
+                        next_node_id=current_id,
+                        iteration=iteration - 1,
                     ),
                     owner=owner,
                 )
                 if tracer is not None:
-                    tracer.checkpoint("save", cid, None)
+                    tracer.checkpoint("save", cid, current_id)
+                log.debug("checkpoint action=save checkpoint_id=%s", cid)
                 if emit is not None:
                     await emit(
                         StreamEvent(
@@ -270,41 +279,56 @@ async def execute(
                             data={
                                 "action": "save",
                                 "checkpoint_id": cid,
-                                "next_node_id": None,
+                                "next_node_id": current_id,
                             },
                         )
                     )
-            exc.node_id = current_id
-            exc.checkpoint_id = cid or None
-            raise
-        except Exception as exc:
+
+            _call_hook(hooks, "on_node_start", current_id, node, state)
             if tracer is not None:
-                tracer.node_error(current_id, node.type, _ms(start), exc)
-            _call_hook(hooks, "on_node_error", current_id, node, state, exc)
+                tracer.node_start(current_id, node.type)
             if emit is not None:
                 await emit(
-                    StreamEvent(
-                        "node_error",
-                        node_id=current_id,
-                        node_type=node.type,
-                        data={"error": str(exc), "duration_ms": _ms(start)},
-                    )
+                    StreamEvent("node_start", node_id=current_id, node_type=node.type)
                 )
-            error_edge = find_error_edge(graph.edges, current_id)
-            if error_edge is not None:
-                current_id = error_edge.target_id
+
+            try:
+                if node_timeout is not None:
+                    result = await asyncio.wait_for(
+                        node.execute(ctx, state), timeout=node_timeout
+                    )
+                else:
+                    result = await node.execute(ctx, state)
+            except GraphInterrupt as exc:
+                log.warning("interrupt key=%s prompt=%r", exc.key, exc.prompt)
+                if tracer is not None:
+                    tracer.interrupt(current_id, exc.key, exc.prompt)
+                if emit is not None:
+                    await emit(
+                        StreamEvent(
+                            "interrupt",
+                            node_id=current_id,
+                            data={"key": exc.key, "prompt": exc.prompt},
+                        )
+                    )
                 if checkpointer is not None:
+                    pending = dict(state)
+                    pending[_INTERRUPT_KEY] = {
+                        "key": exc.key,
+                        "prompt": exc.prompt,
+                        "node_id": current_id,
+                    }
                     await checkpointer.save(
                         cid,
                         Checkpoint(
-                            state=dict(state),
-                            next_node_id=current_id,
+                            state=pending,
+                            next_node_id=None,
                             iteration=iteration,
                         ),
                         owner=owner,
                     )
                     if tracer is not None:
-                        tracer.checkpoint("save", cid, current_id)
+                        tracer.checkpoint("save", cid, None)
                     if emit is not None:
                         await emit(
                             StreamEvent(
@@ -312,61 +336,100 @@ async def execute(
                                 data={
                                     "action": "save",
                                     "checkpoint_id": cid,
-                                    "next_node_id": current_id,
+                                    "next_node_id": None,
                                 },
                             )
                         )
-                continue
-            raise
+                exc.node_id = current_id
+                exc.checkpoint_id = cid or None
+                raise
+            except Exception as exc:
+                log.error("node_error duration_ms=%s error=%r", _ms(start), str(exc))
+                if tracer is not None:
+                    tracer.node_error(current_id, node.type, _ms(start), exc)
+                _call_hook(hooks, "on_node_error", current_id, node, state, exc)
+                if emit is not None:
+                    await emit(
+                        StreamEvent(
+                            "node_error",
+                            node_id=current_id,
+                            node_type=node.type,
+                            data={"error": str(exc), "duration_ms": _ms(start)},
+                        )
+                    )
+                error_edge = find_error_edge(graph.edges, current_id)
+                if error_edge is not None:
+                    current_id = error_edge.target_id
+                    if checkpointer is not None:
+                        await checkpointer.save(
+                            cid,
+                            Checkpoint(
+                                state=dict(state),
+                                next_node_id=current_id,
+                                iteration=iteration,
+                            ),
+                            owner=owner,
+                        )
+                        if tracer is not None:
+                            tracer.checkpoint("save", cid, current_id)
+                        if emit is not None:
+                            await emit(
+                                StreamEvent(
+                                    "checkpoint",
+                                    data={
+                                        "action": "save",
+                                        "checkpoint_id": cid,
+                                        "next_node_id": current_id,
+                                    },
+                                )
+                            )
+                    continue
+                raise
 
-        _call_hook(hooks, "on_node_end", current_id, node, state, result)
-        if tracer is not None:
-            tracer.node_end(current_id, node.type, _ms(start))
-        if emit is not None:
-            await emit(
-                StreamEvent(
-                    "node_end",
-                    node_id=current_id,
-                    node_type=node.type,
-                    data={"duration_ms": _ms(start)},
+            log.info("node_end duration_ms=%s", _ms(start))
+            _call_hook(hooks, "on_node_end", current_id, node, state, result)
+            if tracer is not None:
+                tracer.node_end(current_id, node.type, _ms(start))
+            if emit is not None:
+                await emit(
+                    StreamEvent(
+                        "node_end",
+                        node_id=current_id,
+                        node_type=node.type,
+                        data={"duration_ms": _ms(start)},
+                    )
                 )
-            )
 
-        if result:
-            if isinstance(state, State):
-                state.merge(result)
-            else:
-                apply_reducers(state, result, reducers or {})
+            if result:
+                if isinstance(state, State):
+                    state.merge(result)
+                else:
+                    apply_reducers(state, result, reducers or {})
 
-        outgoing = [
-            e
-            for e in graph.edges
-            if e.source_id == current_id and e.condition != _ERROR_CONDITION
-        ]
-        if not outgoing:
-            break
+            outgoing = [
+                e
+                for e in graph.edges
+                if e.source_id == current_id and e.condition != _ERROR_CONDITION
+            ]
+            if not outgoing:
+                break
 
-        next_id = resolve_edge(outgoing, state)
-        if next_id is None:
-            break
-        if tracer is not None:
-            tracer.edge(
-                current_id,
-                next_id,
-                matched_condition(outgoing, state, next_id),
-            )
-        if emit is not None:
-            await emit(
-                StreamEvent(
-                    "edge",
-                    node_id=current_id,
-                    data={
-                        "target_id": next_id,
-                        "condition": matched_condition(outgoing, state, next_id),
-                    },
+            next_id = resolve_edge(outgoing, state)
+            if next_id is None:
+                break
+            condition = matched_condition(outgoing, state, next_id)
+            log.info("edge %s -> %s condition=%s", current_id, next_id, condition)
+            if tracer is not None:
+                tracer.edge(current_id, next_id, condition)
+            if emit is not None:
+                await emit(
+                    StreamEvent(
+                        "edge",
+                        node_id=current_id,
+                        data={"target_id": next_id, "condition": condition},
+                    )
                 )
-            )
-        current_id = next_id
+            current_id = next_id
 
     if checkpointer is not None:
         await checkpointer.save(

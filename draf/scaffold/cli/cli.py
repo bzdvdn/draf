@@ -35,6 +35,21 @@ app = typer.Typer(
 )
 
 
+@app.callback()
+def _logging(
+    log_level: str | None = typer.Option(
+        None, "--log-level", help="draf log level (DEBUG/INFO/WARNING/ERROR)"
+    ),
+    log_format: str = typer.Option(
+        "text", "--log-format", help="draf log format: text or json"
+    ),
+) -> None:
+    """Configure draf's operational logging."""
+    from draf import configure_logging
+
+    configure_logging(log_level, format=log_format)
+
+
 def _build_assistant():
     settings = get_settings()
     return build_container(settings), settings

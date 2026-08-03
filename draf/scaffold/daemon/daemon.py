@@ -93,7 +93,22 @@ def main() -> None:
         default=None,
         help="process at most this many jobs per pass",
     )
+    parser.add_argument(
+        "--log-level",
+        default=None,
+        help="draf log level (DEBUG/INFO/WARNING/ERROR)",
+    )
+    parser.add_argument(
+        "--log-format",
+        default="text",
+        choices=("text", "json"),
+        help="draf log format",
+    )
     args = parser.parse_args()
+
+    from draf import configure_logging
+
+    configure_logging(args.log_level, format=args.log_format)
 
     container, _ = _build_assistant()
     print(

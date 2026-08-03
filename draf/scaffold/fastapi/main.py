@@ -18,7 +18,22 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Run the {{PROJECT_NAME}} API server.")
     parser.add_argument("--host", default=settings.host, help="bind host")
     parser.add_argument("--port", type=int, default=settings.port, help="bind port")
+    parser.add_argument(
+        "--log-level",
+        default=None,
+        help="draf log level (DEBUG/INFO/WARNING/ERROR)",
+    )
+    parser.add_argument(
+        "--log-format",
+        default="text",
+        choices=("text", "json"),
+        help="draf log format",
+    )
     args = parser.parse_args()
+
+    from draf import configure_logging
+
+    configure_logging(args.log_level, format=args.log_format)
 
     import uvicorn
     from app import create_app

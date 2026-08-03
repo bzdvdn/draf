@@ -14,6 +14,7 @@ from dataclasses import dataclass, field
 
 import httpx
 
+from draf.errors import redact
 from draf.harness.context import trim_messages
 from draf.harness.formats import (
     _anthropic_to_message,
@@ -31,7 +32,32 @@ from draf.harness.providers import (
 )
 from draf.harness.schema import tool_to_schema
 from draf.harness.tools import execute_tool_calls
+from draf.logging import get_logger
 from draf.tool.tool import Tool
+
+log = get_logger(__name__)
+
+
+def _last_user_message(messages: list[dict]) -> str:
+    """Return the most recent ``user`` message content (empty if none)."""
+    for m in reversed(messages):
+        if m.get("role") == "user":
+            return str(m.get("content", ""))
+    return ""
+
+
+def _truncate(value: str, cap: int | None = None) -> str:
+    """Truncate *value* to ``DRAF_LOG_LLM_CHARS`` chars (default 2000)."""
+    if value is None:
+        return ""
+    if cap is None:
+        try:
+            cap = int(os.environ.get("DRAF_LOG_LLM_CHARS", "2000"))
+        except ValueError:
+            cap = 2000
+    if cap <= 0 or len(value) <= cap:
+        return value
+    return f"{value[:cap]}...(truncated {len(value) - cap} chars)"
 
 
 def _ms(start: float) -> float:
@@ -588,6 +614,16 @@ class Harness:
                 await self.on_llm(
                     self.provider_key, self.model, prompt, completion, _ms(t0)
                 )
+        log.info(
+            "llm_call model=%s provider=%s prompt_tokens=%s completion_tokens=%s latency_ms=%s",
+            self.model,
+            self.provider_key,
+            usage.get("prompt"),
+            usage.get("completion"),
+            f"{_ms(t0):.0f}",
+        )
+        log.debug("llm_request %s", _truncate(redact(_last_user_message(messages))))
+        log.debug("llm_response %s", _truncate(redact(content)))
         self.total_tokens += int(usage.get("prompt", 0)) + int(
             usage.get("completion", 0)
         )
@@ -634,6 +670,7 @@ class Harness:
 
         new_messages = list(messages)
         if tool_calls:
+            log.info("tool_call count=%s", len(tool_calls))
             if self.on_tool_call is not None:
                 for tc in tool_calls:
                     name, raw, _ = _tool_call_parts(tc)
@@ -641,6 +678,11 @@ class Harness:
                         args = json.loads(raw) if raw else {}
                     except json.JSONDecodeError:
                         args = {}
+                    log.info(
+                        "tool_call tool=%s args=%s",
+                        name,
+                        _truncate(json.dumps(redact(args), default=str)),
+                    )
                     result = self.on_tool_call(name, args)
                     if inspect.isawaitable(result):
                         await result

@@ -18,6 +18,12 @@ from draf.eval import extract_output, load_dataset, run_eval
 from draf.flow import Case, Flow, SubFlow
 from draf.graph import Edge, Graph
 from draf.harness import Harness, provider_concurrency, set_provider_concurrency
+from draf.logging import (
+    configure_logging,
+    get_logger,
+    new_run_id,
+    run_id,
+)
 from draf.node import (
     LLM,
     ExecContext,
@@ -91,6 +97,10 @@ def set_defaults(*, provider: str | None = None, **kwargs: object) -> None:
 __all__ = [
     "set_defaults",
     "__version__",
+    "configure_logging",
+    "get_logger",
+    "run_id",
+    "new_run_id",
     "DrafError",
     "ConfigError",
     "WorkflowError",

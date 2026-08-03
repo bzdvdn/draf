@@ -52,7 +52,22 @@ async def main() -> None:
     parser.add_argument(
         "--session", default="default", help="session id — reuse it to continue"
     )
+    parser.add_argument(
+        "--log-level",
+        default=None,
+        help="draf log level (DEBUG/INFO/WARNING/ERROR)",
+    )
+    parser.add_argument(
+        "--log-format",
+        default="text",
+        choices=("text", "json"),
+        help="draf log format",
+    )
     args = parser.parse_args()
+
+    from draf import configure_logging
+
+    configure_logging(args.log_level, format=args.log_format)
 
     if args.model != settings.model:
         settings = settings.model_copy(update={"model": args.model})

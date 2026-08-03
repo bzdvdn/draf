@@ -40,6 +40,9 @@ Thumbs.db
 # Environment variables
 .env
 .env.*
+# The scaffold's postgres variant ships a tracked .env.example as a template
+# (an exception to the ignore above so CI copies it into generated apps).
+!draf/scaffold/variants/postgres/.env.example
 
 # Docs build output (mkdocs)
 site/
