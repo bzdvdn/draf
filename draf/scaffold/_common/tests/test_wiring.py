@@ -37,7 +37,7 @@ def test_reducers_from_typed_state():
 
 def test_supervisor_carries_round_budget():
     """The decider writes a bounded round counter that resets to 0."""
-    from src.nodes.supervisor import Supervisor
+    from draf.node import Supervisor
 
     node = Supervisor()
     assert node.config["max_rounds"] >= 1

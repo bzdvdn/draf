@@ -7,11 +7,12 @@ checks out in parallel, and pauses for human approval before shipping:
 * a **supervisor** decider that routes to one of three specialised agents
   (planner / estimator / tester) and, once all sections are ready, to a
   *human approval* step;
-* a single ``Supervisor`` node (the ``repair-ai-chat`` pattern) that owns
-  the routing: it renders the section progress into the model context, gets
-  a *proposal*, then enforces the policy (``approved``, then fill order) and
-  bounds the loop with a ``supervisor_rounds`` counter — so a stray free-form
-  answer can neither end the graph silently nor hang it;
+* a single ``Supervisor`` node — the core
+  :class:`draf.node.Supervisor`, subclassed with the release policy: it
+  renders the section progress into the model context, gets a *proposal*,
+  then enforces the policy (``approved``, then fill order) and bounds the
+  loop with a ``supervisor_rounds`` counter — so a stray free-form answer
+  can neither end the graph silently nor hang it;
 * three **agent_step** sub-flows, each given a stable ``id=`` so the
   compiled graph reads like the domain, not ``subflow_3``;
 * a **map** that fans the feature list out to parallel checks;
@@ -37,8 +38,8 @@ import asyncio
 from typing import TypedDict
 
 from draf.flow import Flow, agent_step
-from draf.harness import Harness
-from draf.node import LLM, Interrupt, Map, Node
+from draf.node import LLM, Interrupt, Map
+from draf.node import Supervisor as BaseSupervisor
 from draf.node.interrupt import GraphInterrupt
 from draf.trace import RunTracer
 
@@ -70,29 +71,26 @@ ESTIMATOR_SYSTEM = "Ты оценщик. Оцени трудозатраты и 
 TESTER_SYSTEM = "Ты тестировщик. Перечисли результаты прогона тестов."
 
 
-class Supervisor(Node):
-    """Single-node supervisor decider (``repair-ai-chat`` pattern).
+class Supervisor(BaseSupervisor):
+    """Release-coordinator decider — the core ``Supervisor`` plus a policy.
 
-    One node owns the routing: it renders the section progress into the
-    model context, asks the model for a *proposal*, and then resolves the
-    route deterministically so a free-form answer can neither end the graph
-    silently nor skip the human gate.
-
-    Hard policy, resolved with no model involvement:
+    The core :class:`draf.node.Supervisor` renders the section progress into
+    the model context, parses a single-word *proposal* and bounds the loop
+    with a ``supervisor_rounds`` counter.  This subclass keeps that machinery
+    and overrides the decision hooks with the release fill-order policy:
 
     * ``approved == 'да'`` -> ``finish``;
     * ``approved == 'нет'`` -> ``planner`` — and the rejection is consumed
       (``approved`` is cleared), so the revised release is re-submitted for
       approval instead of being re-planned forever;
     * missing ``plan`` / ``estimate`` / ``tests`` -> the next one in order;
-    * everything filled -> the model chooses ``approve``, requests more work
-      on a section, or (never) ships — ``finish`` without approval is blocked.
+    * everything filled -> the model is consulted: it may ``approve``, request
+      more work on a section, or (never) ship — ``finish`` without approval
+      is blocked.
 
-    A bounded ``supervisor_rounds`` counter forces ``finish`` at
-    ``max_rounds`` so a pathological proposal loop cannot hang the graph.
+    The states the policy fixes never reach the model: only
+    everything-filled-but-unapproved consults :meth:`_ask_model`.
     """
-
-    type = "supervisor"
 
     _AGENTS = frozenset({"planner", "estimator", "tester", "approve", "finish"})
 
@@ -109,40 +107,22 @@ class Supervisor(Node):
         max_rounds: int = 30,
         **kwargs,
     ):
-        merged = {
-            "system": system,
-            "model": model,
-            "provider": provider,
-            "sections": sections or {},
-            "output_key": output_key,
-            "rounds_key": rounds_key,
-            "max_rounds": max_rounds,
-            **(config or {}),
+        super().__init__(
+            config=config,
+            system=system,
+            model=model,
+            provider=provider,
+            messages_key="",
+            sections=sections,
+            output_key=output_key,
+            rounds_key=rounds_key,
+            max_rounds=max_rounds,
+            agents=self._AGENTS,
             **kwargs,
-        }
-        super().__init__(**merged)
-
-    @staticmethod
-    def _parse_agent(text: str) -> str:
-        """Return the last recognised agent word in *text*, or ``""``."""
-        for word in reversed(
-            text.strip().lower().replace(",", " ").replace(":", " ").split()
-        ):
-            w = word.strip(" .*\"'»«-")
-            if w in Supervisor._AGENTS:
-                return w
-        return ""
-
-    def _progress_text(self, state: dict) -> str:
-        parts = []
-        for key, label in self.config["sections"].items():
-            value = state.get(key)
-            if value:
-                parts.append(f"{label}:\n{value}")
-        return "\n\n".join(parts)
+        )
 
     def _route(self, state: dict) -> str:
-        """Return the route for the states the policy fixes deterministically."""
+        """Return the route the policy fixes deterministically (no model)."""
         approved = state.get("approved", "")
         if approved == "да":
             return "finish"
@@ -156,56 +136,29 @@ class Supervisor(Node):
             return "tester"
         return "approve"
 
-    async def execute(self, ctx, state: dict) -> dict:
-        cfg = self.config
-        rounds_key = cfg["rounds_key"]
-        output_key = cfg["output_key"]
-        max_rounds = int(cfg.get("max_rounds", 30))
-        rounds = int(state.get(rounds_key) or 0) + 1
+    def _needs_model(self, state: dict) -> bool:
+        """Consult the model only when everything is filled but unapproved."""
+        return self._route(state) == "approve"
 
-        # Bounded loop: a pathological proposal loop cannot hang the graph.
-        if rounds >= max_rounds:
-            return {output_key: "finish", rounds_key: rounds}
-
-        # The deterministic state-machine route needs no model call.
+    def decide(self, state: dict, proposal: str) -> str:
         route = self._route(state)
         if route != "approve":
-            out = {output_key: route, rounds_key: rounds}
-            if route == "planner" and state.get("approved") == "нет":
-                out["approved"] = ""  # consume the rejection: re-plan once
-            return out
+            return route
+        # Everything is filled but not approved: the model may re-route to a
+        # section for more work; "approve"/"finish"/garbage all mean approve.
+        return proposal if proposal in ("planner", "estimator", "tester") else "approve"
 
-        # Everything is filled but not yet approved.  Ask the model whether to
-        # approve, request more work on a section, or never to ship.
-        harness = Harness.from_config(cfg, default_provider=LLM.DEFAULT_PROVIDER)
-        tracer = getattr(ctx, "tracer", None)
-        if tracer is not None:
-
-            async def on_llm(provider, model, prompt, completion, duration):
-                tracer.llm(provider, model, prompt, completion, duration)
-
-            harness.on_llm = on_llm
-
-        user_parts = [
-            part
-            for part in (
-                self._progress_text(state),
-                f"Round: {rounds}/{max_rounds}",
-                f"Approved: {state.get('approved', '')}",
-            )
-            if part
-        ]
-        reply = await harness.call(
-            [
-                {"role": "system", "content": cfg.get("system", SUPERVISOR_SYSTEM)},
-                {"role": "user", "content": "\n\n".join(user_parts)},
-            ]
-        )
-        proposal = self._parse_agent(reply.content)
-        route = (
-            proposal if proposal in ("planner", "estimator", "tester") else "approve"
-        )
-        return {output_key: route, rounds_key: rounds}
+    async def execute(self, ctx, state: dict) -> dict:
+        out = await super().execute(ctx, state)
+        # Consume the rejection: routing to "planner" from approved == "нет"
+        # clears it, so the revised release is re-submitted for approval
+        # instead of being re-planned forever.
+        if (
+            out.get(self.config["output_key"]) == "planner"
+            and state.get("approved") == "нет"
+        ):
+            out["approved"] = ""
+        return out
 
 
 class ReleaseState(TypedDict):
@@ -238,7 +191,7 @@ def build_flow(model: str, provider: str) -> Flow:
     # 1. Supervisor loop: planner -> estimator -> tester -> approve -> finish.
     #    One node owns the routing (renders section progress, gets a model
     #    proposal, then enforces the policy deterministically).
-    flow.step(
+    flow.supervisor(
         Supervisor(
             model=model,
             provider=provider,

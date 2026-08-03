@@ -4,9 +4,10 @@ This is the skeleton every real app in this repo is built from.  Two core
 building blocks:
 
 1. ``Flow.route("next_agent", ...)`` — a supervisor loop: the decider node
-   (:class:`~src.nodes.supervisor.Supervisor`) reads the latest user message
-   and picks an agent; that agent runs, control returns to the supervisor,
-   which decides again — until it says ``finish`` and the loop exits.
+   (:class:`draf.node.Supervisor`, added via :meth:`draf.flow.Flow.supervisor`)
+   reads the latest user message and picks an agent; that agent runs, control
+   returns to the supervisor, which decides again — until it says ``finish``
+   and the loop exits.
 
 2. :func:`draf.flow.agent_step` — the framework helper wrapping one agent
    as a ``SubFlow``: context builder -> ReAct harness (LLM + tools) ->
@@ -25,8 +26,12 @@ HOW TO EXTEND
 from __future__ import annotations
 
 from draf.flow import Flow, agent_step
-from src.graphs.prompts import PLANNER_PROMPT, REVIEWER_PROMPT, WRITER_PROMPT
-from src.nodes.supervisor import Supervisor
+from src.graphs.prompts import (
+    PLANNER_PROMPT,
+    REVIEWER_PROMPT,
+    SUPERVISOR_PROMPT,
+    WRITER_PROMPT,
+)
 from src.tools import build_tools
 
 MODEL_DEFAULT = "llama3.1:8b"
@@ -61,16 +66,15 @@ def build_flow(model: str = MODEL_DEFAULT, *, provider: str = "ollama", catalog=
     tools = build_tools(catalog=catalog)
 
     flow = Flow("{{project_slug}}")
-    flow.step(
-        Supervisor(
-            model=model,
-            provider=provider,
-            sections=AGENT_SECTIONS,
-            route_keys={"planner": "plan", "writer": "draft", "reviewer": "review"},
-            done_keys={"plan", "draft", "review"},
-            done_mode="all",
-            fallback_agent="planner",
-        )
+    flow.supervisor(
+        system=SUPERVISOR_PROMPT,
+        model=model,
+        provider=provider,
+        sections=AGENT_SECTIONS,
+        route_keys={"planner": "plan", "writer": "draft", "reviewer": "review"},
+        done_keys={"plan", "draft", "review"},
+        done_mode="all",
+        fallback_agent="planner",
     )
     flow.route(
         "next_agent",

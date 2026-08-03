@@ -2,8 +2,8 @@
 
 ``ContextBuilder`` and ``AppendAssistant`` are the two built-in nodes from
 :mod:`draf.node.context`, re-exported here so ``src.graphs.build`` reads the
-same as a hand-written app, and ``last_user_message`` backs the supervisor
-decider.
+same as a hand-written app, and ``last_user_message`` backs the core
+:class:`draf.node.Supervisor` decider.
 
 HOW TO EXTEND
     Add your own context builders as ``Node`` subclasses that compose

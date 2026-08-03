@@ -10,9 +10,9 @@ from src.graphs.prompts import (
     MATERIALS_PROMPT,
     PLANNER_PROMPT,
     QA_PROMPT,
+    SUPERVISOR_PROMPT,
 )
 from src.nodes.extractor import Extractor
-from src.nodes.supervisor import Supervisor
 from src.tools import build_tools
 
 MODEL_DEFAULT = "llama3.1:8b"
@@ -66,28 +66,27 @@ def build_flow(
     tools = build_tools(services, catalog)
 
     flow = Flow("production-repair-ai")
-    flow.step(
-        Supervisor(
-            model=model,
-            provider=provider,
-            sections=AGENT_SECTIONS,
-            route_keys={
-                "direct": "direct_reply",
-                "planner": "plan",
-                "estimator": "estimate",
-                "materials": "material_findings",
-                "qa": "qa_feedback",
-            },
-            done_keys={
-                "direct_reply",
-                "plan",
-                "estimate",
-                "material_findings",
-                "qa_feedback",
-            },
-            done_mode="any",
-            fallback_agent="direct",
-        )
+    flow.supervisor(
+        system=SUPERVISOR_PROMPT,
+        model=model,
+        provider=provider,
+        sections=AGENT_SECTIONS,
+        route_keys={
+            "direct": "direct_reply",
+            "planner": "plan",
+            "estimator": "estimate",
+            "materials": "material_findings",
+            "qa": "qa_feedback",
+        },
+        done_keys={
+            "direct_reply",
+            "plan",
+            "estimate",
+            "material_findings",
+            "qa_feedback",
+        },
+        done_mode="any",
+        fallback_agent="direct",
     )
     flow.route(
         "next_agent",

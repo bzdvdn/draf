@@ -46,7 +46,7 @@ simple_router/
 ├── src/
 │   ├── config/          # env-driven settings (.env / DRAF_* vars)
 │   ├── graphs/          # state, prompts, supervisor flow builder
-│   ├── nodes/           # Supervisor + context builders
+│   ├── nodes/           # context builders (Supervisor comes from draf.node)
 │   ├── service/         # Assistant: one durable turn
 │   └── storage/         # JSON-file checkpointer + session helpers
 └── tests/               # offline tests (no LLM, no network)

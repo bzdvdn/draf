@@ -45,7 +45,7 @@ repair-ai-chat/
 │   ├── core/             # dependency wiring (services, catalog)
 │   ├── domain/           # entities + pure domain services (room/material/budget)
 │   ├── graphs/           # typed state, prompts, JSON schemas, flow builder
-│   ├── nodes/            # Supervisor, Extractor, context builders
+│   ├── nodes/            # Extractor + context builders (Supervisor from draf.node)
 │   ├── tools/            # Tool subclasses bound to services + catalog
 │   ├── rag/              # materials catalog over an in-memory vector store
 │   ├── service/          # Assistant: turn orchestration (HTTP + CLI)

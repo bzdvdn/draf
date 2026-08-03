@@ -28,6 +28,8 @@ consulted (see ``examples/release_coordinator`` for a fill-order policy).
 
 from __future__ import annotations
 
+from typing import AbstractSet
+
 from draf.harness import Harness
 from draf.node.context import last_user_message
 from draf.node.llm import LLM
@@ -58,7 +60,7 @@ class Supervisor(Node):
         rounds_key: str = "supervisor_rounds",
         max_rounds: int = 6,
         sections: dict[str, str] | None = None,
-        agents: set[str] | None = None,
+        agents: AbstractSet[str] | None = None,
         route_keys: dict[str, str] | None = None,
         done_keys: set[str] | None = None,
         done_mode: str = "all",
