@@ -111,5 +111,8 @@ dev = [
 [project.scripts]
 draf = "draf.cli:app"
 
+[project.entry-points.pytest11]
+draf = "draf.testing"
+
 [tool.hatch.build.targets.wheel]
 packages = ["draf/"]

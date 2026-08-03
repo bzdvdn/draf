@@ -275,3 +275,50 @@ class TestNew:
         )
         assert proc.returncode == 0, proc.stderr
         assert "container-ok" in proc.stdout
+
+
+class TestPruneCommand:
+    def test_prune_keep_last(self, tmp_path):
+        import asyncio
+
+        from draf.checkpoint import Checkpoint, SQLiteCheckpointer
+
+        db = str(tmp_path / "cp.db")
+        ck = SQLiteCheckpointer(db)
+        try:
+            for i in range(3):
+                asyncio.run(
+                    ck.save(
+                        f"run-{i}",
+                        Checkpoint(state={}, next_node_id=None, iteration=i),
+                    )
+                )
+        finally:
+            ck.close()
+
+        cfg = json.dumps({"type": "sqlite", "path": db})
+        result = runner.invoke(
+            app,
+            ["prune", "--checkpoint", cfg, "--keep-last", "1"],
+        )
+        assert result.exit_code == 0, result.stderr
+        assert "removed 2 checkpoint(s)" in result.stdout
+
+        ck = SQLiteCheckpointer(db)
+        try:
+            assert asyncio.run(ck.list()) == ["run-2"]
+        finally:
+            ck.close()
+
+    def test_prune_unknown_type_errors(self):
+        cfg = json.dumps({"type": "nope"})
+        result = runner.invoke(app, ["prune", "--checkpoint", cfg])
+        assert result.exit_code == 1
+        assert "unknown checkpoint type" in result.stderr
+
+    def test_prune_noop_without_args(self, tmp_path):
+        db = str(tmp_path / "cp.db")
+        cfg = json.dumps({"type": "sqlite", "path": db})
+        result = runner.invoke(app, ["prune", "--checkpoint", cfg])
+        assert result.exit_code == 0, result.stderr
+        assert "removed 0 checkpoint(s)" in result.stdout

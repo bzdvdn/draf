@@ -116,6 +116,75 @@ class TestWaitForTool:
         with pytest.raises(ValueError, match="target is required"):
             self._tool().run(condition="url")
 
+    @pytest.mark.asyncio
+    async def test_arun_condition_required(self):
+        with pytest.raises(ValueError, match="condition is required"):
+            await self._tool().arun(condition="")
+
+    @pytest.mark.asyncio
+    async def test_arun_target_required(self):
+        with pytest.raises(ValueError, match="target is required"):
+            await self._tool().arun(condition="url")
+
+    @pytest.mark.asyncio
+    async def test_arun_redis_key(self, monkeypatch):
+        import types
+
+        class FakeRedis:
+            def __init__(self, *a, **k):
+                self.count = 0
+
+            def exists(self, key):
+                self.count += 1
+                return self.count >= 2
+
+            def close(self):
+                pass
+
+        module = types.ModuleType("redis")
+        module.Redis = FakeRedis
+        monkeypatch.setitem(sys.modules, "redis", module)
+
+        result = await self._tool(poll_interval=0.01).arun(
+            condition="redis_key", target="task:done", timeout=5
+        )
+        assert "condition met" in result
+
+    @pytest.mark.asyncio
+    async def test_arun_redis_key_timeout(self, monkeypatch):
+        import types
+
+        class FakeRedis:
+            def __init__(self, *a, **k):
+                pass
+
+            def exists(self, key):
+                return 0
+
+            def close(self):
+                pass
+
+        module = types.ModuleType("redis")
+        module.Redis = FakeRedis
+        monkeypatch.setitem(sys.modules, "redis", module)
+
+        with pytest.raises(ValueError, match="timed out"):
+            await self._tool(poll_interval=0.01).arun(
+                condition="redis_key", target="task:done", timeout=0.1
+            )
+
+    @pytest.mark.asyncio
+    async def test_arun_unknown_condition(self):
+        with pytest.raises(ValueError, match="unknown condition: kafka"):
+            await self._tool().arun(condition="kafka", target="x")
+
+    @pytest.mark.asyncio
+    async def test_arun_unknown_status(self):
+        with pytest.raises(ValueError, match="unknown status expectation"):
+            await self._tool().arun(
+                condition="url", target="http://x", status="sometimes"
+            )
+
     def test_unknown_condition(self):
         with pytest.raises(ValueError, match="unknown condition: kafka"):
             self._tool().run(condition="kafka", target="x")

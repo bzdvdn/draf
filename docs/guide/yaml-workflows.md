@@ -47,6 +47,46 @@ steps:
       api_key_env: ${OPENAI_API_KEY}
 ```
 
+## Retrying failing steps
+
+Any step can be wrapped with retry logic via a `retry:` block next to its
+`config:`.  The block supports ``max_retries`` (attempts, default 3),
+``delay`` (seconds between attempts, default 0), ``backoff`` (multiplier
+per retry, default 1.0), ``timeout`` (per-attempt timeout), and
+``retry_on`` — a list of exception type names or HTTP status codes; by
+default every exception is retried.
+
+```yaml
+steps:
+  - id: search
+    type: web_search
+    config: {query_key: q, output_key: results}
+    retry:
+      max_retries: 4
+      delay: 0.5
+      backoff: 2.0        # delays: 0.5s, 1s, 2s, 4s
+      timeout: 30
+      retry_on: ["httpx.HTTPStatusError", 429]
+```
+
+Use ``retry: {enabled: false}`` to keep the schema valid but disable the
+wrapper, and ``retry_on: [429]`` to only retry on that status code.  The
+retry wrapper preserves the inner node's normal success/failure behaviour,
+so ``__error__`` edges still fire after the final failed attempt.
+
+## Inspecting a graph
+
+Render the topology back to YAML or as a Mermaid diagram:
+
+```bash
+draf graph workflow.yaml          # YAML topology
+draf graph workflow.yaml --mermaid # Mermaid flowchart
+```
+
+The Mermaid output marks the entry point, annotates edges with their
+conditions, and styles ``__error__`` edges distinctly — useful for
+docs and review.
+
 ## Loading & validating
 
 ```python

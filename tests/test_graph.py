@@ -347,3 +347,70 @@ class TestYAML:
         yaml_str = g.to_yaml()
         assert "tn" in yaml_str
         assert "k" in yaml_str or "v" in yaml_str
+
+
+class TestMermaid:
+    def test_renders_nodes_edges_conditions(self):
+        from draf.graph import Edge, Graph
+        from draf.node import Node
+
+        class PN(Node):
+            type = "pn"
+
+            async def execute(self, ctx, state):
+                return {}
+
+        g = Graph(
+            nodes={"s": PN({}), "t": PN({}), "e": PN({})},
+            edges=[
+                Edge("s", "t", "x=1"),
+                Edge("s", "e", "__error__"),
+                Edge("t", "e"),
+            ],
+            entry_point="s",
+        )
+        mermaid = g.to_mermaid()
+        assert mermaid.startswith("flowchart TD")
+        assert '"s"["s[pn]"]' in mermaid
+        assert '"t"["t[pn]"]' in mermaid
+        assert '"s" -->|"x=1"| "t"' in mermaid
+        assert '"s" -.->|error| "e"' in mermaid
+        assert '"t" --> "e"' in mermaid
+        assert 'class "s" entry;' in mermaid
+
+    def test_hides_conditions_when_disabled(self):
+        from draf.graph import Edge, Graph
+        from draf.node import Node
+
+        class PN(Node):
+            type = "pn"
+
+            async def execute(self, ctx, state):
+                return {}
+
+        g = Graph(
+            nodes={"s": PN({}), "t": PN({})},
+            edges=[Edge("s", "t", "x=1")],
+            entry_point="s",
+        )
+        mermaid = g.to_mermaid(show_conditions=False)
+        assert '"s" -->|"x=1"| "t"' not in mermaid
+        assert '"s" --> "t"' in mermaid
+
+    def test_escapes_special_characters(self):
+        from draf.graph import Edge, Graph
+        from draf.node import Node
+
+        class PN(Node):
+            type = "pn"
+
+            async def execute(self, ctx, state):
+                return {}
+
+        g = Graph(
+            nodes={'weird"id': PN({}), "t": PN({})},
+            edges=[Edge('weird"id', "t")],
+            entry_point='weird"id',
+        )
+        mermaid = g.to_mermaid()
+        assert 'class "weirdid" entry;' in mermaid

@@ -1,6 +1,5 @@
 import pytest
 
-from draf.graph import Graph
 from draf.node import Transform
 
 ROOT = __file__.rsplit("/tests/", 1)[0]
@@ -128,7 +127,9 @@ class TestJsonGet:
 
 class TestNumericConditions:
     def _run(self, condition: str, state: dict) -> bool:
-        return Graph({}, [], "")._evaluate(condition, state)
+        from draf.graph.conditions import evaluate
+
+        return evaluate(condition, state)
 
     def test_gte(self):
         assert self._run("diff_lines>=2", {"diff_lines": "2"})
@@ -336,3 +337,119 @@ steps:
         )
         captured = capsys.readouterr()
         assert '"lines": "3"' in captured.out
+
+
+class TestDeclarativeRetry:
+    def test_step_retry_block_wraps_node(self, tmp_path):
+        from draf.node.retry import Retry
+        from draf.yaml import load_workflow
+
+        path = tmp_path / "wf.yaml"
+        path.write_text(
+            """\
+name: retry-wf
+steps:
+  - id: s
+    type: transform
+    config: {action: uppercase, input_key: text, output_key: out}
+    retry:
+      max_retries: 5
+      delay: 0.5
+      backoff: 2.0
+edges: []
+"""
+        )
+        graph, _tools, _state, _reducers = load_workflow(str(path))
+        node = graph.nodes["s"]
+        assert isinstance(node, Retry)
+        assert node._max_retries == 5
+        assert node._delay == 0.5
+        assert node._backoff == 2.0
+
+    def test_step_retry_disabled_leaves_node_plain(self, tmp_path):
+        from draf.yaml import load_workflow
+
+        path = tmp_path / "wf.yaml"
+        path.write_text(
+            """\
+name: retry-wf
+steps:
+  - id: s
+    type: transform
+    config: {action: uppercase, input_key: text, output_key: out}
+    retry:
+      enabled: false
+edges: []
+"""
+        )
+        graph, _tools, _state, _reducers = load_workflow(str(path))
+        assert type(graph.nodes["s"]).__name__ == "Transform"
+
+    @pytest.mark.asyncio
+    async def test_declarative_retry_retries_and_succeeds(self, tmp_path):
+        import asyncio
+
+        from draf.node import Node
+        from draf.yaml import load_workflow
+
+        attempt = 0
+        original_sleep = asyncio.sleep
+
+        async def fake_sleep(seconds):
+            await original_sleep(0)
+
+        asyncio.sleep = fake_sleep
+        try:
+            from draf.node.registry import default_registry
+
+            class Flaky(Node):
+                type = "flaky"
+
+                async def execute(self, ctx, state):
+                    nonlocal attempt
+                    attempt += 1
+                    if attempt < 2:
+                        raise ValueError("nope")
+                    state["done"] = True
+                    return state
+
+            default_registry.register("flaky", lambda cfg: Flaky(cfg))
+            path = tmp_path / "wf.yaml"
+            path.write_text(
+                """\
+name: retry-wf
+steps:
+  - id: s
+    type: flaky
+    config: {}
+    retry:
+      max_retries: 3
+      delay: 1.0
+edges: []
+"""
+            )
+            graph, _tools, _state, _reducers = load_workflow(str(path))
+            result = await graph.run({})
+        finally:
+            asyncio.sleep = original_sleep
+        assert result["done"] is True
+        assert attempt == 2
+
+    def test_retry_block_validates(self, tmp_path):
+        from draf.yaml_schema import validate_workflow_file
+
+        path = tmp_path / "wf.yaml"
+        path.write_text(
+            """\
+name: retry-wf
+steps:
+  - id: s
+    type: transform
+    config: {action: uppercase, input_key: text, output_key: out}
+    retry:
+      max_retries: 0
+edges: []
+"""
+        )
+        errors = validate_workflow_file(str(path))
+        assert errors

@@ -50,6 +50,8 @@ from draf.state import (
     apply_reducers,
     reducers_from_typeddict,
     reducers_from_yaml_schema,
+    state_schema_to_jsonschema,
+    validate_state,
 )
 from draf.stream import StreamEvent
 from draf.tool import Tool, ToolRegistry, default_tool_registry, tool
@@ -143,6 +145,8 @@ __all__ = [
     "State",
     "reducers_from_typeddict",
     "reducers_from_yaml_schema",
+    "state_schema_to_jsonschema",
+    "validate_state",
     "apply_reducers",
     "Reducer",
     "RunTracer",

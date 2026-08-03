@@ -35,6 +35,21 @@ WORKFLOW_JSON_SCHEMA: dict[str, Any] = {
                     "id": {"type": "string"},
                     "type": {"type": "string"},
                     "config": {"type": "object"},
+                    "retry": {
+                        "type": "object",
+                        "properties": {
+                            "enabled": {"type": "boolean"},
+                            "max_retries": {"type": "integer", "minimum": 1},
+                            "delay": {"type": "number", "minimum": 0},
+                            "backoff": {"type": "number", "minimum": 0},
+                            "timeout": {"type": "number", "minimum": 0},
+                            "retry_on": {
+                                "type": "array",
+                                "items": {"type": ["string", "integer"]},
+                            },
+                        },
+                        "additionalProperties": True,
+                    },
                 },
                 "additionalProperties": True,
             },

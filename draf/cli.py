@@ -431,6 +431,28 @@ async def _daemon_loop(
 
 
 @app.command()
+def graph(
+    file: str = typer.Argument(..., help="Path to workflow YAML file"),
+    mermaid: bool = typer.Option(
+        False, "--mermaid", help="Render the workflow graph as a Mermaid diagram"
+    ),
+) -> None:
+    """Inspect a workflow graph: YAML topology or a Mermaid diagram."""
+    from draf.yaml import load_workflow
+
+    try:
+        graph_, _tools, _state, _reducers = load_workflow(file)
+    except Exception as e:
+        typer.echo(f"error: failed to load workflow: {e}", err=True)
+        raise typer.Exit(1)
+
+    if mermaid:
+        typer.echo(graph_.to_mermaid())
+        return
+    typer.echo(graph_.to_yaml())
+
+
+@app.command()
 def validate(
     file: str = typer.Argument(..., help="Path to workflow YAML file"),
 ) -> None:
@@ -539,6 +561,41 @@ def inspect(
     from draf.checkpoint import checkpoint_to_dict
 
     typer.echo(json.dumps(checkpoint_to_dict(saved), indent=2, default=str))
+
+
+@app.command()
+def prune(
+    checkpoint: str = typer.Option(
+        ..., "--checkpoint", help="JSON checkpointer config"
+    ),
+    checkpoint_owner: str | None = typer.Option(
+        None,
+        "--checkpoint-owner",
+        help="Only prune this owner (default: all owners)",
+    ),
+    max_age: float | None = typer.Option(
+        None,
+        "--max-age",
+        help="Delete checkpoints older than this many seconds",
+    ),
+    keep_last: int | None = typer.Option(
+        None, "--keep-last", help="Keep only the N most recent per owner"
+    ),
+) -> None:
+    """Delete stale checkpoints (TTL / keep-last GC)."""
+    try:
+        cp = _checkpointer_from_config(json.loads(checkpoint))
+        removed = asyncio.run(
+            cp.cleanup(
+                owner=checkpoint_owner,
+                max_age=max_age,
+                keep_last=keep_last,
+            )
+        )
+    except Exception as e:
+        typer.echo(f"error: {e}", err=True)
+        raise typer.Exit(1)
+    typer.echo(f"removed {removed} checkpoint(s)")
 
 
 @app.command()

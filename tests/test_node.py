@@ -176,3 +176,113 @@ class TestRetry:
         ctx = ExecContext(state={}, tools={})
         result = await retry.execute(ctx, {})
         assert result == {"done": True}
+
+    @pytest.mark.asyncio
+    async def test_retry_backoff_scales_delay(self):
+        from draf.node import ExecContext, Node, Retry
+
+        sleeps = []
+        import asyncio
+
+        original_sleep = asyncio.sleep
+
+        async def fake_sleep(seconds):
+            sleeps.append(seconds)
+            await original_sleep(0)
+
+        asyncio.sleep = fake_sleep
+        try:
+            attempt = 0
+
+            class Flaky(Node):
+                type = "flaky"
+
+                async def execute(self, ctx, state):
+                    nonlocal attempt
+                    attempt += 1
+                    raise ValueError("nope")
+
+            retry = Retry(Flaky({}), max_retries=4, delay=1.0, backoff=2.0)
+            ctx = ExecContext(state={}, tools={})
+            with pytest.raises(ValueError, match="nope"):
+                await retry.execute(ctx, {})
+        finally:
+            asyncio.sleep = original_sleep
+        assert sleeps == [1.0, 2.0, 4.0]
+
+    @pytest.mark.asyncio
+    async def test_retry_timeout_bounds_each_attempt(self):
+        import asyncio
+
+        from draf.node import ExecContext, Node, Retry
+
+        class Slow(Node):
+            type = "slow"
+
+            async def execute(self, ctx, state):
+                await asyncio.sleep(10)
+                return {}
+
+        retry = Retry(Slow({}), max_retries=2, timeout=0.01)
+        ctx = ExecContext(state={}, tools={})
+        with pytest.raises(asyncio.TimeoutError):
+            await retry.execute(ctx, {})
+
+    @pytest.mark.asyncio
+    async def test_retry_on_matching_exception(self):
+        from draf.node import ExecContext, Node, Retry
+
+        attempt = 0
+
+        class Flaky(Node):
+            type = "flaky"
+
+            async def execute(self, ctx, state):
+                nonlocal attempt
+                attempt += 1
+                if attempt == 1:
+                    raise ValueError("nope")
+                return {"ok": True}
+
+        retry = Retry(Flaky({}), max_retries=3, retry_on=["ValueError"])
+        ctx = ExecContext(state={}, tools={})
+        result = await retry.execute(ctx, {})
+        assert result == {"ok": True}
+        assert attempt == 2
+
+    @pytest.mark.asyncio
+    async def test_retry_on_non_matching_raises_immediately(self):
+        from draf.node import ExecContext, Node, Retry
+
+        attempt = 0
+
+        class Flaky(Node):
+            type = "flaky"
+
+            async def execute(self, ctx, state):
+                nonlocal attempt
+                attempt += 1
+                raise ValueError("nope")
+
+        retry = Retry(Flaky({}), max_retries=3, retry_on=["TimeoutError"])
+        ctx = ExecContext(state={}, tools={})
+        with pytest.raises(ValueError, match="nope"):
+            await retry.execute(ctx, {})
+        assert attempt == 1
+
+    @pytest.mark.asyncio
+    async def test_wrap_with_retry_noop_without_config(self):
+        from draf.node import Node
+        from draf.node.retry import Retry, wrap_with_retry
+
+        class Plain(Node):
+            type = "plain"
+
+            async def execute(self, ctx, state):
+                return {}
+
+        node = Plain({})
+        assert wrap_with_retry(node, None) is node
+        assert wrap_with_retry(node, {"enabled": False}) is node
+        wrapped = wrap_with_retry(node, {"max_retries": 2, "delay": 0.01})
+        assert isinstance(wrapped, Retry)

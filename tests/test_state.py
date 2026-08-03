@@ -430,3 +430,149 @@ edges: []
         result = asyncio.run(g.run(state))
         assert result is state
         assert result["msgs"] == ["one", "two"]
+
+
+class TestStateSchema:
+    def test_schema_to_jsonschema_string(self):
+        from draf.state import state_schema_to_jsonschema
+
+        schema = state_schema_to_jsonschema({"status": "string", "count": "integer"})
+        assert schema["type"] == "object"
+        assert schema["properties"]["status"] == {"type": "string"}
+        assert schema["properties"]["count"] == {"type": "integer"}
+
+    def test_schema_to_jsonschema_dict_spec(self):
+        from draf.state import state_schema_to_jsonschema
+
+        schema = state_schema_to_jsonschema(
+            {"count": {"type": "integer", "minimum": 0}}
+        )
+        assert schema["properties"]["count"] == {
+            "type": "integer",
+            "minimum": 0,
+        }
+
+    def test_schema_to_jsonschema_list(self):
+        from draf.state import state_schema_to_jsonschema
+
+        schema = state_schema_to_jsonschema({"tags": "list"})
+        assert schema["properties"]["tags"] == {"type": "array"}
+
+    def test_schema_to_jsonschema_required(self):
+        from draf.state import state_schema_to_jsonschema
+
+        schema = state_schema_to_jsonschema(
+            {"status": {"type": "string", "required": True}}
+        )
+        assert schema["required"] == ["status"]
+
+    def test_schema_to_jsonschema_unknown_type_unconstrained(self):
+        from draf.state import state_schema_to_jsonschema
+
+        schema = state_schema_to_jsonschema({"x": "custom_thing"})
+        assert schema["properties"]["x"] == {}
+
+    def test_validate_state_passes(self):
+        from draf.state import validate_state
+
+        errors = validate_state(
+            {"status": "active", "count": 3},
+            {"status": "string", "count": "integer"},
+        )
+        assert errors == []
+
+    def test_validate_state_reports_type_mismatch(self):
+        from draf.state import validate_state
+
+        errors = validate_state(
+            {"count": "not-an-int"},
+            {"count": "integer"},
+        )
+        assert len(errors) == 1
+        assert "count" in errors[0]
+        assert "integer" in errors[0]
+
+    def test_validate_state_reports_missing_required(self):
+        from draf.state import validate_state
+
+        errors = validate_state(
+            {"status": "active"},
+            {
+                "status": {"type": "string", "required": True},
+                "count": {"type": "integer", "required": True},
+            },
+        )
+        assert len(errors) == 1
+        assert "count" in errors[0]
+
+    def test_validate_state_ignores_reducer_keys(self):
+        from draf.state import validate_state
+
+        errors = validate_state(
+            {"messages": ["a"]},
+            {"messages": {"type": "list", "reducer": "append"}},
+        )
+        assert errors == []
+
+    @pytest.mark.asyncio
+    async def test_graph_run_state_schema_passes(self):
+        from draf.graph import Graph
+        from draf.node import Node
+
+        class NoOp(Node):
+            type = "noop"
+
+            async def execute(self, ctx, state):
+                return {}
+
+        g = Graph(nodes={"a": NoOp({})}, edges=[], entry_point="a")
+        result = await g.run(state={"status": "ok"}, state_schema={"status": "string"})
+        assert result["status"] == "ok"
+
+    @pytest.mark.asyncio
+    async def test_graph_run_state_schema_rejects(self):
+        from draf.errors import ConfigError
+        from draf.graph import Graph
+        from draf.node import Node
+
+        class NoOp(Node):
+            type = "noop"
+
+            async def execute(self, ctx, state):
+                return {}
+
+        g = Graph(nodes={"a": NoOp({})}, edges=[], entry_point="a")
+        with pytest.raises(ConfigError) as excinfo:
+            await g.run(state={"status": 42}, state_schema={"status": "string"})
+        assert "status" in str(excinfo.value)
+
+    def test_load_workflow_validates_initial_against_schema(self):
+        import os
+        import tempfile
+
+        from draf.errors import ConfigError
+
+        yaml_content = """
+name: test
+state:
+  schema:
+    count: integer
+  initial:
+    count: not-a-number
+steps:
+  - id: step1
+    type: transform
+    config: {action: uppercase, input_key: text, output_key: out}
+edges: []
+"""
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
+            f.write(yaml_content)
+            path = f.name
+        try:
+            from draf.yaml import load_workflow
+
+            with pytest.raises(ConfigError) as excinfo:
+                load_workflow(path)
+            assert "state.initial" in str(excinfo.value)
+        finally:
+            os.unlink(path)

@@ -289,6 +289,100 @@ def checkpointer(request, tmp_path):
         return SQLiteCheckpointer(str(tmp_path / "ck.db"))
 
 
+def _make_age(checkpointer, tmp_path):
+    if type(checkpointer).__name__ == "JSONFileCheckpointer":
+        import os
+
+        def age(cid, owner="default"):
+            os.utime(
+                checkpointer._path(cid, owner),
+                (checkpointer._path(cid, owner).stat().st_mtime - 100.0,) * 2,
+            )
+
+        return age
+
+    def age(cid, owner="default"):
+        checkpointer._conn.execute(
+            "UPDATE checkpoints SET updated_at = ? WHERE owner = ? AND checkpoint_id = ?",
+            (
+                checkpointer._conn.execute(
+                    "SELECT COALESCE(updated_at, 0) FROM checkpoints "
+                    "WHERE owner = ? AND checkpoint_id = ?",
+                    (owner, cid),
+                ).fetchone()[0]
+                - 100.0,
+                owner,
+                cid,
+            ),
+        )
+        checkpointer._conn.commit()
+
+    return age
+
+
+@pytest.mark.parametrize("checkpointer", ["file", "sqlite"], indirect=True)
+class TestCheckpointCleanup:
+    async def test_noop_without_args(self, checkpointer, tmp_path):
+        await checkpointer.save("a", _cp({}))
+        await checkpointer.save("b", _cp({}))
+        assert await checkpointer.cleanup() == 0
+        assert await checkpointer.list() == ["a", "b"]
+
+    async def test_keep_last(self, checkpointer, tmp_path):
+        age = _make_age(checkpointer, tmp_path)
+        await checkpointer.save("a", _cp({}))
+        await checkpointer.save("b", _cp({}))
+        await checkpointer.save("c", _cp({}))
+        age("a")
+        assert await checkpointer.cleanup(keep_last=2) == 1
+        assert await checkpointer.list() == ["b", "c"]
+
+    async def test_max_age_keeps_fresh(self, checkpointer, tmp_path):
+        await checkpointer.save("old", _cp({}))
+        await checkpointer.save("new", _cp({}))
+        assert await checkpointer.cleanup(max_age=1.0) == 0
+        assert await checkpointer.list() == ["new", "old"]
+
+    async def test_max_age_removes_old(self, checkpointer, tmp_path):
+        age = _make_age(checkpointer, tmp_path)
+        await checkpointer.save("old", _cp({}))
+        await checkpointer.save("new", _cp({}))
+        age("old")
+        assert await checkpointer.cleanup(max_age=1.0) == 1
+        assert await checkpointer.list() == ["new"]
+
+    async def test_keep_last_and_max_age_combined(self, checkpointer, tmp_path):
+        age = _make_age(checkpointer, tmp_path)
+        await checkpointer.save("old", _cp({}))
+        await checkpointer.save("mid", _cp({}))
+        await checkpointer.save("new", _cp({}))
+        age("old")
+        age("mid")
+        assert await checkpointer.cleanup(max_age=2.0, keep_last=2) == 2
+        assert await checkpointer.list() == ["new"]
+
+    async def test_owner_scoped_cleanup(self, checkpointer, tmp_path):
+        age = _make_age(checkpointer, tmp_path)
+        await checkpointer.save("a", _cp({}), owner="alice")
+        await checkpointer.save("b", _cp({}), owner="alice")
+        await checkpointer.save("c", _cp({}), owner="bob")
+        await checkpointer.save("d", _cp({}), owner="bob")
+        age("c", owner="bob")
+        assert await checkpointer.cleanup(owner="bob", keep_last=1) == 1
+        assert await checkpointer.list("alice") == ["a", "b"]
+        assert await checkpointer.list("bob") == ["d"]
+
+    async def test_all_owners(self, checkpointer, tmp_path):
+        age = _make_age(checkpointer, tmp_path)
+        await checkpointer.save("a", _cp({}), owner="alice")
+        await checkpointer.save("b", _cp({}), owner="bob")
+        age("a", owner="alice")
+        age("b", owner="bob")
+        assert await checkpointer.cleanup(keep_last=0) == 2
+        assert await checkpointer.list("alice") == []
+        assert await checkpointer.list("bob") == []
+
+
 @pytest.mark.parametrize("checkpointer", ["file", "sqlite"], indirect=True)
 class TestCheckpointResume:
     async def test_resume_from_checkpoint(self, checkpointer):
@@ -446,3 +540,30 @@ class TestCheckpointResume:
         assert cp is not None
         assert cp.next_node_id == "a"
         assert cp.state == {"kept": True}
+
+
+class TestPGCheckpointCleanup:
+    @pytest.fixture(autouse=True)
+    def _maybe_skip(self):
+        import importlib.util
+        import os
+
+        if os.environ.get("DRAF_TEST_PG_DSN") is None:
+            pytest.skip("set DRAF_TEST_PG_DSN to run PostgreSQL checkpoint tests")
+        if importlib.util.find_spec("asyncpg") is None:
+            pytest.skip("asyncpg is not installed")
+
+    @pytest.fixture
+    def pg(self):
+        import os
+
+        from draf.checkpoint.pg import PGCheckpointer
+
+        ck = PGCheckpointer(os.environ["DRAF_TEST_PG_DSN"])
+        return ck
+
+    async def test_cleanup_keep_last(self, pg):
+        await pg.save("a", _cp({}))
+        await pg.save("b", _cp({}))
+        assert await pg.cleanup(keep_last=1) == 1
+        assert await pg.list() == ["b"]

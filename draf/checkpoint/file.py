@@ -1,8 +1,12 @@
 """JSON-file checkpointing — zero dependencies, atomic via tempfile + rename."""
 
+from __future__ import annotations
+
 import json
 import os
+import time
 from pathlib import Path
+from typing import List, Tuple
 
 from draf.checkpoint.base import (
     DEFAULT_OWNER,
@@ -77,3 +81,49 @@ class JSONFileCheckpointer(Checkpointer):
             for p in base.glob(f"*{self._suffix}")
             if not p.name.endswith(f"{self._suffix}.tmp")
         )
+
+    def _owners(self) -> List[str]:
+        if not self._directory.exists():
+            return []
+        return sorted(p.name for p in self._directory.iterdir() if p.is_dir())
+
+    def _owner_checkpoints(self, owner: str) -> List[Tuple[str, float]]:
+        """Return ``(checkpoint_id, mtime)`` pairs for one owner."""
+        base = self._directory / self._safe_owner(owner)
+        if not base.exists():
+            return []
+        pairs = []
+        for p in base.glob(f"*{self._suffix}"):
+            if p.name.endswith(f"{self._suffix}.tmp"):
+                continue
+            pairs.append((p.name[: -len(self._suffix)], p.stat().st_mtime))
+        pairs.sort(key=lambda item: item[1], reverse=True)
+        return pairs
+
+    async def cleanup(
+        self,
+        *,
+        owner: str | None = None,
+        max_age: float | None = None,
+        keep_last: int | None = None,
+    ) -> int:
+        """Delete stale checkpoints; returns how many were removed."""
+        if max_age is None and keep_last is None:
+            return 0
+        removed = 0
+        owners = [owner] if owner is not None else self._owners()
+        now = time.time()
+        for own in owners:
+            pairs = self._owner_checkpoints(own)
+            to_delete: List[str] = []
+            for idx, (cid, mtime) in enumerate(pairs):
+                if max_age is not None and now - mtime > max_age:
+                    to_delete.append(cid)
+                elif keep_last is not None and idx >= keep_last:
+                    to_delete.append(cid)
+            for cid in to_delete:
+                path = self._path(cid, own)
+                if path.exists():
+                    path.unlink()
+                    removed += 1
+        return removed

@@ -1,9 +1,10 @@
 """WaitForTool — poll until a condition holds or a timeout elapses.
 
 Daemons often need to wait: for a deployment URL to come up, for a CI
-pipeline to report, for a key to appear in a cache.  This tool blocks
-(synchronously; the async ``arun`` runs it in a thread) until the
-condition is met or the timeout is reached.
+pipeline to report, for a key to appear in a cache.  This tool polls
+until the condition is met or the timeout is reached.  The async
+``arun`` runs non-blocking (``httpx.AsyncClient`` + ``asyncio.sleep``);
+the sync ``run`` is kept for callers that need it.
 """
 
 import time
@@ -101,6 +102,37 @@ class WaitForTool(Tool):
             raise ValueError(f"unknown condition: {condition}")
         return f"condition met after {time.monotonic() - start:.1f}s"
 
+    async def arun(  # type: ignore[override]
+        self,
+        condition: str,
+        target: str = "",
+        timeout: float | None = None,
+        poll_interval: float | None = None,
+        status: str = "success",
+    ) -> str:
+        if not condition:
+            raise ValueError("condition is required (url, redis_key)")
+        if not target:
+            raise ValueError("target is required")
+        timeout = float(timeout if timeout is not None else self.timeout)
+        interval = float(
+            poll_interval if poll_interval is not None else self.poll_interval
+        )
+        start = time.monotonic()
+        if condition == "url":
+            await self._poll_url_async(target, timeout, interval, status)
+        elif condition == "redis_key":
+            client = self._redis()
+            try:
+                await self._poll_async(
+                    lambda: bool(client.exists(target)), timeout, interval
+                )
+            finally:
+                client.close()
+        else:
+            raise ValueError(f"unknown condition: {condition}")
+        return f"condition met after {time.monotonic() - start:.1f}s"
+
     def _poll(self, check, timeout: float, interval: float) -> None:
         deadline = time.monotonic() + timeout
         while True:
@@ -112,6 +144,20 @@ class WaitForTool(Tool):
             if time.monotonic() >= deadline:
                 raise ValueError(f"timed out after {timeout:.0f}s")
             time.sleep(interval)
+
+    async def _poll_async(self, check, timeout: float, interval: float) -> None:
+        import asyncio
+
+        deadline = time.monotonic() + timeout
+        while True:
+            try:
+                if check():
+                    return
+            except Exception:
+                pass
+            if time.monotonic() >= deadline:
+                raise ValueError(f"timed out after {timeout:.0f}s")
+            await asyncio.sleep(interval)
 
     def _poll_url(self, url: str, timeout: float, interval: float, status: str) -> None:
         if status not in ("success", "any") and not str(status).isdigit():
@@ -132,6 +178,32 @@ class WaitForTool(Tool):
             return code == int(status)
 
         self._poll(check, timeout, interval)
+
+    async def _poll_url_async(
+        self, url: str, timeout: float, interval: float, status: str
+    ) -> None:
+        if status not in ("success", "any") and not str(status).isdigit():
+            raise ValueError(f"unknown status expectation: {status}")
+
+        import httpx
+
+        async with httpx.AsyncClient() as client:
+
+            async def check() -> bool:
+                try:
+                    response = await client.get(
+                        url, timeout=interval + 2, follow_redirects=True
+                    )
+                except Exception:
+                    return False
+                code = response.status_code
+                if status == "any":
+                    return True
+                if status == "success":
+                    return 200 <= code < 300
+                return code == int(status)
+
+            await self._poll_async(check, timeout, interval)
 
 
 __all__ = ["WaitForTool"]

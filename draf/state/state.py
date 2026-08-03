@@ -104,6 +104,94 @@ def apply_reducers(state: dict, new_values: dict, reducers: dict[str, Reducer]) 
             state[key] = reducer(state.get(key), new_val)
 
 
+_TYPE_MAP = {
+    "str": "string",
+    "string": "string",
+    "text": "string",
+    "int": "integer",
+    "integer": "integer",
+    "number": "number",
+    "float": "number",
+    "bool": "boolean",
+    "boolean": "boolean",
+    "list": "array",
+    "array": "array",
+    "dict": "object",
+    "object": "object",
+    "map": "object",
+}
+
+
+def state_schema_to_jsonschema(schema: dict) -> dict:
+    """Convert a YAML ``state.schema`` block into a JSON Schema dict.
+
+    The YAML format associates a type with each state key::
+
+        state:
+          schema:
+            status: string
+            count: {type: integer, minimum: 0}
+            tags: {type: list}
+
+    Each entry may be a plain type name (``string``, ``integer``,
+    ``number``, ``boolean``, ``list``, ``object``, ``null``/``any``) or a
+    dict whose ``type`` key holds the type plus any JSON Schema keywords
+    (``minimum``, ``items``, ``enum``, ...).  Keys listed as ``required: true``
+    are marked required.  Unknown types are left unconstrained.
+
+    Returns:
+        A JSON Schema with ``type: object`` and per-key ``properties``.
+    """
+    properties: dict = {}
+    required: list[str] = []
+    for key, spec in schema.items():
+        if isinstance(spec, dict):
+            prop = _yaml_type_to_schema(spec)
+            if spec.get("required") is True:
+                required.append(key)
+        else:
+            prop = _yaml_type_to_schema(spec)
+        properties[key] = prop or {}
+    jsonschema: dict = {"type": "object", "properties": properties}
+    if required:
+        jsonschema["required"] = required
+    return jsonschema
+
+
+def _yaml_type_to_schema(spec) -> dict:
+    """Turn a YAML state-schema entry into a JSON Schema fragment."""
+    if isinstance(spec, dict):
+        spec = dict(spec)
+        type_name = spec.pop("type", None)
+        spec.pop("reducer", None)
+        spec.pop("required", None)
+        schema = _yaml_type_to_schema(type_name)
+        schema.update(spec)
+        if schema.get("type") == "array" and "items" in spec:
+            schema["items"] = _yaml_type_to_schema(spec["items"])
+        return schema
+    if isinstance(spec, str):
+        mapped = _TYPE_MAP.get(spec.strip().lower())
+        if mapped:
+            return {"type": mapped}
+        if spec.strip().lower() in ("null", "any", "none"):
+            return {}
+        return {}
+    return {}
+
+
+def validate_state(state: dict, schema: dict) -> list[str]:
+    """Validate *state* against a YAML ``state.schema`` dict.
+
+    Returns a list of human-readable errors (empty when *state* conforms).
+    *schema* is converted with :func:`state_schema_to_jsonschema` and
+    validated with :func:`draf.schema.validate_json`.
+    """
+    from draf.schema import validate_json
+
+    return validate_json(state, state_schema_to_jsonschema(schema))
+
+
 class State(dict):
     """Typed workflow state that applies per-key reducers on merge.
 

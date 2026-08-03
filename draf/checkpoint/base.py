@@ -64,6 +64,23 @@ class Checkpointer(Protocol):
         """Return all checkpoint IDs persisted for *owner*."""
         ...
 
+    async def cleanup(
+        self,
+        *,
+        owner: str | None = None,
+        max_age: float | None = None,
+        keep_last: int | None = None,
+    ) -> int:
+        """Delete stale checkpoints; returns how many were removed.
+
+        ``owner=None`` cleans up every owner; otherwise only that owner.
+        ``max_age`` removes checkpoints last written more than that many
+        seconds ago.  ``keep_last`` retains the *N* most recently written
+        checkpoints per owner (after any ``max_age`` pruning) and deletes
+        the rest.  When both are omitted nothing is deleted.
+        """
+        ...
+
 
 def checkpoint_to_dict(cp: Checkpoint) -> dict[str, Any]:
     """Convert a checkpoint to a JSON-serializable dict."""

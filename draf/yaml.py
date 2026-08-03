@@ -90,6 +90,10 @@ def from_yaml(source: str) -> Graph:
         config = step.get("config", {})
         node = default_registry.create(stype, config)
         node.type = sid
+        if step.get("retry"):
+            from draf.node.retry import wrap_with_retry
+
+            node = wrap_with_retry(node, step["retry"])
         nodes[sid] = node
         if entry_point is None:
             entry_point = sid
@@ -231,6 +235,10 @@ def load_workflow(path: str) -> tuple[Graph, list[Tool], dict, dict[str, Reducer
         config = step.get("config", {})
         node = default_registry.create(stype, config)
         node.type = sid
+        if step.get("retry"):
+            from draf.node.retry import wrap_with_retry
+
+            node = wrap_with_retry(node, step["retry"])
         nodes[sid] = node
         if entry_point is None:
             entry_point = sid
@@ -262,6 +270,18 @@ def load_workflow(path: str) -> tuple[Graph, list[Tool], dict, dict[str, Reducer
     else:
         schema = {}
         initial = {}
+
+    if not isinstance(initial, dict):
+        raise ConfigError("state.initial must be a mapping")
+    if schema:
+        from draf.state.state import validate_state
+
+        errors = validate_state(initial, schema)
+        if errors:
+            raise ConfigError(
+                "state.initial does not match state.schema:\n"
+                + "\n".join(f"  {e}" for e in errors)
+            )
 
     reducers: dict[str, Reducer] = reducers_from_yaml_schema(schema)
 

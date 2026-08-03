@@ -2,6 +2,7 @@
 
 import json
 import sqlite3
+import time
 from pathlib import Path
 
 from draf.checkpoint.base import DEFAULT_OWNER, Checkpoint, Checkpointer
@@ -15,7 +16,8 @@ class SQLiteCheckpointer(Checkpointer):
     without colliding.  Each ``save`` is a single ``INSERT .. ON CONFLICT
     REPLACE`` transaction, so a crash leaves either the old or the new row,
     never a mix.  Existing single-owner databases are migrated in place:
-    their rows move under :data:`~draf.checkpoint.DEFAULT_OWNER`.
+    their rows move under :data:`~draf.checkpoint.DEFAULT_OWNER`, and an
+    ``updated_at`` column is added for TTL cleanup.
 
     Args:
         path: Path to the SQLite database file.
@@ -34,6 +36,7 @@ class SQLiteCheckpointer(Checkpointer):
                 state TEXT NOT NULL,
                 next_node_id TEXT,
                 iteration INTEGER NOT NULL,
+                updated_at REAL,
                 PRIMARY KEY (owner, checkpoint_id)
             )
             """
@@ -48,30 +51,34 @@ class SQLiteCheckpointer(Checkpointer):
         if row is None:
             return
         cols = [r[1] for r in self._conn.execute("PRAGMA table_info(checkpoints)")]
-        if "owner" in cols:
-            return
-        self._conn.execute("ALTER TABLE checkpoints RENAME TO checkpoints_legacy")
-        self._conn.execute(
-            """
-            CREATE TABLE checkpoints (
-                owner TEXT NOT NULL DEFAULT 'default',
-                checkpoint_id TEXT NOT NULL,
-                state TEXT NOT NULL,
-                next_node_id TEXT,
-                iteration INTEGER NOT NULL,
-                PRIMARY KEY (owner, checkpoint_id)
+        if "owner" not in cols:
+            self._conn.execute("ALTER TABLE checkpoints RENAME TO checkpoints_legacy")
+            self._conn.execute(
+                """
+                CREATE TABLE checkpoints (
+                    owner TEXT NOT NULL DEFAULT 'default',
+                    checkpoint_id TEXT NOT NULL,
+                    state TEXT NOT NULL,
+                    next_node_id TEXT,
+                    iteration INTEGER NOT NULL,
+                    updated_at REAL,
+                    PRIMARY KEY (owner, checkpoint_id)
+                )
+                """
             )
-            """
-        )
-        self._conn.execute(
-            """
-            INSERT INTO checkpoints (owner, checkpoint_id, state, next_node_id, iteration)
-            SELECT 'default', checkpoint_id, state, next_node_id, iteration
-            FROM checkpoints_legacy
-            """
-        )
-        self._conn.execute("DROP TABLE checkpoints_legacy")
-        self._conn.commit()
+            self._conn.execute(
+                """
+                INSERT INTO checkpoints (owner, checkpoint_id, state, next_node_id, iteration)
+                SELECT 'default', checkpoint_id, state, next_node_id, iteration
+                FROM checkpoints_legacy
+                """
+            )
+            self._conn.execute("DROP TABLE checkpoints_legacy")
+            self._conn.commit()
+            return
+        if "updated_at" not in cols:
+            self._conn.execute("ALTER TABLE checkpoints ADD COLUMN updated_at REAL")
+            self._conn.commit()
 
     def close(self) -> None:
         """Close the underlying SQLite connection."""
@@ -86,12 +93,13 @@ class SQLiteCheckpointer(Checkpointer):
     ) -> None:
         self._conn.execute(
             """
-            INSERT INTO checkpoints (owner, checkpoint_id, state, next_node_id, iteration)
-            VALUES (?, ?, ?, ?, ?)
+            INSERT INTO checkpoints (owner, checkpoint_id, state, next_node_id, iteration, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?)
             ON CONFLICT(owner, checkpoint_id) DO UPDATE SET
                 state = excluded.state,
                 next_node_id = excluded.next_node_id,
-                iteration = excluded.iteration
+                iteration = excluded.iteration,
+                updated_at = excluded.updated_at
             """,
             (
                 owner,
@@ -99,6 +107,7 @@ class SQLiteCheckpointer(Checkpointer):
                 json.dumps(checkpoint.state, ensure_ascii=False),
                 checkpoint.next_node_id,
                 checkpoint.iteration,
+                time.time(),
             ),
         )
         self._conn.commit()
@@ -133,3 +142,50 @@ class SQLiteCheckpointer(Checkpointer):
             (owner,),
         ).fetchall()
         return [r[0] for r in rows]
+
+    async def cleanup(
+        self,
+        *,
+        owner: str | None = None,
+        max_age: float | None = None,
+        keep_last: int | None = None,
+    ) -> int:
+        """Delete stale checkpoints; returns how many were removed."""
+        if max_age is None and keep_last is None:
+            return 0
+        removed = 0
+        now = time.time()
+        if owner is not None:
+            owners = [owner]
+        else:
+            owners = [
+                r[0]
+                for r in self._conn.execute(
+                    "SELECT DISTINCT owner FROM checkpoints"
+                ).fetchall()
+            ]
+        for own in owners:
+            if max_age is not None:
+                cur = self._conn.execute(
+                    "DELETE FROM checkpoints WHERE owner = ? AND "
+                    "COALESCE(updated_at, 0) < ?",
+                    (own, now - max_age),
+                )
+                removed += cur.rowcount
+            if keep_last is not None:
+                stale = [
+                    r[0]
+                    for r in self._conn.execute(
+                        "SELECT checkpoint_id FROM checkpoints WHERE owner = ? "
+                        "ORDER BY COALESCE(updated_at, 0) DESC LIMIT -1 OFFSET ?",
+                        (own, keep_last),
+                    ).fetchall()
+                ]
+                for cid in stale:
+                    self._conn.execute(
+                        "DELETE FROM checkpoints WHERE owner = ? AND checkpoint_id = ?",
+                        (own, cid),
+                    )
+                    removed += 1
+        self._conn.commit()
+        return removed
