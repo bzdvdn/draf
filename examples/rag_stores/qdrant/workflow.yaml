@@ -1,7 +1,7 @@
 name: rag-qdrant
 description: >
   RAG over the Draf knowledge base (docs.csv) using the Qdrant store.
-  Requires `draf[embedding]` (qdrant-client) and a running Qdrant server.
+  Requires `draf[stores-qdrant]` (qdrant-client) and a running Qdrant server.
 
 tools:
   - type: rag

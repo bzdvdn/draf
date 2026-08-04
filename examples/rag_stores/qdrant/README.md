@@ -7,7 +7,7 @@ RAG agent over the Draf knowledge base using the Qdrant store.
 Install the vector-store extra:
 
 ```bash
-uv add "draf[embedding]"        # or: pip install "draf[embedding]"
+uv add "draf[stores-qdrant]"    # or: pip install "draf[stores-qdrant]"
 ```
 
 Start a Qdrant server. With Docker Compose (from `examples/rag_stores/`):

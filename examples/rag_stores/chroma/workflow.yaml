@@ -1,7 +1,7 @@
 name: rag-chroma
 description: >
   RAG over the Draf knowledge base (docs.csv) using the ChromaDB store.
-  Requires `draf[embedding]` (chromadb). Persists to a local directory.
+  Requires `draf[stores-chroma]` (chromadb). Persists to a local directory.
 
 tools:
   - type: rag

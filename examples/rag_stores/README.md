@@ -7,14 +7,14 @@ every vector store draf supports. Pick the one that fits your needs.
 | ----------- | -------------------------- | --------------- | -------------- | --------------------------------- |
 | `in_memory` | none (core)                | no              | no             | demos, tests, small workloads     |
 | `sqlite`    | none (stdlib `sqlite3`)    | no              | yes (file)     | small collections, file storage   |
-| `chroma`    | `draf[embedding]`          | no (local dir)  | yes (directory)| local ANN search, no server       |
-| `faiss`     | `draf[embedding]`          | no              | yes (files)    | fast flat index, in-process       |
-| `lance`     | `draf[embedding]`          | no              | yes (directory)| embedded columnar store           |
-| `milvus`    | `draf[embedding]`          | no (Milvus Lite)| yes (file)     | local/remote Milvus, scaling path  |
-| `weaviate`  | `draf[embedding]`          | no (embedded)   | in-memory      | local ANN search, embedded server |
-| `qdrant`    | `draf[embedding]`          | yes (Docker)    | yes            | production scale, multi-tenant    |
-| `pgvector`  | `draf[embedding]`          | yes (PostgreSQL)| yes            | vectors alongside your SQL data   |
-| `pinecone`  | `draf[embedding]`          | yes (cloud)     | yes            | managed, hosted vector search     |
+| `chroma`    | `draf[stores-chroma]`      | no (local dir)  | yes (directory)| local ANN search, no server       |
+| `faiss`     | `draf[stores-faiss]`       | no              | yes (files)    | fast flat index, in-process       |
+| `lance`     | `draf[stores-lance]`       | no              | yes (directory)| embedded columnar store           |
+| `milvus`    | `draf[stores-milvus]`      | no (Milvus Lite)| yes (file)     | local/remote Milvus, scaling path  |
+| `weaviate`  | `draf[stores-weaviate]`    | no (embedded)   | in-memory      | local ANN search, embedded server |
+| `qdrant`    | `draf[stores-qdrant]`      | yes (Docker)    | yes            | production scale, multi-tenant    |
+| `pgvector`  | `draf[stores-pgvector]`    | yes (PostgreSQL)| yes            | vectors alongside your SQL data   |
+| `pinecone`  | `draf[stores-pinecone]`    | yes (cloud)     | yes            | managed, hosted vector search     |
 
 Each subdirectory has its own README with the exact install steps:
 
@@ -38,11 +38,15 @@ ollama pull llama3.1:8b
 ollama pull nomic-embed-text
 ```
 
-The vector-store extra (for `chroma`, `qdrant`, `pgvector`):
+The vector-store extra for the store you use (for `chroma`, `qdrant`,
+`pgvector`, …):
 
 ```bash
-uv add "draf[embedding]"        # or: pip install "draf[embedding]"
+uv add "draf[stores-qdrant]"    # or: pip install "draf[stores-qdrant]"
 ```
+
+Use `draf[embedding]` (an alias for every store) only if you really need
+all of them at once — it is the heaviest extra.
 
 The stores that need a server (`qdrant`, `pgvector`) ship a
 `docker-compose.yml` — start them all from `examples/rag_stores/`:

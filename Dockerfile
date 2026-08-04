@@ -1,12 +1,17 @@
 # syntax=docker/dockerfile:1
-# draf toolchain images — one build, four variants.
+# draf toolchain images — one build, five variants.
 #
 # Variant           EXTRA                             RUNMODE
 # draf (core)       tools                             draf
 # draf-fastapi      fastapi                           uvicorn
 # draf-worker       queue                             celery
+# draf-rag          stores-qdrant,tools,rag-pdf       draf
 # draf-all          embedding,tools,rag-pdf,          draf
 #                   rag-excel,pg-checkpoint,fastapi,queue
+#
+# `embedding` is an alias for every vector store; for a slim RAG image
+# install only the store you use, e.g.:
+#     docker build --build-arg EXTRA=stores-qdrant,tools -t draf-rag .
 #
 # Build individually:
 #     docker build --build-arg EXTRA=tools --build-arg RUNMODE=draf -t draf .

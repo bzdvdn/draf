@@ -1,7 +1,7 @@
 name: rag-milvus
 description: >
   RAG over the Draf knowledge base (docs.csv) using the Milvus store.
-  Requires `draf[embedding]` (pymilvus). Uses local Milvus Lite
+  Requires `draf[stores-milvus]` (pymilvus). Uses local Milvus Lite
   (a file-based `uri`), so no server is needed.
 
 tools:

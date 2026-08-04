@@ -25,17 +25,36 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-embedding = [
+stores-qdrant = [
     "qdrant-client>=1.9",
+]
+stores-chroma = [
     "chromadb>=0.5",
+]
+stores-pgvector = [
     "asyncpg>=0.29",
     "sqlalchemy>=2.0",
     "pgvector>=0.2",
+]
+stores-faiss = [
     "faiss-cpu>=1.7",
+]
+stores-lance = [
     "lancedb>=0.26",
+]
+stores-milvus = [
     "pymilvus>=2.4",
+]
+stores-weaviate = [
     "weaviate-client>=4.4",
+]
+stores-pinecone = [
     "pinecone>=5.0",
+]
+# Install every store at once (the heavy default — prefer one `stores-*`
+# extra per image so the vector-store deps stay small).
+embedding = [
+    "draf[stores-qdrant,stores-chroma,stores-pgvector,stores-faiss,stores-lance,stores-milvus,stores-weaviate,stores-pinecone]",
 ]
 rag-pdf = [
     "pypdf>=4.0",

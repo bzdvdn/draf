@@ -51,7 +51,7 @@ print(default_tool_registry.list())  # all registered names
 | `lock` | `LockTool` | — | Distributed-ish lock acquire/release |
 | `redis` | `RedisTool` | `redis` | Redis get/set/hash/list ops |
 | `wait_for` | `WaitForTool` | — | Poll until a condition holds |
-| `rag` | `RAGTool` | `draf[embedding]` | Retrieval over a vector store |
+| `rag` | `RAGTool` | `draf[stores-*]` | Retrieval over a vector store |
 
 ## Configuring tools
 

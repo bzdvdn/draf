@@ -1,7 +1,7 @@
 name: rag-lance
 description: >
   RAG over the Draf knowledge base (docs.csv) using the LanceDB store.
-  Requires `draf[embedding]` (lancedb). Persists to a local directory.
+  Requires `draf[stores-lance]` (lancedb). Persists to a local directory.
 
 tools:
   - type: rag

@@ -20,7 +20,8 @@ API reference) lives in [`docs/`](docs/). Build it locally with
 
 ```bash
 pip install draf
-# extras: draf[embedding] for RAG stores, draf[pg-checkpoint] for PostgreSQL
+# extras: draf[stores-qdrant] etc. for one RAG store, draf[embedding] for all,
+# draf[pg-checkpoint] for PostgreSQL
 # checkpoints, draf[tools] for built-in tools (web fetch, PDF, S3, Slack, SQL,
 # email, Telegram, …); draf[all] for everything except docs (MCP is bundled)
 ```
@@ -698,8 +699,8 @@ store (`InMemoryVectorStore`, `SQLite`, `Chroma`, `Qdrant`, `PGVector`,
 (`Embedder`: OpenAI, Ollama, Mistral, Voyage, Jina, Together, Groq, or any
 OpenAI-compatible `/v1/embeddings` endpoint). Documents load
 from CSV, TXT (glob), PDF (`draf[rag-pdf]`), and Excel (`draf[rag-excel]`).
-All vector stores (including the embedded/external ones) are installed via
-`draf[embedding]`.
+Each vector store is installed via its own extra (`draf[stores-qdrant]`,
+`draf[stores-chroma]`, …); `draf[embedding]` installs every store at once.
 
 ```python
 from draf import RAGTool
@@ -843,14 +844,15 @@ server and worker behave identically.
 ## Docker
 
 Official images are published to Docker Hub for every `v*` tag. One build,
-four variants — pick the one that matches how you deploy:
+five variants — pick the one that matches how you deploy:
 
-| Image                    | Contents                        | Runs                                             |
-| ------------------------ | ------------------------------- | ------------------------------------------------ |
-| `bzdvdn/draf`            | core + `draf[tools]`            | the `draf` CLI — run/validate/inspect workflows  |
-| `bzdvdn/draf-fastapi`    | core + `draf[fastapi]`          | `uvicorn` — a FastAPI server app                 |
-| `bzdvdn/draf-worker`     | core + `draf[queue]`            | `celery` — background workers / beat             |
-| `bzdvdn/draf-all`        | every extra except `docs`       | the `draf` CLI with the full optional surface    |
+| Image                 | Contents                  | Runs                                            |
+| --------------------- | ------------------------- | ----------------------------------------------- |
+| `bzdvdn/draf`         | core + `draf[tools]`      | the `draf` CLI — run/validate/inspect workflows |
+| `bzdvdn/draf-fastapi` | core + `draf[fastapi]`    | `uvicorn` — a FastAPI server app                |
+| `bzdvdn/draf-worker`  | core + `draf[queue]`      | `celery` — background workers / beat            |
+| `bzdvdn/draf-rag`     | core + `draf[stores-qdrant,tools,rag-pdf]` | the `draf` CLI, slim RAG build     |
+| `bzdvdn/draf-all`     | every extra except `docs` | the `draf` CLI with the full optional surface   |
 
 Run a workflow from a mounted `workflow.yaml` (plus an optional `plugins/`
 folder) in one shot — plugins are plain Python files loaded at runtime, so a
@@ -953,22 +955,22 @@ the rule is **strict** — a provider is only usable after it has been declared
 there, and there is **no silent fallback** (no implicit `openai`, no
 model-name auto-detection).
 
-| preset    | API key env var      | Notes                                   |
-| --------- | -------------------- | --------------------------------------- |
-| `openai`  | `OPENAI_API_KEY`     |                                         |
-| `anthropic` | `ANTHROPIC_API_KEY` | responses normalised to OpenAI shape    |
-| `deepseek`  | `DEEPSEEK_API_KEY` |                                         |
-| `mistral`   | `MISTRAL_API_KEY`  |                                         |
-| `together`  | `TOGETHER_API_KEY` |                                         |
-| `groq`      | `GROQ_API_KEY`     |                                         |
-| `openrouter` | `OPENROUTER_API_KEY` |                                      |
-| `gemini`   | `GEMINI_API_KEY`     | Google's OpenAI-compatible endpoint     |
-| `openai_compatible` | `OPENAI_API_KEY` | any custom endpoint (vLLM, LM Studio, Azure) |
-| `ollama`   | — (local)            |                                         |
+| preset              | API key env var      | Notes                                        |
+| ------------------- | -------------------- | -------------------------------------------- |
+| `openai`            | `OPENAI_API_KEY`     |                                              |
+| `anthropic`         | `ANTHROPIC_API_KEY`  | responses normalised to OpenAI shape         |
+| `deepseek`          | `DEEPSEEK_API_KEY`   |                                              |
+| `mistral`           | `MISTRAL_API_KEY`    |                                              |
+| `together`          | `TOGETHER_API_KEY`   |                                              |
+| `groq`              | `GROQ_API_KEY`       |                                              |
+| `openrouter`        | `OPENROUTER_API_KEY` |                                              |
+| `gemini`            | `GEMINI_API_KEY`     | Google's OpenAI-compatible endpoint          |
+| `openai_compatible` | `OPENAI_API_KEY`     | any custom endpoint (vLLM, LM Studio, Azure) |
+| `ollama`            | — (local)            |                                              |
 
 ### Resolving provider and model
 
-There is no global default provider *or* model. Per node:
+There is no global default provider _or_ model. Per node:
 
 1. **provider** — the node's explicit `provider=`, else the graph-level
    `default_provider=` (`Graph(...)`, `Flow("...", default_provider=...)`, or
@@ -977,7 +979,7 @@ There is no global default provider *or* model. Per node:
    `default_model=`.
 
 If neither is set, the node raises `ConfigError`. The resolved provider must
-be *declared* in the `providers=` map / `providers:` block:
+be _declared_ in the `providers=` map / `providers:` block:
 
 ```python
 from draf.flow import Flow
@@ -1203,7 +1205,7 @@ The repo ships three GitHub Actions workflows in [`.github/workflows/`](.github/
 
 | Trigger          | What runs                                                                                                                  |
 | ---------------- | -------------------------------------------------------------------------------------------------------------------------- |
-| Pull request     | `ci.yml` — lint (`ruff check`, `ruff format --check`, `mypy`) **and** tests across Python 3.11/3.12/3.13                    |
+| Pull request     | `ci.yml` — lint (`ruff check`, `ruff format --check`, `mypy`) **and** tests across Python 3.11/3.12/3.13                   |
 | Push to `master` | `ci.yml` — the same lint and tests as a PR (keeps `master` green without opening one)                                      |
 | Tag `v*`         | `release.yml` — tests → build sdist/wheel → PyPI → GitHub Release → **Docker images to Docker Hub** → docs to GitHub Pages |
 
@@ -1223,24 +1225,9 @@ fully offline (no API keys), and the LLM examples that need Ollama are not run.
    ```
 
 3. `release.yml` runs tests, builds the package, publishes it to PyPI, pushes
-   the four Docker images (`draf`, `draf-fastapi`, `draf-worker`, `draf-all`)
-   to Docker Hub, attaches the artifacts to a GitHub Release, and deploys the
-   docs.
-
-### One-time setup
-
-- **PyPI** — the publish step uses [trusted publishing](https://docs.pypi.org/trusted-publishers/),
-  so no API token is stored. In your PyPI account add a pending publisher for
-  `draf`: owner `bzdvdn`, repository `draf`, workflow `release.yml`, environment
-  `release` (the publish job pins `environment: release`).
-- **Docker Hub** — the `docker` job logs in with two repository secrets:
-  `docker_login` (your Docker Hub username) and `docker_password` (a Docker Hub
-  **access token**, not your account password — Account Settings → Security →
-  Access Tokens, scope _Read & Write_). The image repositories
-  (`draf`, `draf-fastapi`, `draf-worker`, `draf-all`) are created automatically
-  on the first push.
-- **GitHub Pages** — enable Pages on the repository and set the source to
-  _GitHub Actions_; the `docs` job deploys `site/` on every release.
+   the five Docker images (`draf`, `draf-fastapi`, `draf-worker`, `draf-rag`,
+   `draf-all`) to Docker Hub, attaches the artifacts to a GitHub Release, and
+   deploys the docs.
 
 See [CONSTITUTION.md](CONSTITUTION.md) for the framework's principles and
 non-negotiable rules.

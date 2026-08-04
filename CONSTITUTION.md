@@ -134,8 +134,15 @@ Dev/test dependencies (not runtime): ruff, mypy, pytest, uv.
 
 Optional extras (import-error friendly, never block `import draf`):
 
-- `draf[embedding]` — RAG stores: qdrant-client, chromadb, asyncpg, sqlalchemy,
-  faiss-cpu, lancedb, pymilvus, weaviate-client, pinecone
+- `draf[stores-qdrant]` — Qdrant store (qdrant-client)
+- `draf[stores-chroma]` — Chroma store (chromadb)
+- `draf[stores-pgvector]` — pgvector store (asyncpg, pgvector)
+- `draf[stores-faiss]` — FAISS store (faiss-cpu)
+- `draf[stores-lance]` — LanceDB store (lancedb)
+- `draf[stores-milvus]` — Milvus store (pymilvus)
+- `draf[stores-weaviate]` — Weaviate store (weaviate-client)
+- `draf[stores-pinecone]` — Pinecone store (pinecone)
+- `draf[embedding]` — all stores at once (alias for every `draf[stores-*]`)
 - `draf[rag-pdf]` — PDF ingestion (pypdf)
 - `draf[rag-excel]` — Excel ingestion (openpyxl)
 - `draf[pg-checkpoint]` — PostgreSQL checkpointer (asyncpg)

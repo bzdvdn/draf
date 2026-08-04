@@ -8,7 +8,7 @@ store.
 Install the vector-store extra:
 
 ```bash
-uv add "draf[embedding]"        # or: pip install "draf[embedding]"
+uv add "draf[stores-pgvector]"  # or: pip install "draf[stores-pgvector]"
 ```
 
 Start PostgreSQL with the pgvector extension. With Docker Compose (from

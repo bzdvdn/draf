@@ -1,7 +1,7 @@
 name: rag-weaviate
 description: >
   RAG over the Draf knowledge base (docs.csv) using the Weaviate store.
-  Requires `draf[embedding]` (weaviate-client). Uses the embedded Weaviate
+  Requires `draf[stores-weaviate]` (weaviate-client). Uses the embedded Weaviate
   server, so no external service is needed.
 
 tools:

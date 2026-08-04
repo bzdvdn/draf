@@ -7,7 +7,7 @@ RAG agent over the Draf knowledge base using the LanceDB store.
 Install the vector-store extra:
 
 ```bash
-uv add "draf[embedding]"        # or: pip install "draf[embedding]"
+uv add "draf[stores-lance]"     # or: pip install "draf[stores-lance]"
 ```
 
 Ollama must be running locally with:

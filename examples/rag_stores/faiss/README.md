@@ -7,7 +7,7 @@ RAG agent over the Draf knowledge base using the FAISS store.
 Install the vector-store extra:
 
 ```bash
-uv add "draf[embedding]"        # or: pip install "draf[embedding]"
+uv add "draf[stores-faiss]"     # or: pip install "draf[stores-faiss]"
 ```
 
 Ollama must be running locally with:

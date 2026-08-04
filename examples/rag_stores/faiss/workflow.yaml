@@ -1,7 +1,7 @@
 name: rag-faiss
 description: >
   RAG over the Draf knowledge base (docs.csv) using the FAISS store.
-  Requires `draf[embedding]` (faiss-cpu). Persists an index file plus a
+  Requires `draf[stores-faiss]` (faiss-cpu). Persists an index file plus a
   `.meta.json` sidecar.
 
 tools:

@@ -7,7 +7,7 @@ RAG agent over the Draf knowledge base using the Weaviate store.
 Install the vector-store extra:
 
 ```bash
-uv add "draf[embedding]"        # or: pip install "draf[embedding]"
+uv add "draf[stores-weaviate]"  # or: pip install "draf[stores-weaviate]"
 ```
 
 Ollama must be running locally with:

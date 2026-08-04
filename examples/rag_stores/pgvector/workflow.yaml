@@ -1,7 +1,7 @@
 name: rag-pgvector
 description: >
   RAG over the Draf knowledge base (docs.csv) using the PostgreSQL +
-  pgvector store. Requires `draf[embedding]` (asyncpg + sqlalchemy) and a
+  pgvector store. Requires `draf[stores-pgvector]` (asyncpg + sqlalchemy) and a
   running PostgreSQL with the pgvector extension.
 
 tools:

@@ -7,7 +7,7 @@ RAG agent over the Draf knowledge base using the Milvus store.
 Install the vector-store extra (includes Milvus Lite for local use):
 
 ```bash
-uv add "draf[embedding]"        # or: pip install "draf[embedding]"
+uv add "draf[stores-milvus]"    # or: pip install "draf[stores-milvus]"
 ```
 
 Ollama must be running locally with:

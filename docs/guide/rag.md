@@ -2,8 +2,9 @@
 
 `RAGTool` chunks, embeds, and retrieves documents from a pluggable vector
 store using raw HTTP embeddings. Documents load from CSV, TXT (glob), PDF
-(`draf[rag-pdf]`), and Excel (`draf[rag-excel]`). All vector stores are
-installed via `draf[embedding]`.
+(`draf[rag-pdf]`), and Excel (`draf[rag-excel]`). Install the store you use
+via its per-store extra (e.g. `draf[stores-qdrant]`) or `draf[embedding]`
+for every store at once.
 
 ```python
 from draf import RAGTool
