@@ -65,7 +65,7 @@ target "worker" {
 target "all" {
   context = "."
   args = {
-    EXTRA   = "embedding,tools,mcp,rag-pdf,rag-excel,pg-checkpoint,fastapi,queue"
+    EXTRA   = "embedding,tools,rag-pdf,rag-excel,pg-checkpoint,fastapi,queue"
     RUNMODE = "draf"
   }
   tags = [

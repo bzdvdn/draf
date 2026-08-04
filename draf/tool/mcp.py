@@ -5,8 +5,8 @@ This module connects a Draf graph to an MCP server and exposes its tools as
 regular :class:`~draf.tool.Tool` instances, so they work anywhere the built-in
 tools do — LLM nodes, the ReAct agent, tool registries.
 
-The ``mcp`` SDK is an optional dependency (install ``draf[mcp]``); it is
-imported lazily so the core library stays dependency-free.
+The ``mcp`` SDK ships with the core package; it is imported lazily so a plain
+``import draf`` stays fast.
 
 Usage::
 

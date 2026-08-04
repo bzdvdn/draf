@@ -5,7 +5,7 @@
 # draf (core)       tools                             draf
 # draf-fastapi      fastapi                           uvicorn
 # draf-worker       queue                             celery
-# draf-all          embedding,tools,mcp,rag-pdf,      draf
+# draf-all          embedding,tools,rag-pdf,          draf
 #                   rag-excel,pg-checkpoint,fastapi,queue
 #
 # Build individually:

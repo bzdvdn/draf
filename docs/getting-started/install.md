@@ -28,11 +28,10 @@ Install only what you need; `draf[all]` pulls in everything.
 | `draf[rag-excel]` | `openpyxl` — Excel document loading for RAG |
 | `draf[pg-checkpoint]` | `asyncpg` — PostgreSQL checkpoint backend |
 | `draf[tools]` | Built-in tools that need third-party deps (web fetch, PDF, S3, Slack, SQL, email, Telegram, …) |
-| `draf[mcp]` | Model Context Protocol server tools |
 | `draf[fastapi]` | Scaffold templates: `fastapi` + `uvicorn` + `sse-starlette` |
 | `draf[queue]` | `celery[redis]` — worker/beat scaffold variant |
 | `draf[docs]` | MkDocs toolchain to build this documentation |
-| `draf[all]` | Everything above |
+| `draf[all]` | Everything above except `docs` (MCP tooling is bundled with the core package) |
 
 ```bash
 pip install "draf[embedding]"

@@ -1,3 +1,5 @@
+from typing import TYPE_CHECKING
+
 from draf.node.agent import ReActAgent, ToolExec
 from draf.node.context import (
     AppendAssistant,
@@ -15,6 +17,10 @@ from draf.node.retry import Retry
 from draf.node.supervisor import Supervisor
 from draf.node.tool_call import ToolCall
 from draf.node.transform import Transform
+
+if TYPE_CHECKING:
+    from draf.flow.sub_flow import SubFlow
+    from draf.graph import Graph
 
 default_registry.register("transform", lambda cfg: Transform(cfg))
 default_registry.register("context_builder", lambda cfg: ContextBuilder(cfg))
@@ -36,7 +42,106 @@ def _map_factory(cfg: dict) -> Map:
     return Map(processor, config=cfg)
 
 
+def _subflow_factory(cfg: dict) -> "SubFlow":
+    from draf.errors import ConfigError
+    from draf.flow.sub_flow import SubFlow
+
+    graph_cfg = cfg.get("graph")
+    build = cfg.get("build")
+    if isinstance(graph_cfg, dict):
+        flow = SubFlow(
+            _build_subgraph(graph_cfg),
+            input_map=cfg.get("input_map"),
+            output_map=cfg.get("output_map"),
+            max_iterations=cfg.get("max_iterations"),
+            id_prefix=cfg.get("id_prefix", ""),
+        )
+    elif build is not None:
+        flow = _build_from_recipe(build, cfg)
+    else:
+        raise ConfigError(
+            "subflow requires config.graph (a mapping with steps/edges) "
+            "or config.build (an agent_step recipe)"
+        )
+    flow.config = cfg
+    return flow
+
+
+def _build_subgraph(graph_cfg: dict) -> "Graph":
+    """Build a nested ``Graph`` from a declarative ``{steps, edges}`` dict.
+
+    Mirrors the step/edge building in :mod:`draf.yaml` so a ``subflow``
+    node can embed a full graph inline and round-trip through YAML.
+    """
+    from draf.errors import ConfigError
+    from draf.graph import Edge, Graph
+
+    nodes: dict[str, Node] = {}
+    edges: list[Edge] = []
+    entry_point: str | None = None
+
+    for step in graph_cfg.get("steps", []):
+        if not isinstance(step, dict):
+            raise ConfigError("subflow graph steps must be mappings")
+        sid = step.get("id")
+        stype = step.get("type")
+        if not isinstance(sid, str) or not isinstance(stype, str):
+            raise ConfigError("subflow graph step requires string id and type")
+        node = default_registry.create(stype, step.get("config", {}))
+        node.type = sid
+        if step.get("retry"):
+            from draf.node.retry import wrap_with_retry
+
+            node = wrap_with_retry(node, step["retry"])
+        nodes[sid] = node
+        if entry_point is None:
+            entry_point = sid
+
+    for edge_data in graph_cfg.get("edges", []):
+        if not isinstance(edge_data, dict):
+            raise ConfigError("subflow graph edges must be mappings")
+        edges.append(
+            Edge(
+                source_id=edge_data["from"],
+                target_id=edge_data["to"],
+                condition=edge_data.get("condition"),
+            )
+        )
+
+    return Graph(nodes=nodes, edges=edges, entry_point=entry_point or "")
+
+
+def _build_from_recipe(build: dict, cfg: dict) -> "SubFlow":
+    """Build a ``SubFlow`` from a named recipe such as ``agent_step``."""
+    from draf.errors import ConfigError
+    from draf.flow.agent import agent_step
+
+    rtype = build.get("type")
+    if rtype != "agent_step":
+        raise ConfigError(
+            f"unknown subflow build recipe {rtype!r} (supported: agent_step)"
+        )
+    try:
+        return agent_step(
+            build["system"],
+            build["output_key"],
+            model=build["model"],
+            provider=build.get("provider", ""),
+            sections=build.get("sections"),
+            messages_key=build.get("messages_key", "messages"),
+            use_tools=build.get("use_tools"),
+            stream=build.get("stream", True),
+            id=cfg.get("id_prefix") or None,
+            **build.get("config", {}),
+        )
+    except KeyError as exc:
+        raise ConfigError(
+            f"agent_step build recipe is missing required key: {exc.args[0]}"
+        ) from exc
+
+
 default_registry.register("map", _map_factory)
+default_registry.register("subflow", _subflow_factory)
 __all__ = [
     "Node",
     "NodeRegistry",

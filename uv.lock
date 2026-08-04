@@ -973,11 +973,6 @@ all = [
     { name = "faiss-cpu" },
     { name = "fastapi" },
     { name = "lancedb" },
-    { name = "mcp" },
-    { name = "mkdocs" },
-    { name = "mkdocs-gen-files" },
-    { name = "mkdocs-material" },
-    { name = "mkdocstrings", extra = ["python"] },
     { name = "openpyxl" },
     { name = "pgvector" },
     { name = "pinecone" },
@@ -1014,9 +1009,6 @@ fastapi = [
     { name = "fastapi" },
     { name = "sse-starlette" },
     { name = "uvicorn" },
-]
-mcp = [
-    { name = "mcp" },
 ]
 pg-checkpoint = [
     { name = "asyncpg" },
@@ -1055,14 +1047,13 @@ requires-dist = [
     { name = "boto3", marker = "extra == 'tools'", specifier = ">=1.34" },
     { name = "celery", extras = ["redis"], marker = "extra == 'queue'", specifier = ">=5.4" },
     { name = "chromadb", marker = "extra == 'embedding'", specifier = ">=0.5" },
-    { name = "draf", extras = ["embedding", "tools", "mcp", "rag-pdf", "rag-excel", "pg-checkpoint", "fastapi", "queue", "docs"], marker = "extra == 'all'" },
+    { name = "draf", extras = ["embedding", "tools", "rag-pdf", "rag-excel", "pg-checkpoint", "fastapi", "queue"], marker = "extra == 'all'" },
     { name = "faiss-cpu", marker = "extra == 'embedding'", specifier = ">=1.7" },
     { name = "fastapi", marker = "extra == 'fastapi'", specifier = ">=0.115" },
     { name = "httpx", specifier = ">=0.27" },
     { name = "jsonschema", specifier = ">=4.18" },
     { name = "lancedb", marker = "extra == 'embedding'", specifier = ">=0.26" },
-    { name = "mcp", marker = "extra == 'mcp'", specifier = ">=1.0" },
-    { name = "mcp", extras = ["mcp"], specifier = ">=1.0" },
+    { name = "mcp", specifier = ">=1.0" },
     { name = "mkdocs", marker = "extra == 'docs'", specifier = ">=1.6" },
     { name = "mkdocs-gen-files", marker = "extra == 'docs'", specifier = ">=0.5" },
     { name = "mkdocs-material", marker = "extra == 'docs'", specifier = ">=9.5" },
@@ -1084,7 +1075,7 @@ requires-dist = [
     { name = "uvicorn", marker = "extra == 'fastapi'", specifier = ">=0.30" },
     { name = "weaviate-client", marker = "extra == 'embedding'", specifier = ">=4.4" },
 ]
-provides-extras = ["embedding", "rag-pdf", "rag-excel", "pg-checkpoint", "tools", "mcp", "fastapi", "queue", "docs", "all"]
+provides-extras = ["embedding", "rag-pdf", "rag-excel", "pg-checkpoint", "tools", "fastapi", "queue", "docs", "all"]
 
 [package.metadata.requires-dev]
 dev = [

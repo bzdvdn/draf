@@ -140,11 +140,10 @@ Optional extras (import-error friendly, never block `import draf`):
 - `draf[rag-excel]` — Excel ingestion (openpyxl)
 - `draf[pg-checkpoint]` — PostgreSQL checkpointer (asyncpg)
 - `draf[tools]` — extra tools: beautifulsoup4, pypdf, boto3, slack-sdk, psycopg, redis
-- `draf[mcp]` — MCP client (mcp)
 - `draf[fastapi]` — scaffold web app (fastapi, uvicorn, sse-starlette)
 - `draf[queue]` — scaffold worker (celery[redis])
 - `draf[docs]` — docs build (mkdocs, mkdocs-material, mkdocstrings, mkdocs-gen-files)
-- `draf[all]` — everything above
+- `draf[all]` — everything above except `docs` (MCP ships in the core package)
 
 ## Non-Negotiable Rules
 
@@ -192,8 +191,8 @@ Optional extras (import-error friendly, never block `import draf`):
 ```
 draf/
 ├── __init__.py            # public API exports
-├── graph.py               # Graph: nodes + edges, run()/stream()
-├── yaml.py                # from_yaml()/to_yaml(), load_workflow()
+├── graph/                 # Graph, edges, conditions, execution engine, render
+├── yaml.py                # from_yaml()/graph_to_yaml(), load_workflow()
 ├── yaml_schema.py         # workflow validation (jsonschema)
 ├── errors.py              # typed error hierarchy (DrafError root)
 ├── trace.py               # RunTracer, RunSummary, cost/token reports
@@ -203,11 +202,13 @@ draf/
 ├── schema.py              # json_schema_from_type, validate_json
 ├── skill.py               # Skill loading, core skills
 ├── plugins.py             # plugin auto-loading
-├── cli.py                 # Typer CLI (run/validate/inspect/eval/new/daemon)
+├── logging.py             # stdlib logging with run/session/node correlation
+├── testing.py             # pytest plugin
+├── cli.py                 # Typer CLI (run/daemon/graph/validate/eval/inspect/new)
 ├── checkpoint/            # JSONFile/SQLite/PG checkpointer + owner scoping
 ├── node/                  # Node base, @node, LLM, Transform, ReActAgent,
-│                          #   ToolExec, Map, Parallel, Interrupt, Retry
-├── flow/                  # Flow DSL, Case, SubFlow, route(), react()/harness()
+│                          #   Supervisor, ToolExec, Map, Parallel, Interrupt, Retry
+├── flow/                  # Flow DSL, Case, SubFlow, route(), react()/harness(), supervisor()
 ├── harness/               # Harness, provider presets, concurrency, formats
 ├── tool/                  # Tool base, @tool, registry, MCP, builtin tools
 ├── state/                 # State (typed schema + reducers)
@@ -237,16 +238,20 @@ examples/
 
 ## Constitution Metadata
 
-- Version: 1.1.0
+- Version: 1.2.0
 - Ratified: 2026-07-31
-- Last Amended: 2026-08-03
+- Last Amended: 2026-08-04
 
 ## Last Updated
+
+2026-08-04 — v1.2.0: Sync with the project. `graph/` is a package (not a single
+`graph.py`); added `logging.py`, `testing.py`, and the `tool/builtin/*` /
+`rag/stores/*` modules to the layout. MCP is a core dependency only (the
+redundant `draf[mcp]` extra was removed); `draf[all]` now excludes `docs`.
 
 2026-08-03 — v1.1.0: Sync with the project. Package layout (node/flow/harness/
 tool/state/rag/checkpoint/scaffold), runtime deps (jsonschema, typer, mcp), typed
 `State` overlay, Flow DSL, plugins and skills as extension points, AST-tool
 exception to the no-eval rule.
 
-2026-07-31 — v1.0.0: First Python version. Ported from Go draftflow.
-Async-first, dict state, YAML-native, httpx-only LLM.
+2026-07-31 — v1.0.0: First Python version.

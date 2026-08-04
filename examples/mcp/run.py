@@ -5,8 +5,8 @@ and exposes its tools to a :class:`~draf.node.agent.ReActAgent` loop.
 Any MCP server works the same way — point ``mcp_tools`` at a Streamable
 HTTP endpoint (``url=...``) or a stdio command (``command=...``).
 
-Requires ``draf[mcp]`` installed and Ollama running locally with
-llama3.1:8b.
+Requires Ollama running locally with llama3.1:8b (the `mcp` SDK ships with
+the core package).
 
 Usage:
     python examples/mcp/run.py

@@ -21,11 +21,12 @@ API reference) lives in [`docs/`](docs/). Build it locally with
 ```bash
 pip install draf
 # extras: draf[embedding] for RAG stores, draf[pg-checkpoint] for PostgreSQL
-# checkpoints, draf[mcp] for MCP server tools, draf[tools] for built-in tools
-# (web fetch, PDF, S3, Slack, SQL, email, Telegram, …), draf[all] for everything
+# checkpoints, draf[tools] for built-in tools (web fetch, PDF, S3, Slack, SQL,
+# email, Telegram, …); draf[all] for everything except docs (MCP is bundled)
 ```
 
-Python >= 3.11. Core runtime depends only on `httpx`, `pyyaml`, and `typer`.
+Python >= 3.11. Core runtime depends only on `httpx`, `jsonschema`, `pyyaml`,
+`typer`, and `mcp` (imported lazily).
 
 The `draf` CLI ships with the package. Prefer uv? The same command works — uv
 installs the package **and** the CLI in one go:
@@ -609,7 +610,7 @@ Connect any [Model Context Protocol](https://modelcontextprotocol.io) server
 and use its tools anywhere built-in tools work — LLM nodes, the ReAct agent,
 registries. Tools are fetched from the server (schema included) and wrapped
 as ordinary `Tool` instances, so `graph.run(state, tools=tools)` needs no
-changes. Install `draf[mcp]`; the `mcp` SDK is imported lazily.
+changes. The `mcp` SDK is bundled with the core package and imported lazily.
 
 ```python
 from draf import Flow

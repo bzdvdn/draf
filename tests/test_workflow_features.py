@@ -453,3 +453,129 @@ edges: []
         )
         errors = validate_workflow_file(str(path))
         assert errors
+
+
+class TestSubFlowYaml:
+    SUBFLOW_YAML = """\
+name: subflow-wf
+steps:
+  - id: greet
+    type: transform
+    config: {action: trim, input_key: text, output_key: text}
+  - id: inner
+    type: subflow
+    config:
+      input_map: {text: x}
+      output_map: {y: result}
+      graph:
+        steps:
+          - id: up
+            type: transform
+            config: {action: uppercase, input_key: x, output_key: y}
+edges:
+  - from: greet
+    to: inner
+"""
+
+    def test_subflow_nested_graph_loads(self, tmp_path):
+        from draf.flow.sub_flow import SubFlow
+        from draf.yaml import load_workflow
+
+        path = tmp_path / "wf.yaml"
+        path.write_text(self.SUBFLOW_YAML)
+        graph, _tools, _state, _reducers = load_workflow(str(path))
+        node = graph.nodes["inner"]
+        assert isinstance(node, SubFlow)
+        assert set(node._graph.nodes) == {"up"}
+        assert node._graph.entry_point == "up"
+
+    def test_subflow_nested_graph_runs(self, tmp_path):
+        import asyncio
+
+        from draf.yaml import load_workflow
+
+        path = tmp_path / "wf.yaml"
+        path.write_text(self.SUBFLOW_YAML)
+        graph, _tools, _state, _reducers = load_workflow(str(path))
+        result = asyncio.run(graph.run(state={"text": "  hi  "}))
+        assert result["text"] == "hi"
+        assert result["result"] == "HI"
+
+    def test_subflow_round_trips(self, tmp_path):
+        import asyncio
+
+        from draf.yaml import from_yaml, workflow_to_yaml
+
+        path = tmp_path / "wf.yaml"
+        path.write_text(self.SUBFLOW_YAML)
+        graph, _tools, _state, _reducers = from_yaml(str(path)), [], {}, {}
+        dumped = workflow_to_yaml(graph)
+        reloaded = from_yaml(dumped)
+        node = reloaded.nodes["inner"]
+        assert node.config["graph"]["steps"][0]["config"]["action"] == "uppercase"
+        result = asyncio.run(reloaded.run(state={"text": "  hi  "}))
+        assert result["result"] == "HI"
+
+    def test_subflow_build_agent_step(self, tmp_path):
+        from draf.flow.sub_flow import SubFlow
+        from draf.yaml import load_workflow
+
+        path = tmp_path / "wf.yaml"
+        path.write_text(
+            """\
+name: agent-wf
+steps:
+  - id: a
+    type: subflow
+    config:
+      id_prefix: chat
+      build:
+        type: agent_step
+        system: You are helpful
+        output_key: answer
+        model: fake-model
+        provider: fake
+edges: []
+"""
+        )
+        graph, _tools, _state, _reducers = load_workflow(str(path))
+        node = graph.nodes["a"]
+        assert isinstance(node, SubFlow)
+        assert node.config["build"]["output_key"] == "answer"
+
+    def test_subflow_requires_graph_or_build(self, tmp_path):
+        from draf.errors import ConfigError
+        from draf.yaml import load_workflow
+
+        path = tmp_path / "wf.yaml"
+        path.write_text(
+            """\
+name: bad-wf
+steps:
+  - id: x
+    type: subflow
+    config: {}
+edges: []
+"""
+        )
+        with pytest.raises(ConfigError, match="subflow requires config.graph"):
+            load_workflow(str(path))
+
+    def test_subflow_unknown_build_recipe(self, tmp_path):
+        from draf.errors import ConfigError
+        from draf.yaml import load_workflow
+
+        path = tmp_path / "wf.yaml"
+        path.write_text(
+            """\
+name: bad-wf
+steps:
+  - id: x
+    type: subflow
+    config:
+      build: {type: nope}
+edges: []
+"""
+        )
+        with pytest.raises(ConfigError, match="unknown subflow build recipe"):
+            load_workflow(str(path))

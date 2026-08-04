@@ -75,7 +75,7 @@ flow.harness(
 
 Connect any [Model Context Protocol](https://modelcontextprotocol.io) server
 and its tools become ordinary `Tool` instances — no `graph.run` changes.
-Requires `draf[mcp]`:
+Requires the `mcp` package (bundled with the core install, imported lazily):
 
 ```python
 from draf import Flow

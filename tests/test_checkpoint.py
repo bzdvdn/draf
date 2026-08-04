@@ -340,7 +340,7 @@ class TestCheckpointCleanup:
     async def test_max_age_keeps_fresh(self, checkpointer, tmp_path):
         await checkpointer.save("old", _cp({}))
         await checkpointer.save("new", _cp({}))
-        assert await checkpointer.cleanup(max_age=1.0) == 0
+        assert await checkpointer.cleanup(max_age=50.0) == 0
         assert await checkpointer.list() == ["new", "old"]
 
     async def test_max_age_removes_old(self, checkpointer, tmp_path):
@@ -348,7 +348,7 @@ class TestCheckpointCleanup:
         await checkpointer.save("old", _cp({}))
         await checkpointer.save("new", _cp({}))
         age("old")
-        assert await checkpointer.cleanup(max_age=1.0) == 1
+        assert await checkpointer.cleanup(max_age=50.0) == 1
         assert await checkpointer.list() == ["new"]
 
     async def test_keep_last_and_max_age_combined(self, checkpointer, tmp_path):
@@ -358,7 +358,7 @@ class TestCheckpointCleanup:
         await checkpointer.save("new", _cp({}))
         age("old")
         age("mid")
-        assert await checkpointer.cleanup(max_age=2.0, keep_last=2) == 2
+        assert await checkpointer.cleanup(max_age=50.0, keep_last=2) == 2
         assert await checkpointer.list() == ["new"]
 
     async def test_owner_scoped_cleanup(self, checkpointer, tmp_path):

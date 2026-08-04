@@ -74,6 +74,57 @@ wrapper, and ``retry_on: [429]`` to only retry on that status code.  The
 retry wrapper preserves the inner node's normal success/failure behaviour,
 so ``__error__`` edges still fire after the final failed attempt.
 
+## Nested subflows (composite agents)
+
+A `subflow` step embeds a complete inner graph — the composite-agent pattern.
+The inner graph is declared with the same `steps`/`edges` vocabulary; the outer
+graph maps state into it with `input_map` and pulls results back with
+`output_map`:
+
+```yaml
+steps:
+  - id: greet
+    type: transform
+    config: {action: trim, input_key: text, output_key: text}
+  - id: inner
+    type: subflow
+    config:
+      input_map: {text: x}      # outer key → inner key
+      output_map: {y: result}   # inner key → outer key
+      max_iterations: 50
+      graph:                    # the nested graph
+        steps:
+          - id: up
+            type: transform
+            config: {action: uppercase, input_key: x, output_key: y}
+edges:
+  - from: greet
+    to: inner
+```
+
+Nested graphs validate against the same node registry (any built-in or plugin
+type), support `retry:` per inner step, and round-trip through
+`workflow_to_yaml`.  Without `input_map`/`output_map` the whole parent state is
+passed through.
+
+Alternatively, `config.build` reuses the `agent_step` recipe (context builder →
+ReAct harness → append assistant) as a composite agent:
+
+```yaml
+steps:
+  - id: chat
+    type: subflow
+    config:
+      id_prefix: chat
+      build:
+        type: agent_step
+        system: You are a helpful assistant
+        output_key: answer
+        model: llama3.1:8b
+        messages_key: messages
+        use_tools: all
+```
+
 ## Inspecting a graph
 
 Render the topology back to YAML or as a Mermaid diagram:
