@@ -712,6 +712,7 @@ class Harness:
 
         cached = False
         cache_key: str | None = None
+        data: dict = {}
         if not use_stream and self._cache is not None:
             cache_key = self._cache_key(body)
             hit = self._cache.get(cache_key)

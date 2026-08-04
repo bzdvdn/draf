@@ -12,6 +12,7 @@ state:
   initial:
     text: I love this product!
 
+default_provider: ollama
 providers:
   - name: ollama
     type: ollama

@@ -2,6 +2,7 @@
 
 import os
 import re
+import typing
 
 import yaml
 
@@ -14,7 +15,7 @@ from draf.tool.tool import Tool
 from draf.yaml_schema import raise_for_validation, validate_workflow
 
 
-def _safe_load(source):
+def _safe_load(source: typing.Any) -> typing.Any:
     """Load YAML, surfacing parse errors as ``ConfigError``."""
     try:
         return yaml.safe_load(source)
@@ -25,7 +26,7 @@ def _safe_load(source):
 _ENV_VAR = re.compile(r"\$\{([A-Za-z_][A-Za-z0-9_]*)\}")
 
 
-def _interpolate_env(value):
+def _interpolate_env(value: typing.Any) -> typing.Any:
     """Replace ``${ENV_VAR}`` references in a YAML structure with values.
 
     Recursively walks strings inside mappings and lists.  A reference to a
@@ -41,17 +42,26 @@ def _interpolate_env(value):
     return value
 
 
-def _providers_from_data(data: dict):
+def _providers_from_data(data: typing.Any) -> typing.Any:
     """Build a :class:`ProviderRegistry` from a workflow's ``providers:`` block.
 
     The block is a list of mappings, each with a ``name:`` plus any provider
-    fields.  Bare preset-name strings are rejected — every provider must be
-    spelled out explicitly (e.g. ``{name: ollama, type: ollama,
-    base_url: http://localhost:11434}``), so the file says exactly what is
-    configured.  Each ``name`` must be unique (a duplicate raises
-    :class:`ConfigError`).  Returns ``None`` when the block is absent.
+    fields.  A ``name`` that matches a built-in preset is merged over that
+    preset's defaults — ``{name: ollama}`` alone yields the ready-made Ollama
+    endpoint, and ``{name: ollama, base_url: http://remote:11434}`` overrides
+    just the endpoint while keeping the rest.  Names that are not presets are
+    plain custom providers spelled out entirely (e.g. ``{name: my-vllm,
+    type: openai_compatible, base_url: http://vllm:8000/v1}``).  Bare
+    preset-name strings are rejected — only mappings are accepted.  Each
+    ``name`` must be unique (a duplicate raises :class:`ConfigError`).
+    Returns ``None`` when the block is absent.
     """
-    from draf.provider import PROVIDER_FIELDS, Provider, ProviderRegistry
+    from draf.provider import (
+        BUILTINS,
+        PROVIDER_FIELDS,
+        Provider,
+        ProviderRegistry,
+    )
 
     block = data.get("providers")
     if not block:
@@ -63,7 +73,7 @@ def _providers_from_data(data: dict):
         if isinstance(entry, str):
             raise ConfigError(
                 f"providers: preset names are not allowed ({entry!r}) — "
-                "declare a `{name, ...}` mapping for every provider"
+                "use a `{name, ...}` mapping (a built-in name merges its preset)"
             )
         if not isinstance(entry, dict):
             raise ConfigError("providers: each entry must be a mapping with a `name:`")
@@ -75,11 +85,17 @@ def _providers_from_data(data: dict):
             raise ConfigError(
                 f"providers.{name} has unknown keys: {', '.join(sorted(unknown))}"
             )
-        reg.register(Provider.from_mapping(entry))
+        preset = BUILTINS.get(name)
+        if preset is not None:
+            fields = preset().to_dict()
+            fields.update({f: entry[f] for f in PROVIDER_FIELDS if f in entry})
+            reg.register(Provider.from_mapping(fields))
+        else:
+            reg.register(Provider.from_mapping(entry))
     return reg
 
 
-def _validate_provider_refs(data: dict, registry) -> None:
+def _validate_provider_refs(data: typing.Any, registry: typing.Any) -> None:
     """Enforce every provider reference in *data* is declared.
 
     ``default_provider:`` and each step's ``config.provider`` must name a
@@ -99,7 +115,7 @@ def _validate_provider_refs(data: dict, registry) -> None:
             )
 
 
-def _providers_to_block(registry) -> list:
+def _providers_to_block(registry: typing.Any) -> list:
     """Serialize ``graph.providers`` back into a ``providers:`` list.
 
     Every provider is written as a ``{name, ...}`` mapping — never a bare

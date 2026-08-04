@@ -232,6 +232,7 @@ def build_flow(model: str, provider: str) -> Flow:
                 ),
                 input_keys=["features"],
                 output_key="checks",
+                id="mapper",
             ),
             Interrupt(
                 key="approved",

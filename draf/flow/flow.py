@@ -741,6 +741,7 @@ class Flow:
             agent_node = agent
         tool_exec = ToolExec(
             messages_key=messages_key,
+            tool_call_key=str(agent_node.config.get("tool_call_key") or "_tool_call_name"),
             tool_error_mode=tool_error_mode,
             use_tools=use_tools,
             skills=skills,

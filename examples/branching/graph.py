@@ -47,7 +47,7 @@ async def main():
             Edge("on_negative", "shout"),
         ],
         entry_point="classify",
-        provider="ollama",
+        default_provider="ollama",
     )
 
     reducers = reducers_from_yaml_schema(

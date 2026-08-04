@@ -209,44 +209,69 @@ class ReActAgent(Node):
         )
 
         result: dict = {}
-        tool_calls = reply.message.get("tool_calls")
 
-        if tool_calls:
-            calls: list[dict] = []
-            for tc in tool_calls:
-                fn = tc.get("function", {})
-                raw = fn.get("arguments", "{}")
-                if isinstance(raw, dict):
-                    raw = json.dumps(raw)
-                calls.append(
-                    {
-                        "id": tc.get("id", ""),
-                        "name": fn.get("name", ""),
-                        "args": raw,
-                    }
-                )
-            result[tool_call_key] = "pending"
-            result["_tool_calls"] = calls
-            messages.append(reply.message)
+        # The graph loop (agent → tool → agent) is what repeats, so the node
+        # itself must track how many times it has been visited.  Once the
+        # round budget is spent we stop signalling tools even if the model
+        # keeps asking, letting the loop end on this node.
+        round_key = f"_react_round_{ctx.node_id}"
+        round_count = int(state.get(round_key, 0)) + 1
+        result[round_key] = round_count
+        max_rounds = cfg.get("max_tool_rounds")
+        budget_spent = max_rounds is not None and round_count > max_rounds
+
+        if budget_spent:
+            content = reply.content or ""
+            messages.append({"role": "assistant", "content": content})
+            result[output_key] = content
+            result[tool_call_key] = ""
+            result["_tool_calls"] = []
         else:
-            content = reply.content
-            parsed = parse_text_tool_call(content) if tool_defs else None
-            if parsed:
-                name, args = parsed
+            tool_calls = reply.message.get("tool_calls")
+
+            if tool_calls:
+                calls: list[dict] = []
+                for tc in tool_calls:
+                    fn = tc.get("function", {})
+                    raw = fn.get("arguments", "{}")
+                    if isinstance(raw, dict):
+                        raw = json.dumps(raw)
+                    calls.append(
+                        {
+                            "id": tc.get("id", ""),
+                            "name": fn.get("name", ""),
+                            "args": raw,
+                        }
+                    )
                 result[tool_call_key] = "pending"
-                result["_tool_calls"] = [
-                    {
-                        "id": f"call_{len(messages)}",
-                        "name": name,
-                        "args": json.dumps(args),
-                    }
-                ]
-                messages.append({"role": "assistant", "content": content})
+                result["_tool_calls"] = calls
+                messages.append(reply.message)
             else:
-                result[output_key] = content
-                result[tool_call_key] = ""
-                result["_tool_calls"] = []
-                messages.append({"role": "assistant", "content": content})
+                content = reply.content
+                parse_cfg = cfg.get("parse_text_tool_calls", True)
+                if parse_cfg is None:
+                    parse_cfg = True
+                parsed = (
+                    parse_text_tool_call(content)
+                    if tool_defs and parse_cfg
+                    else None
+                )
+                if parsed:
+                    name, args = parsed
+                    result[tool_call_key] = "pending"
+                    result["_tool_calls"] = [
+                        {
+                            "id": f"call_{len(messages)}",
+                            "name": name,
+                            "args": json.dumps(args),
+                        }
+                    ]
+                    messages.append({"role": "assistant", "content": content})
+                else:
+                    result[output_key] = content
+                    result[tool_call_key] = ""
+                    result["_tool_calls"] = []
+                    messages.append({"role": "assistant", "content": content})
 
         if reducer_appends((ctx.reducers or {}).get(messages_key)):
             result[messages_key] = messages[start:]

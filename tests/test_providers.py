@@ -512,6 +512,68 @@ edges: []
         assert "default_provider:" in out
         assert "providers:" in out
 
+    def test_preset_name_merges_preset(self):
+        from draf.yaml import from_yaml
+
+        g = from_yaml(
+            """\
+name: p
+default_provider: ollama
+providers:
+  - name: ollama
+steps:
+  - id: s
+    type: transform
+    config: {action: trim}
+edges: []
+"""
+        )
+        p = g.providers["ollama"]
+        assert p.type == "ollama"
+        assert p.base_url == "http://localhost:11434"
+        assert p.chat_path == "/api/chat"
+
+    def test_preset_merge_overrides_only_listed_fields(self):
+        from draf.yaml import from_yaml
+
+        g = from_yaml(
+            """\
+name: p
+default_provider: ollama
+providers:
+  - name: ollama
+    base_url: http://remote:11434
+steps:
+  - id: s
+    type: transform
+    config: {action: trim}
+edges: []
+"""
+        )
+        p = g.providers["ollama"]
+        assert p.type == "ollama"
+        assert p.base_url == "http://remote:11434"
+        assert p.chat_path == "/api/chat"
+
+    def test_preset_merge_takes_custom_type(self):
+        from draf.yaml import from_yaml
+
+        g = from_yaml(
+            """\
+name: p
+default_provider: ollama
+providers:
+  - name: ollama
+    type: openai_compatible
+steps:
+  - id: s
+    type: transform
+    config: {action: trim}
+edges: []
+"""
+        )
+        assert g.providers["ollama"].type == "openai_compatible"
+
     def test_mapping_unknown_key_raises_config_error(self):
         from draf.yaml import from_yaml
 
