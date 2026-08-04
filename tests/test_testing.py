@@ -1,5 +1,7 @@
 import pytest
 
+from draf.provider import ProviderRegistry
+
 
 class TestFakeLLM:
     @pytest.mark.asyncio
@@ -62,7 +64,14 @@ class TestMockLLM:
 
         mock_llm.content = "42"
 
-        node = LLM({"model": "gpt-4", "prompt": "calc", "output_key": "answer"})
+        node = LLM(
+            {
+                "model": "gpt-4",
+                "prompt": "calc",
+                "output_key": "answer",
+                "provider": "openai",
+            }
+        )
         ctx = ExecContext(state={}, tools={})
         result = await node.execute(ctx, {})
         assert result["answer"] == "42"
@@ -73,7 +82,9 @@ class TestMockLLM:
     async def test_records_prompt_messages(self, mock_llm):
         from draf.node import LLM, ExecContext
 
-        node = LLM({"model": "gpt-4", "system": "sys", "prompt": "ask"})
+        node = LLM(
+            {"model": "gpt-4", "system": "sys", "prompt": "ask", "provider": "openai"}
+        )
         ctx = ExecContext(state={}, tools={})
         await node.execute(ctx, {})
         messages = mock_llm.calls[0]["messages"]
@@ -94,6 +105,7 @@ class TestMockLLM:
                 "model": "gpt-4",
                 "prompt": "return json",
                 "output_type": {"type": "object", "properties": {}},
+                "provider": "openai",
             }
         )
         ctx = ExecContext(state={}, tools={})
@@ -112,11 +124,13 @@ class TestMockLLM:
                         "model": "gpt-4",
                         "prompt": "answer",
                         "system": "be brief",
+                        "provider": "openai",
                     }
                 )
             },
             edges=[],
             entry_point="agent",
+            providers=ProviderRegistry.from_presets("openai"),
         )
         result = await g.run(state={})
         assert result["output"] == "mock"
@@ -128,9 +142,10 @@ class TestMockLLM:
         from draf.node import LLM
 
         g = Graph(
-            nodes={"a": LLM({"model": "gpt-4", "prompt": "hi"})},
+            nodes={"a": LLM({"model": "gpt-4", "prompt": "hi", "provider": "openai"})},
             edges=[],
             entry_point="a",
+            providers=ProviderRegistry.from_presets("openai"),
         )
         result = await g.run(state={})
         assert result["output"] == "mock"

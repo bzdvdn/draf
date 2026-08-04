@@ -14,6 +14,11 @@ state:
     type: ["кухни", "санузел", "балкона"]
     summ: [150000, 80000, 45000]
 
+providers:
+  - name: ollama
+    type: ollama
+    base_url: http://localhost:11434
+    chat_path: /api/chat
 steps:
   - id: plans
     type: map

@@ -17,6 +17,11 @@ state:
     talk: ""
     supervisor_rounds: 0
 
+providers:
+  - name: ollama
+    type: ollama
+    base_url: http://localhost:11434
+    chat_path: /api/chat
 steps:
   - id: supervisor
     type: supervisor

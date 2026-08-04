@@ -12,6 +12,11 @@ state:
   initial:
     text: I love this product!
 
+providers:
+  - name: ollama
+    type: ollama
+    base_url: http://localhost:11434
+    chat_path: /api/chat
 steps:
   - id: classify
     type: llm_chat

@@ -15,11 +15,9 @@ import asyncio
 import os
 import sys
 
-from draf import set_defaults
 from draf.flow import Flow
+from draf.provider import ProviderRegistry
 from draf.rag import RAGTool
-
-set_defaults(provider="ollama")
 
 _HERE = os.path.dirname(os.path.abspath(__file__))
 DOCS_CSV = os.path.join(_HERE, "docs.csv")
@@ -94,7 +92,11 @@ async def main(store: str):
         }
     )
 
-    flow = Flow(f"rag_{store}")
+    flow = Flow(
+        f"rag_{store}",
+        providers=ProviderRegistry.from_presets("ollama"),
+        default_provider="ollama",
+    )
     flow.react(
         model="llama3.1:8b",
         system=(

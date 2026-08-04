@@ -17,16 +17,18 @@ Usage:
 
 import asyncio
 
-from draf import set_defaults
 from draf.flow import Flow
-
-set_defaults(provider="ollama")
+from draf.provider import ProviderRegistry
 
 SYSTEM = "Ты инженер по ремонту."
 
 
 async def main():
-    flow = Flow("streaming")
+    flow = Flow(
+        "streaming",
+        providers=ProviderRegistry.from_presets("ollama"),
+        default_provider="ollama",
+    )
     flow.llm(
         model="llama3.1:8b",
         system=SYSTEM,

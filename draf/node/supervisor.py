@@ -32,7 +32,6 @@ from typing import AbstractSet
 
 from draf.harness import Harness
 from draf.node.context import last_user_message
-from draf.node.llm import LLM
 from draf.node.node import Node
 
 
@@ -176,7 +175,12 @@ class Supervisor(Node):
     ) -> str:
         """Render the context, call the model, return the parsed proposal."""
         cfg = self.config
-        harness = Harness.from_config(cfg, default_provider=LLM.DEFAULT_PROVIDER)
+        harness = Harness.from_config(
+            cfg,
+            default_provider=getattr(ctx, "default_provider", None),
+            default_model=getattr(ctx, "default_model", None),
+            providers=getattr(ctx, "providers", None),
+        )
         tracer = getattr(ctx, "tracer", None)
         if tracer is not None:
 

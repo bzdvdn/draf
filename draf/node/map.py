@@ -186,6 +186,8 @@ class Map(Node):
                 node_type=node.type,
                 tracer=ctx.tracer,
                 reducers=reducers,
+                providers=getattr(ctx, "providers", None),
+                default_provider=getattr(ctx, "default_provider", None),
             )
             start = time.monotonic()
             if ctx.tracer is not None:

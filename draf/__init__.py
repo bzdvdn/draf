@@ -17,7 +17,7 @@ from draf.errors import (
 from draf.eval import extract_output, load_dataset, run_eval
 from draf.flow import Case, Flow, SubFlow
 from draf.graph import Edge, Graph
-from draf.harness import Harness, provider_concurrency, set_provider_concurrency
+from draf.harness import Harness
 from draf.logging import (
     configure_logging,
     get_logger,
@@ -40,6 +40,16 @@ from draf.node import (
     Transform,
     default_registry,
     node,
+)
+from draf.provider import (
+    BUILTINS,
+    DEFAULT_PROVIDERS,
+    Provider,
+    ProviderRegistry,
+    provider_concurrency,
+    set_provider_concurrency,
+    to_provider_registry,
+    validate_provider_refs,
 )
 from draf.rag import Chunker, Embedder, ImageTool, PDFTool, RAGTool, VectorStore
 from draf.rag.stores import (
@@ -76,26 +86,7 @@ from draf.trace import (
 from draf.yaml import from_yaml
 from draf.yaml_schema import validate_workflow, validate_workflow_file
 
-
-def set_defaults(*, provider: str | None = None, **kwargs: object) -> None:
-    """Set global defaults for the draf framework.
-
-    Currently supported:
-        provider — Default LLM provider (e.g. ``"ollama"``, ``"openai"``).
-            Sets ``LLM.DEFAULT_PROVIDER`` so all LLM nodes use this
-            provider unless overridden per-node.
-
-    Usage::
-
-        from draf import set_defaults
-        set_defaults(provider="ollama")
-    """
-    if provider is not None:
-        LLM.DEFAULT_PROVIDER = provider
-
-
 __all__ = [
-    "set_defaults",
     "__version__",
     "configure_logging",
     "get_logger",
@@ -175,4 +166,10 @@ __all__ = [
     "load_dataset",
     "extract_output",
     "StreamEvent",
+    "Provider",
+    "ProviderRegistry",
+    "DEFAULT_PROVIDERS",
+    "BUILTINS",
+    "to_provider_registry",
+    "validate_provider_refs",
 ]

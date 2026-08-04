@@ -140,6 +140,56 @@ class TestExecute:
         assert result["supervisor_rounds"] == 1
 
 
+class TestAskModelGraph:
+    @pytest.mark.asyncio
+    async def test_ask_model_uses_default_model(self, monkeypatch):
+        from draf.graph import Graph
+        from draf.provider import ProviderRegistry
+
+        bodies = []
+
+        class _Resp:
+            def __init__(self, content):
+                self.content = content
+
+            def raise_for_status(self):
+                pass
+
+            def json(self):
+                return {
+                    "choices": [
+                        {"message": {"role": "assistant", "content": self.content}}
+                    ]
+                }
+
+        async def mock_post(self, url, headers=None, json=None):
+            bodies.append(json)
+            return _Resp("planner")
+
+        import httpx
+
+        monkeypatch.setattr(httpx.AsyncClient, "post", mock_post)
+
+        s = _supervisor(
+            model=None,
+            provider="openai",
+            route_keys={"planner": "plan", "reviewer": "review"},
+            done_keys=set(),
+        )
+        g = Graph(
+            nodes={"decider": s},
+            edges=[],
+            entry_point="decider",
+            providers=ProviderRegistry.from_presets("openai"),
+            default_model="m-default",
+        )
+        result = await g.run(
+            {"messages": [{"role": "user", "content": "hi"}], "plan": "", "review": ""}
+        )
+        assert result["next_agent"] == "planner"
+        assert bodies[0]["model"] == "m-default"
+
+
 class TestFlowHelper:
     def test_supervisor_helper_wires_node(self):
         from draf.node import LLM

@@ -43,23 +43,31 @@ from draf.harness.formats import (
     parse_text_tool_call,
 )
 from draf.harness.loop import Harness, ModelReply, Step
-from draf.harness.providers import (
-    PROVIDER_DEFAULTS,
-    provider_concurrency,
-    resolve_provider,
-    set_provider_concurrency,
-)
 from draf.harness.schema import tool_to_schema
 from draf.harness.tools import execute_tool_calls, resolve_approval
+from draf.provider import (
+    DEFAULT_PROVIDERS,
+    PROVIDER_DEFAULTS,
+    PROVIDER_TYPES,
+    Provider,
+    provider_concurrency,
+    resolve_provider,
+    resolve_provider_entry,
+    set_provider_concurrency,
+)
 
 __all__ = [
     "Harness",
     "ModelReply",
     "Step",
     "PROVIDER_DEFAULTS",
+    "DEFAULT_PROVIDERS",
+    "PROVIDER_TYPES",
+    "Provider",
     "provider_concurrency",
     "set_provider_concurrency",
     "resolve_provider",
+    "resolve_provider_entry",
     "tool_to_schema",
     "extract_message",
     "extract_content",

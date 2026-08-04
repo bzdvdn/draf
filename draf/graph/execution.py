@@ -32,6 +32,7 @@ from draf.node.context import ExecContext
 from draf.node.interrupt import GraphInterrupt
 from draf.node.node import Node
 from draf.node.registry import NodeRegistry, default_registry
+from draf.provider import ProviderRegistry
 from draf.state import Reducer, State, apply_reducers
 from draf.stream import StreamEvent
 from draf.tool.tool import Tool
@@ -77,6 +78,9 @@ async def execute(
     tracer: RunTracer | None = None,
     state_schema: dict | None = None,
     emit: "Callable[[StreamEvent], Awaitable[None]] | None" = None,
+    providers: "dict | ProviderRegistry | None" = None,
+    default_provider: str | None = None,
+    default_model: str | None = None,
 ) -> dict | State:
     """Run *graph* with run/session correlation ids in the log context."""
     run = new_run_id()
@@ -100,6 +104,9 @@ async def execute(
                 tracer=tracer,
                 state_schema=state_schema,
                 emit=emit,
+                providers=providers,
+                default_provider=default_provider,
+                default_model=default_model,
             )
         except GraphInterrupt:
             raise
@@ -126,6 +133,9 @@ async def _execute_impl(
     tracer: RunTracer | None = None,
     state_schema: dict | None = None,
     emit: "Callable[[StreamEvent], Awaitable[None]] | None" = None,
+    providers: "dict | ProviderRegistry | None" = None,
+    default_provider: str | None = None,
+    default_model: str | None = None,
 ) -> dict | State:
     """Shared execution core for :meth:`Graph.run` and :meth:`Graph.stream`.
 
@@ -141,6 +151,12 @@ async def _execute_impl(
         cid: str = checkpoint_id
     else:
         cid = ""
+
+    from draf.provider import to_provider_registry, validate_provider_refs
+
+    effective_providers = to_provider_registry(providers)
+    validate_provider_refs(effective_providers, default_provider, graph.nodes)
+    providers = effective_providers
 
     if state_schema:
         from draf.state.state import validate_state
@@ -256,6 +272,9 @@ async def _execute_impl(
                 tracer=tracer,
                 reducers=reducers,
                 emit=emit,
+                providers=providers,
+                default_provider=default_provider,
+                default_model=default_model,
             )
             start = time.monotonic()
 

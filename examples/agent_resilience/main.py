@@ -31,6 +31,7 @@ import asyncio
 import os
 
 from draf.flow import Flow
+from draf.provider import ProviderRegistry
 from draf.tool import Tool
 
 
@@ -87,7 +88,11 @@ def run_flow() -> None:
     calls = {"n": 0}
     patch_httpx(calls)
 
-    flow = Flow("resilient_agent")
+    flow = Flow(
+        "resilient_agent",
+        providers=ProviderRegistry.from_presets("openai"),
+        default_provider="openai",
+    )
     flow.harness(
         model="gpt-4",
         input_key="input",
@@ -127,6 +132,7 @@ def run_graph() -> None:
             Edge("tool", "agent"),
         ],
         entry_point="agent",
+        provider="openai",
     )
 
     result = asyncio.run(
@@ -140,7 +146,11 @@ def run_graph() -> None:
 
 def run_live() -> None:
     """Real model on an OpenAI-compatible endpoint (e.g. Ollama)."""
-    flow = Flow("resilient_agent")
+    flow = Flow(
+        "resilient_agent",
+        providers=ProviderRegistry.from_presets("ollama"),
+        default_provider="ollama",
+    )
     flow.harness(
         model="llama3.1:8b",
         input_key="query",

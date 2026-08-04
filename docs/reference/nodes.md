@@ -63,8 +63,8 @@ One model call. Provider, sampling, caching and retry keys are shared with
 
 | Key | Type | Default | Description |
 | --- | ---- | ------- | ----------- |
-| `model` | str | — | Model name (required) |
-| `provider` | str | `openai` | Provider key (see [Providers](providers.md)) |
+| `model` | str | — | Model name (required, or `default_model` on the graph) |
+| `provider` | str | — | Provider key (must be declared in `providers=`; see [Providers](providers.md)) |
 | `system` | str | — | System prompt (supports `{key}` templates) |
 | `prompt` | str | — | User prompt with `{key}` templates |
 | `input_key` | str | — | Read a single state key as the user message |

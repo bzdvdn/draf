@@ -12,6 +12,7 @@ pattern.
 from __future__ import annotations
 
 from draf.flow import Flow, agent_step
+from draf.provider import ProviderRegistry
 from src.graphs.prompts import CODER_PROMPT, SUPERVISOR_PROMPT, TALK_PROMPT
 
 MODEL_DEFAULT = "llama3.1:8b"
@@ -30,7 +31,7 @@ def build_flow(model: str = MODEL_DEFAULT, *, provider: str = "ollama"):
     *provider* is threaded into every agent's harness config (per-node) so
     the graph never touches the framework's global defaults.
     """
-    flow = Flow("simple_router")
+    flow = Flow("simple_router", providers=ProviderRegistry.from_presets(provider))
     flow.supervisor(
         system=SUPERVISOR_PROMPT,
         model=model,

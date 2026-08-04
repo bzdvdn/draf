@@ -24,15 +24,19 @@ from draf.harness.formats import (
     extract_usage,
     parse_text_tool_call,
 )
-from draf.harness.providers import (
-    _EXPLICIT_LIMITS,
-    _PROVIDER_SEMAPHORES,
-    PROVIDER_DEFAULTS,
-    resolve_provider,
-)
 from draf.harness.schema import tool_to_schema
 from draf.harness.tools import execute_tool_calls
 from draf.logging import get_logger
+from draf.provider import (
+    Provider,
+    ProviderRegistry,
+    resolve_provider,
+    resolve_provider_entry,
+)
+from draf.provider.providers import (
+    _EXPLICIT_LIMITS,
+    _PROVIDER_SEMAPHORES,
+)
 from draf.tool.tool import Tool
 
 log = get_logger(__name__)
@@ -117,10 +121,14 @@ class Harness:
 
     Args:
         model: Model name (e.g. ``gpt-4``, ``llama3.1:8b``).
-        provider: Provider name; falls back to *default_provider*, then
-            auto-detection from *model*.
+        provider: Provider name (``"openai"``, ``"ollama"``, etc.).
+            Falls back to *default_provider* when unset.
         base_url / api_key_env / chat_path / auth_header / auth_prefix:
             Overrides for the provider defaults.
+        providers: Optional ``{name: Provider}`` map or
+            :class:`~draf.provider.ProviderRegistry` (custom providers
+            declared in a workflow / passed to ``graph.run``).  Entries
+            are resolved before the built-in presets.
         timeout: HTTP timeout in seconds.
         max_rounds: Maximum model calls for :meth:`run`.
         parse_text_tool_calls: Decode text-embedded tool calls.
@@ -132,7 +140,9 @@ class Harness:
         on_token: Token callback for streaming.
         temperature / max_tokens / response_format: Default body extras.
         stream: Stream tokens by default (disabled while tools are active).
-        default_provider: Fallback provider (e.g. ``set_defaults``).
+        default_provider: Fallback provider name (the graph-level default,
+            e.g. ``Graph(default_provider="ollama")`` or a workflow
+            ``default_provider:``).
     """
 
     def __init__(
@@ -140,12 +150,13 @@ class Harness:
         *,
         model: str,
         provider: str | None = None,
+        providers: "dict[str, Provider] | ProviderRegistry | None" = None,
         base_url: str = "",
         api_key_env: str = "",
         chat_path: str = "",
         auth_header: str = "",
         auth_prefix: str = "",
-        timeout: float = 120,
+        timeout: float | None = 120,
         max_rounds: int = 10,
         parse_text_tool_calls: bool = True,
         tool_error_mode: str = "message",
@@ -172,7 +183,7 @@ class Harness:
         default_provider: str | None = None,
     ):
         self.model = model
-        self.timeout = timeout
+        self.timeout = timeout or 120
         self.max_rounds = max_rounds
         self.parse_text_tool_calls = parse_text_tool_calls
         self.tool_error_mode = tool_error_mode
@@ -199,14 +210,17 @@ class Harness:
         elif cache is not None:
             self._cache = cache
 
-        self.provider_key = resolve_provider(model, provider, default_provider)
-        defaults = PROVIDER_DEFAULTS.get(self.provider_key, PROVIDER_DEFAULTS["openai"])
+        self.provider_key = resolve_provider(provider, default_provider)
+        entry = resolve_provider_entry(self.provider_key, providers)
+        self.type = entry.type
+        if not self.timeout or self.timeout <= 0:
+            self.timeout = entry.timeout or 120
 
         resolved_url = base_url or os.environ.get(
-            f"{self.provider_key.upper()}_BASE_URL", defaults["base_url"]
+            f"{self.provider_key.upper()}_BASE_URL", entry.base_url
         )
-        resolved_env = api_key_env or defaults["api_key_env"]
-        resolved_path = chat_path or defaults["chat_path"]
+        resolved_env = api_key_env or entry.api_key_env
+        resolved_path = chat_path or entry.chat_path
 
         api_key = ""
         if resolved_env:
@@ -215,9 +229,9 @@ class Harness:
             api_key = os.environ.get("LLM_API_KEY", "")
 
         headers = {"Content-Type": "application/json"}
-        hdr_name = auth_header or defaults["auth_header"]
+        hdr_name = auth_header or entry.auth_header
         if hdr_name and api_key:
-            hdr_prefix = auth_prefix or defaults["auth_prefix"]
+            hdr_prefix = auth_prefix or entry.auth_prefix
             headers[hdr_name] = f"{hdr_prefix}{api_key}"
 
         self._url = f"{resolved_url}{resolved_path}"
@@ -236,24 +250,22 @@ class Harness:
         # order when the primary request fails after all retries.
         self._fallback_transports: list[tuple[str, str, dict]] = []
         for fb_model in self.fallbacks:
-            fb_provider = resolve_provider(fb_model, default_provider=default_provider)
-            fb_defaults = PROVIDER_DEFAULTS.get(
-                fb_provider, PROVIDER_DEFAULTS["openai"]
-            )
+            fb_provider = self.provider_key
+            fb_entry = resolve_provider_entry(fb_provider, providers)
             fb_url = base_url or os.environ.get(
-                f"{fb_provider.upper()}_BASE_URL", fb_defaults["base_url"]
+                f"{fb_provider.upper()}_BASE_URL", fb_entry.base_url
             )
-            fb_env = api_key_env or fb_defaults["api_key_env"]
-            fb_path = chat_path or fb_defaults["chat_path"]
+            fb_env = api_key_env or fb_entry.api_key_env
+            fb_path = chat_path or fb_entry.chat_path
             fb_key = ""
             if fb_env:
                 fb_key = os.environ.get(fb_env, "")
             if not fb_key:
                 fb_key = os.environ.get("LLM_API_KEY", "")
             fb_headers = {"Content-Type": "application/json"}
-            fb_hdr = auth_header or fb_defaults["auth_header"]
+            fb_hdr = auth_header or fb_entry.auth_header
             if fb_hdr and fb_key:
-                fb_prefix = auth_prefix or fb_defaults["auth_prefix"]
+                fb_prefix = auth_prefix or fb_entry.auth_prefix
                 fb_headers[fb_hdr] = f"{fb_prefix}{fb_key}"
             self._fallback_transports.append(
                 (fb_model, f"{fb_url}{fb_path}", fb_headers)
@@ -267,7 +279,12 @@ class Harness:
 
     @classmethod
     def from_config(
-        cls, cfg: dict, *, default_provider: str | None = None
+        cls,
+        cfg: dict,
+        *,
+        default_provider: str | None = None,
+        default_model: str | None = None,
+        providers: "dict[str, Provider] | ProviderRegistry | None" = None,
     ) -> "Harness":
         """Build a harness from a node config dict.
 
@@ -277,16 +294,34 @@ class Harness:
         ``tool_retries``, ``max_retries``, ``fallbacks``,
         ``max_total_tokens``, ``max_context_tokens`` and
         ``max_context_messages``.
+
+        *providers* is an optional ``{name: Provider}`` map or
+        :class:`~draf.provider.ProviderRegistry` (custom providers from
+        the workflow) consulted before the built-in presets.
+
+        The model name comes from ``cfg["model"]`` or, when absent,
+        *default_model* (the graph-level default).  When neither is set a
+        :class:`ConfigError` is raised — there is no silent model default.
         """
+        model = cfg.get("model") or default_model
+        if not model:
+            from draf.errors import ConfigError
+
+            raise ConfigError(
+                "no model configured: set `model=` on the node or pass "
+                "`default_model=` to the graph / `default_model:` in the "
+                "workflow"
+            )
         return cls(
-            model=str(cfg.get("model", "gpt-4")),
+            model=str(model),
             provider=cfg.get("provider"),
+            providers=providers,
             base_url=cfg.get("base_url") or "",
             api_key_env=cfg.get("api_key_env") or "",
             chat_path=cfg.get("chat_path") or "",
             auth_header=cfg.get("auth_header") or "",
             auth_prefix=cfg.get("auth_prefix") or "",
-            timeout=float(cfg.get("timeout") or 120),
+            timeout=_opt_float(cfg.get("timeout")),
             max_rounds=int(cfg.get("max_tool_rounds") or 10),
             parse_text_tool_calls=bool(cfg.get("parse_text_tool_calls", True)),
             tool_error_mode=str(cfg.get("tool_error_mode", "message")),
@@ -315,7 +350,7 @@ class Harness:
         )
 
     def _body(self, messages: list[dict], tools: list[dict] | None = None) -> dict:
-        if self.provider_key == "anthropic":
+        if self.type == "anthropic_compatible":
             return self._anthropic_body(messages, tools)
         body: dict = {"model": self.model, "messages": messages, **self._body_extra}
         if tools:
@@ -531,7 +566,7 @@ class Harness:
 
     def _stream_token(self, chunk: dict) -> str:
         """Extract a text delta from a streaming chunk (provider-aware)."""
-        if self.provider_key == "anthropic":
+        if self.type == "anthropic_compatible":
             delta = chunk.get("delta") or {}
             if delta.get("type") == "text_delta":
                 return str(delta.get("text", ""))
@@ -600,13 +635,13 @@ class Harness:
                 data = await self._post(body)
                 if self._cache is not None and cache_key is not None:
                     self._cache[cache_key] = json.dumps(data, default=str)
-            if self.provider_key == "anthropic":
+            if self.type == "anthropic_compatible":
                 msg = _anthropic_to_message(data)
                 content = msg.get("content", "")
             else:
                 msg = extract_message(data)
                 content = extract_content(
-                    data, self.provider_key, content_path, msg.get("content", "")
+                    data, self.type, content_path, msg.get("content", "")
                 )
             prompt, completion = extract_usage(data)
             usage = {"prompt": prompt, "completion": completion}

@@ -18,14 +18,12 @@ Usage:
 import asyncio
 import time
 
-from draf import set_defaults
 from draf.flow import Flow
 from draf.graph import Edge, Graph
 from draf.node import Transform
 from draf.node.agent import ReActAgent, ToolExec
+from draf.provider import ProviderRegistry
 from draf.tool import Tool
-
-set_defaults(provider="ollama")
 
 # Tiny fictional "upstream" database. The chat model has never seen it, so
 # it MUST call the tools to answer.
@@ -61,7 +59,11 @@ class CityPopulation(Tool):
 
 async def run_parallel() -> None:
     """Two tools requested in one turn run side by side (single round)."""
-    flow = Flow("harness_parallel")
+    flow = Flow(
+        "harness_parallel",
+        providers=ProviderRegistry.from_presets("ollama"),
+        default_provider="ollama",
+    )
     flow.harness(
         model="llama3.1:8b",
         system=(
@@ -117,6 +119,7 @@ async def run_error_fallback() -> None:
             Edge("tool", "fallback", "__error__"),
         ],
         entry_point="agent",
+        provider="ollama",
     )
 
     print("\n=== tool_error_mode='raise' + __error__ edge ===")

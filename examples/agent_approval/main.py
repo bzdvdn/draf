@@ -26,14 +26,12 @@ import asyncio
 import os
 import tempfile
 
-from draf import set_defaults
 from draf.checkpoint import JSONFileCheckpointer
 from draf.flow import Flow
 from draf.node import Node
 from draf.node.interrupt import GraphInterrupt
+from draf.provider import ProviderRegistry
 from draf.tool import Tool
-
-set_defaults(provider="ollama")
 
 
 class Calculator(Tool):
@@ -54,7 +52,11 @@ async def human_approval(name, args):
 
 def build_flow_graph():
     """Idiomatic version — ``flow.harness()`` wires the agent loop."""
-    flow = Flow("approval_agent")
+    flow = Flow(
+        "approval_agent",
+        providers=ProviderRegistry.from_presets("ollama"),
+        default_provider="ollama",
+    )
     flow.harness(
         model="llama3.1:8b",
         input_key="input",
@@ -81,6 +83,7 @@ def build_low_level_graph():
             Edge("tool", "agent"),
         ],
         entry_point="agent",
+        default_provider="ollama",
     )
 
 
@@ -155,7 +158,11 @@ def build_loop_graph():
         "use_tools": False,
     }
 
-    flow = Flow("approval_loop")
+    flow = Flow(
+        "approval_loop",
+        providers=ProviderRegistry.from_presets("ollama"),
+        default_provider="ollama",
+    )
     flow.step(ReActAgent(agent_cfg))  # emits a tool call
     flow.interrupt("tool_approval", prompt="Approve the tool call?")
     flow.loop(

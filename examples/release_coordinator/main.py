@@ -42,6 +42,7 @@ from draf.logging import configure_logging
 from draf.node import LLM, Interrupt, Map
 from draf.node import Supervisor as BaseSupervisor
 from draf.node.interrupt import GraphInterrupt
+from draf.provider import ProviderRegistry
 from draf.trace import RunTracer
 
 # ---------------------------------------------------------------------------
@@ -187,7 +188,9 @@ def build_flow(model: str, provider: str) -> Flow:
             id=name,
         )
 
-    flow = Flow("release-coordinator")
+    flow = Flow(
+        "release-coordinator", providers=ProviderRegistry.from_presets(provider)
+    )
 
     # 1. Supervisor loop: planner -> estimator -> tester -> approve -> finish.
     #    One node owns the routing (renders section progress, gets a model

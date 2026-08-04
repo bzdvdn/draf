@@ -199,6 +199,7 @@ class TestLLMStructuredOutput:
                     },
                     "required": ["name", "age"],
                 },
+                "provider": "openai",
             }
         )
         result = await node.execute(ExecContext(state={}, tools={}), {})
@@ -229,6 +230,7 @@ class TestLLMStructuredOutput:
                     "required": ["name", "age"],
                 },
                 "max_retries": 2,
+                "provider": "openai",
             }
         )
         result = await node.execute(ExecContext(state={}, tools={}), {})
@@ -252,6 +254,7 @@ class TestLLMStructuredOutput:
                     "properties": {"name": {"type": "string"}},
                 },
                 "max_retries": 2,
+                "provider": "openai",
             }
         )
         with pytest.raises(StructuredOutputError) as exc_info:
@@ -273,7 +276,14 @@ class TestLLMStructuredOutput:
             city: str
             temp: float
 
-        node = LLM({"model": "gpt-4", "output_key": "weather", "output_type": Weather})
+        node = LLM(
+            {
+                "model": "gpt-4",
+                "output_key": "weather",
+                "output_type": Weather,
+                "provider": "openai",
+            }
+        )
         result = await node.execute(ExecContext(state={}, tools={}), {})
         assert result["weather"] == {"city": "Москва", "temp": 22.5}
         assert mock.bodies[0]["response_format"] == {"type": "json_object"}
@@ -305,7 +315,14 @@ class TestLLMStructuredOutput:
 
         monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
         mock_llm(['here is the json: {"a": [1, 2]}'])
-        node = LLM({"model": "gpt-4", "output_key": "parsed", "parse": True})
+        node = LLM(
+            {
+                "model": "gpt-4",
+                "output_key": "parsed",
+                "parse": True,
+                "provider": "openai",
+            }
+        )
         result = await node.execute(ExecContext(state={}, tools={}), {})
         assert result["parsed"] == {"a": [1, 2]}
 
@@ -315,7 +332,14 @@ class TestLLMStructuredOutput:
 
         monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
         mock_llm(["not json"])
-        node = LLM({"model": "gpt-4", "output_key": "parsed", "parse": True})
+        node = LLM(
+            {
+                "model": "gpt-4",
+                "output_key": "parsed",
+                "parse": True,
+                "provider": "openai",
+            }
+        )
         with pytest.raises(StructuredOutputError):
             await node.execute(ExecContext(state={}, tools={}), {})
 
@@ -340,6 +364,7 @@ class TestLLMStructuredOutput:
                     "properties": {"name": {"type": "string"}},
                 },
                 "max_retries": 2,
+                "provider": "openai",
             }
         )
         tracer = RunTracer()
@@ -366,6 +391,7 @@ class TestLLMStructuredOutput:
                     "properties": {"name": {"type": "string"}},
                 },
                 "max_retries": 2,
+                "provider": "openai",
             }
         )
         events = []

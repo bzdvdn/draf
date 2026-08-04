@@ -543,6 +543,33 @@ edges: []
         assert isinstance(node, SubFlow)
         assert node.config["build"]["output_key"] == "answer"
 
+    def test_subflow_build_rejects_recipe_providers(self, tmp_path):
+        from draf.errors import ConfigError
+        from draf.yaml import load_workflow
+
+        path = tmp_path / "wf.yaml"
+        path.write_text(
+            """\
+name: agent-wf
+steps:
+  - id: a
+    type: subflow
+    config:
+      build:
+        type: agent_step
+        system: You are helpful
+        output_key: answer
+        model: fake-model
+        provider: fake
+        providers:
+          - name: fake
+            type: openai_compatible
+edges: []
+"""
+        )
+        with pytest.raises(ConfigError, match="top-level `providers:`"):
+            load_workflow(str(path))
+
     def test_subflow_requires_graph_or_build(self, tmp_path):
         from draf.errors import ConfigError
         from draf.yaml import load_workflow

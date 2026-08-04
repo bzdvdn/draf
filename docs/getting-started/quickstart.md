@@ -59,18 +59,20 @@ equivalent of the YAML above:
 
 ```python
 import asyncio
-from draf import set_defaults
 from draf.flow import Flow, Case
 from draf.node import LLM, Transform
-
-set_defaults(provider="ollama")
+from draf.provider import ProviderRegistry
 
 
 async def main():
-    flow = Flow("sentiment-router")
+    flow = Flow(
+        "sentiment-router",
+        providers=ProviderRegistry.from_presets("ollama"),
+        default_provider="ollama",
+        default_model="llama3.1:8b",
+    )
     flow.step(
         LLM(
-            model="llama3.1:8b",
             system='Classify the sentiment. Reply "positive" or "negative".',
             input_key="text",
             output_key="sentiment",

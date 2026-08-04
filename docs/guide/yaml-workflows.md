@@ -35,6 +35,72 @@ edges:                       # routing
     to: fallback
 ```
 
+## Custom providers
+
+Declare every provider exactly as it is configured in a top-level
+`providers:` list. The block is the **single source of truth** — a provider
+used by any step's `provider:`, by `default_provider:`, or by `default_model:`
+must be declared here, and there is no implicit built-in fallback. Each entry
+is a `{name, ...}` mapping that spells out the endpoint:
+
+```yaml
+providers:
+  - name: vllm
+    base_url: http://vllm:8000/v1           # type defaults to openai_compatible
+  - name: claude-proxy
+    type: anthropic_compatible              # Anthropic wire protocol
+    base_url: http://proxy
+    chat_path: /v1/messages
+    api_key_env: CLAUDE_PROXY_KEY
+  - name: ollama
+    type: ollama
+    base_url: http://localhost:11434
+    chat_path: /api/chat
+
+steps:
+  - id: answer
+    type: llm_chat
+    config:
+      model: meta-llama/Llama-3.3-70B-Instruct
+      provider: vllm                        # must be declared in providers:
+```
+
+Bare preset-name strings are rejected — every provider is spelled out, so the
+file says exactly what is configured. Each `name` must be unique, and only the
+recognised provider fields may appear (a stray key is an error). Referencing a
+provider name that is not declared here raises `ConfigError`.
+
+The block round-trips through `workflow_to_yaml` / `Flow.to_yaml()`, and the
+graph exposes it as `graph.providers` (a `{name: Provider}` map). In code you
+can pass the same map straight to `graph.run(state, providers=...)`, which
+overrides `graph.providers` for that run.
+
+### Default provider for the whole workflow
+
+A top-level `default_provider:` picks the default for every `llm_chat` /
+`react_agent` step that doesn't name one — the YAML equivalent of
+`Flow("...", default_provider=...)`:
+
+```yaml
+default_provider: ollama
+default_model: llama3.1:8b
+providers:
+  - name: ollama
+    type: ollama
+    base_url: http://localhost:11434
+    chat_path: /api/chat
+name: chat
+steps:
+  - id: answer
+    type: llm_chat
+    config: {}
+```
+
+`default_model:` supplies the model for steps that omit their own `model:`
+(`LLM(model=...)` still wins). Neither `default_provider` nor `model` /
+`default_model` resolved? The step raises `ConfigError`. Steps may still
+override the default with their own `provider:` / `model:`.
+
 ## The `${ENV}` interpolation
 
 Every value in the document is interpolated against the process environment.

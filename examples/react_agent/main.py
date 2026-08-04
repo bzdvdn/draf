@@ -10,11 +10,9 @@ Usage:
 
 import asyncio
 
-from draf import set_defaults
 from draf.flow import Flow
+from draf.provider import ProviderRegistry
 from draf.tool import Tool
-
-set_defaults(provider="ollama")
 
 
 class Calculator(Tool):
@@ -29,7 +27,11 @@ class Calculator(Tool):
 
 
 async def main():
-    flow = Flow("react_agent")
+    flow = Flow(
+        "react_agent",
+        providers=ProviderRegistry.from_presets("ollama"),
+        default_provider="ollama",
+    )
     flow.react(
         model="llama3.1:8b",
         system="You are a helpful assistant with calculator access. "

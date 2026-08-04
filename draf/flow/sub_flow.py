@@ -56,6 +56,9 @@ class SubFlow(Node):
             tools=list(ctx.tools.values()),
             max_iterations=self._max_iterations,
             emit=self._forward(ctx.emit),
+            providers=getattr(ctx, "providers", None),
+            default_provider=getattr(ctx, "default_provider", None),
+            default_model=getattr(ctx, "default_model", None),
         )
 
         out = {}
@@ -82,6 +85,9 @@ class SubFlow(Node):
             nodes=nodes,
             edges=edges,
             entry_point=f"{prefix}/{graph.entry_point}",
+            providers=graph.providers,
+            default_provider=graph.default_provider,
+            default_model=graph.default_model,
         )
 
     @staticmethod

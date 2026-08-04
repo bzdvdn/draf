@@ -13,6 +13,7 @@ from __future__ import annotations
 
 from draf.flow import Flow
 from draf.graph import Graph
+from draf.provider import ProviderRegistry
 from draf.tool import Tool
 
 DEFAULT_MODEL = "llama3.1:8b"
@@ -50,7 +51,11 @@ def build_chat() -> Graph:
     events).  Conversation accumulates in the ``messages`` state key,
     which is durable via the checkpointer.
     """
-    flow = Flow("chat")
+    flow = Flow(
+        "chat",
+        providers=ProviderRegistry.from_presets("ollama"),
+        default_provider="ollama",
+    )
     flow.react(
         model=DEFAULT_MODEL,
         system=CHAT_SYSTEM,
@@ -68,7 +73,11 @@ def build_calculator() -> Graph:
     Tool calls and results surface as ``node_start``/``node_end`` and
     ``llm`` stream events as the ``agent -> tool_exec`` cycle runs.
     """
-    flow = Flow("calculator")
+    flow = Flow(
+        "calculator",
+        providers=ProviderRegistry.from_presets("ollama"),
+        default_provider="ollama",
+    )
     flow.react(
         model=DEFAULT_MODEL,
         system=CALCULATOR_SYSTEM,
@@ -82,7 +91,11 @@ def build_calculator() -> Graph:
 
 def build_summarize() -> Graph:
     """Single-shot LLM transform: ``{text}`` -> ``{summary}``."""
-    flow = Flow("summarize")
+    flow = Flow(
+        "summarize",
+        providers=ProviderRegistry.from_presets("ollama"),
+        default_provider="ollama",
+    )
     flow.llm(
         model=DEFAULT_MODEL,
         system=SUMMARIZE_SYSTEM,

@@ -21,6 +21,11 @@ state:
   initial:
     query: What is the mascot of Draf, and what does it ride?
 
+providers:
+  - name: ollama
+    type: ollama
+    base_url: http://localhost:11434
+    chat_path: /api/chat
 steps:
   - id: agent
     type: react_agent

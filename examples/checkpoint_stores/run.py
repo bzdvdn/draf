@@ -1,10 +1,10 @@
 """Run any durable workflow from a YAML file — CLI emulation.
 
 Each store example has its own workflow.yaml with a ``checkpoint:``
-block describing the backend.  The workflow contains a ``failing``
-node that raises once on the first run (simulating a transient crash),
-then a re-run with the same ``checkpoint_id`` resumes from the saved
-checkpoint and completes.
+block describing the backend and a ``plugins:`` entry loading the
+``failing`` node (see ``failing.py``), which raises once on the first
+run (simulating a transient crash).  A re-run with the same
+``checkpoint_id`` resumes from the saved checkpoint and completes.
 
 Usage:
     uv run python examples/checkpoint_stores/run.py <path/to/workflow.yaml>
@@ -14,23 +14,7 @@ import asyncio
 import os
 import sys
 
-from draf.node import node
 from draf.yaml import load_workflow
-
-# Simulates a transient external failure (network blip, timeout).  Lives
-# outside the workflow state because state is restored to the pre-node
-# checkpoint on resume.
-_crash_once = {"armed": True}
-
-
-@node("failing")
-async def failing_node(ctx, state):
-    """Raises on the first execution, succeeds afterwards."""
-    if _crash_once["armed"]:
-        _crash_once["armed"] = False
-        raise RuntimeError("simulated transient failure")
-    state["recovered"] = True
-    return state
 
 
 def _resolve_checkpoint_config(config: dict, base_dir: str) -> dict:

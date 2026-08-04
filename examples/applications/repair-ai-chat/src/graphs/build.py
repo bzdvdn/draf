@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from draf.flow import Flow, agent_step
+from draf.provider import ProviderRegistry
 from src.core.deps import build_deps
 from src.graphs.prompts import (
     DIRECT_PROMPT,
@@ -65,7 +66,9 @@ def build_flow(
     catalog = catalog if catalog is not None else build_deps(provider=provider)[1]
     tools = build_tools(services, catalog)
 
-    flow = Flow("production-repair-ai")
+    flow = Flow(
+        "production-repair-ai", providers=ProviderRegistry.from_presets(provider)
+    )
     flow.supervisor(
         system=SUPERVISOR_PROMPT,
         model=model,

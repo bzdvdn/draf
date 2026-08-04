@@ -12,11 +12,9 @@ Usage:
 
 import asyncio
 
-from draf import set_defaults
 from draf.graph import Edge, Graph
 from draf.node import LLM
-
-set_defaults(provider="ollama")
+from draf.provider import ProviderRegistry
 
 
 async def main():
@@ -40,6 +38,8 @@ async def main():
         },
         edges=[Edge("draft", "final")],
         entry_point="draft",
+        default_provider="ollama",
+        providers=ProviderRegistry.from_presets("ollama"),
     )
 
     async for event in graph.stream({}):

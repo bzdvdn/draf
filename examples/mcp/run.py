@@ -16,17 +16,19 @@ import asyncio
 import sys
 from pathlib import Path
 
-from draf import set_defaults
 from draf.flow import Flow
+from draf.provider import ProviderRegistry
 from draf.tool import mcp_tools
-
-set_defaults(provider="ollama")
 
 SERVER = Path(__file__).resolve().parent / "server.py"
 
 
 async def main():
-    flow = Flow("mcp_agent")
+    flow = Flow(
+        "mcp_agent",
+        providers=ProviderRegistry.from_presets("ollama"),
+        default_provider="ollama",
+    )
     flow.react(
         model="llama3.1:8b",
         system=(

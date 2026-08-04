@@ -13,6 +13,11 @@ from draf.graph.render import to_mermaid
 from draf.node.interrupt import GraphInterrupt
 from draf.node.node import Node
 from draf.node.registry import NodeRegistry
+from draf.provider import (
+    Provider,
+    ProviderRegistry,
+    to_provider_registry,
+)
 from draf.state import Reducer, State
 from draf.stream import StreamEvent
 from draf.tool.tool import Tool
@@ -45,10 +50,21 @@ class Graph:
     ``on_node_error`` additionally receives the exception.
     """
 
-    def __init__(self, nodes: dict[str, Node], edges: list[Edge], entry_point: str):
+    def __init__(
+        self,
+        nodes: dict[str, Node],
+        edges: list[Edge],
+        entry_point: str,
+        providers: "dict[str, Provider] | ProviderRegistry | None" = None,
+        default_provider: str | None = None,
+        default_model: str | None = None,
+    ):
         self.nodes = nodes
         self.edges = edges
         self.entry_point = entry_point
+        self.providers: ProviderRegistry = to_provider_registry(providers)
+        self.default_provider: str | None = default_provider
+        self.default_model: str | None = default_model
 
     async def run(
         self,
@@ -66,12 +82,24 @@ class Graph:
         tracer: RunTracer | None = None,
         state_schema: dict | None = None,
         emit: "Callable[[StreamEvent], Awaitable[None]] | None" = None,
+        providers: "dict[str, Provider] | ProviderRegistry | None" = None,
+        default_provider: str | None = None,
+        default_model: str | None = None,
     ) -> dict | State:
         """Execute the graph starting from the entry point.
 
         Args:
             state: Initial workflow state (plain ``dict`` or :class:`State`).
             tools: Optional list of Tool instances available to nodes.
+            providers: Optional ``{name: Provider}`` map or
+                :class:`~draf.provider.ProviderRegistry` consulted by LLM
+                nodes before the built-in presets.  Defaults to
+                ``graph.providers`` (populated from a workflow's
+                ``providers:`` block when loaded from YAML).
+            default_provider: Optional default provider name used by LLM
+                nodes that don't set ``provider`` themselves.  Defaults to
+                ``graph.default_provider`` (``Graph(default_provider=...)``
+                or a workflow's top-level ``default_provider:``).
             registry: Node registry (defaults to ``default_registry``).
             reducers: Per-key merge strategies
                 (see :func:`draf.state.reducers_from_typeddict`).
@@ -146,6 +174,13 @@ class Graph:
                 tracer=tracer,
                 state_schema=state_schema,
                 emit=emit,
+                providers=providers if providers is not None else self.providers,
+                default_provider=default_provider
+                if default_provider is not None
+                else self.default_provider,
+                default_model=default_model
+                if default_model is not None
+                else self.default_model,
             )
         except GraphInterrupt:
             raise
@@ -180,6 +215,9 @@ class Graph:
         resume: dict | None = None,
         tracer: RunTracer | None = None,
         state_schema: dict | None = None,
+        providers: "dict[str, Provider] | ProviderRegistry | None" = None,
+        default_provider: str | None = None,
+        default_model: str | None = None,
     ) -> AsyncIterator[StreamEvent]:
         """Stream events as the graph executes.
 
@@ -231,6 +269,15 @@ class Graph:
                         tracer=tracer,
                         state_schema=state_schema,
                         emit=_emit,
+                        providers=providers
+                        if providers is not None
+                        else self.providers,
+                        default_provider=default_provider
+                        if default_provider is not None
+                        else self.default_provider,
+                        default_model=default_model
+                        if default_model is not None
+                        else self.default_model,
                     )
                 except GraphInterrupt:
                     return

@@ -21,11 +21,8 @@ import asyncio
 import json
 from typing import TypedDict
 
-from draf import set_defaults
 from draf.graph import Edge, Graph
 from draf.node import LLM
-
-set_defaults(provider="ollama")
 
 
 class RepairPlan(TypedDict):
@@ -55,6 +52,7 @@ async def main():
         },
         edges=[Edge("plan", "fallback", "__error__")],
         entry_point="plan",
+        provider="ollama",
     )
 
     result = await graph.run({})

@@ -1,4 +1,5 @@
 name: durable-sqlite
+plugins: [../failing.py]
 checkpoint:
   type: sqlite
   path: ./checkpoints.db

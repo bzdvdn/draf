@@ -17,13 +17,11 @@ Usage:
 import asyncio
 from typing import Annotated, TypedDict
 
-from draf import set_defaults
 from draf.flow import Flow
 from draf.node import LLM
+from draf.provider import ProviderRegistry
 from draf.state import State
 from draf.trace import RunTracer
-
-set_defaults(provider="ollama")
 
 SYSTEM = (
     "Ты инженер по ремонту. Составь краткий план работ по заданию "
@@ -44,7 +42,11 @@ class RepairState(TypedDict):
 
 
 async def main():
-    flow = Flow("repair-plans").map(
+    flow = Flow(
+        "repair-plans",
+        providers=ProviderRegistry.from_presets("ollama"),
+        default_provider="ollama",
+    ).map(
         LLM(
             model="llama3.1:8b",
             system=SYSTEM,

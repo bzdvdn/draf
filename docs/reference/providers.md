@@ -1,12 +1,14 @@
 # Providers
 
-`Harness` (and the `LLM` / `react()` / `harness()` nodes) speaks the OpenAI
-chat-completions format by default and ships presets for several providers —
-just pick a provider key and set the matching API key env var.
+A provider is a named model endpoint: how to speak to it (`type` — see
+`Provider` below) and where it lives (`base_url` / `chat_path` / auth keys).
+`Harness`, `LLM`, `react()` and `supervisor()` nodes route model calls through
+a provider. Built-in **presets** (subclasses) carry the defaults for the
+common providers; you declare exactly which ones you use.
 
-| `provider` | API key env var | Notes |
-| ---------- | --------------- | ----- |
-| `openai` | `OPENAI_API_KEY` | default |
+| preset | API key env var | Notes |
+| ------ | --------------- | ----- |
+| `openai` | `OPENAI_API_KEY` | |
 | `anthropic` | `ANTHROPIC_API_KEY` | responses normalised to OpenAI shape |
 | `deepseek` | `DEEPSEEK_API_KEY` | |
 | `mistral` | `MISTRAL_API_KEY` | |
@@ -31,11 +33,121 @@ reply = await harness.call([{"role": "user", "content": "hi"}])
 print(reply.content, reply.cached, reply.latency_ms)
 ```
 
+A bare, standalone `Harness` (`providers=None`) falls back to the built-in
+preset matching `provider`. Anywhere a graph or workflow supplies a
+`providers=` map / registry, the rule is **strict**: a provider is only usable
+after it has been explicitly declared there (see below).
+
 `Harness.from_config(cfg)` builds a harness from a node config dict (the same
 keys `LLM` / `ReActAgent` accept), so Python and YAML stay in lockstep. In
 YAML the `llm_chat` / `react_agent` nodes map `provider`, `base_url`,
 `api_key_env`, `chat_path`, `fallbacks`, `cache`, `max_retries`, and the other
 transport keys straight through.
+
+## Resolving provider and model
+
+There is no global default provider *or* model. Per node, the resolution is:
+
+1. the **provider**: the node's explicit `provider=`, else the graph-level
+   `default_provider=` (`Graph(...)`, `Flow("...", default_provider=...)`, or
+   a workflow's top-level `default_provider:`);
+2. the **model**: the node's explicit `model=`, else the graph-level
+   `default_model=`.
+
+If neither is set, the node raises `ConfigError` — there is no silent fallback
+(no implicit `"gpt-4"`). The resolved provider must be *declared* in the
+`providers=` map / `providers:` block (see below).
+
+```python
+from draf.flow import Flow
+from draf.provider import ProviderRegistry
+
+flow = Flow(
+    "repair",
+    providers=ProviderRegistry.from_presets("ollama"),
+    default_provider="ollama",
+    default_model="llama3.1:8b",
+)
+flow.llm()  # inherits provider="ollama" and default_model="llama3.1:8b"
+```
+
+A node can still override the graph default with its own `provider=` / `model=`.
+
+## The `Provider` value object
+
+Under the hood each provider is a `Provider` — a lightweight value object that
+picks the wire protocol and the endpoint:
+
+```python
+from draf import Provider
+
+Provider(type="anthropic_compatible", base_url="http://proxy", chat_path="/v1/messages")
+```
+
+`type` is the protocol discriminator — `openai_compatible`,
+`anthropic_compatible`, or `ollama` — and decides the request body, streaming
+chunk parsing, and response extraction. The name is just a key; it never
+carries protocol meaning.
+
+## Declaring providers (strict)
+
+A graph's `providers=` map / `providers:` block is the **single source of
+truth**. Providers used on nodes, by `default_provider`, or by
+`default_model` must be explicitly declared — there is no implicit built-in
+fallback. There is **no string shorthand**: pass real `Provider` instances (or
+a `ProviderRegistry`), never bare preset-name strings.
+
+```python
+from draf import Provider
+from draf.graph import Graph
+from draf.node import LLM
+
+providers = {
+    "vllm": Provider(base_url="http://vllm:8000/v1"),  # openai_compatible
+    "claude": Provider(type="anthropic_compatible", base_url="http://proxy"),
+}
+
+graph = Graph({"llm": LLM(model="m", provider="claude", api_key_env="X")}, [], "llm")
+result = await graph.run({}, providers=providers)
+```
+
+`providers=` at run time wins over `graph.providers`. Any provider referenced
+but not declared — a node `provider=`, the `default_provider=`, or a
+`providers:`/`providers=` name — raises `ConfigError`, so typos surface early
+instead of silently routing to the wrong wire protocol.
+
+### Register providers with `ProviderRegistry`
+
+A `ProviderRegistry` is a dict-like `{name: Provider}` map you build once and
+reuse. It starts empty, and only registered names are usable.
+
+```python
+from draf import Graph, Provider, ProviderRegistry
+from draf.flow import Flow
+from draf.harness import Harness
+from draf.node import LLM
+
+reg = ProviderRegistry()  # register instances explicitly…
+reg.register(Provider(name="vllm", base_url="http://vllm:8000/v1"))
+reg.register(Provider(name="claude", type="anthropic_compatible", base_url="http://proxy"))
+# …and reference entries by name anywhere:
+graph = Graph({"llm": LLM(model="m", provider="claude")}, [], "llm", providers=reg)
+result = await graph.run({})  # registry also accepted per-run: run({}, providers=reg)
+
+flow = Flow("f", providers=reg)  # threaded into the compiled graph
+graph2 = flow.step(LLM(model="m", provider="claude")).compile()
+
+harness = Harness(model="m", provider="claude", providers=reg)
+```
+
+Register the built-ins you use explicitly with
+`ProviderRegistry.from_presets("openai", "ollama")` — it instantiates each
+named preset, so `graph.providers` truthfully reflects what is configured.
+`register()` returns the registry so registrations can be chained. Duplicate
+names (and names whose `Provider.name` mismatches the registry key) raise
+`ConfigError`. A plain `dict` is normalised automatically, and
+`to_provider_registry(x)` converts a `dict`, `None`, or existing registry to a
+`ProviderRegistry` explicitly.
 
 ## Secrets via `${ENV}`
 

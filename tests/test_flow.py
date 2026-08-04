@@ -913,7 +913,7 @@ class TestNodeIds:
         flow.route(
             "next_agent",
             finish=LLM(model="m", output_key="done"),
-            planner=agent_step("p", "plan", model="m", id="planner"),
+            planner=agent_step("p", "plan", model="m", provider="openai", id="planner"),
         )
         g = flow.compile()
         assert "planner" in g.nodes

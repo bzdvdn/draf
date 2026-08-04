@@ -1,6 +1,9 @@
 from typing import TYPE_CHECKING
 
 from draf.node.agent import ReActAgent, ToolExec
+
+if TYPE_CHECKING:
+    from draf.provider import ProviderRegistry
 from draf.node.context import (
     AppendAssistant,
     ContextBuilder,
@@ -50,7 +53,7 @@ def _subflow_factory(cfg: dict) -> "SubFlow":
     build = cfg.get("build")
     if isinstance(graph_cfg, dict):
         flow = SubFlow(
-            _build_subgraph(graph_cfg),
+            _build_subgraph(graph_cfg, cfg.get("providers")),
             input_map=cfg.get("input_map"),
             output_map=cfg.get("output_map"),
             max_iterations=cfg.get("max_iterations"),
@@ -67,7 +70,9 @@ def _subflow_factory(cfg: dict) -> "SubFlow":
     return flow
 
 
-def _build_subgraph(graph_cfg: dict) -> "Graph":
+def _build_subgraph(
+    graph_cfg: dict, providers: "dict | ProviderRegistry | None" = None
+) -> "Graph":
     """Build a nested ``Graph`` from a declarative ``{steps, edges}`` dict.
 
     Mirrors the step/edge building in :mod:`draf.yaml` so a ``subflow``
@@ -108,7 +113,12 @@ def _build_subgraph(graph_cfg: dict) -> "Graph":
             )
         )
 
-    return Graph(nodes=nodes, edges=edges, entry_point=entry_point or "")
+    return Graph(
+        nodes=nodes,
+        edges=edges,
+        entry_point=entry_point or "",
+        providers=providers,
+    )
 
 
 def _build_from_recipe(build: dict, cfg: dict) -> "SubFlow":
@@ -121,12 +131,17 @@ def _build_from_recipe(build: dict, cfg: dict) -> "SubFlow":
         raise ConfigError(
             f"unknown subflow build recipe {rtype!r} (supported: agent_step)"
         )
+    if build.get("providers"):
+        raise ConfigError(
+            "agent_step build recipe must not set `providers:` — providers "
+            "come from the workflow's top-level `providers:` block"
+        )
     try:
         return agent_step(
             build["system"],
             build["output_key"],
             model=build["model"],
-            provider=build.get("provider", ""),
+            provider=build["provider"],
             sections=build.get("sections"),
             messages_key=build.get("messages_key", "messages"),
             use_tools=build.get("use_tools"),

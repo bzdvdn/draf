@@ -5,6 +5,8 @@ import json
 
 import pytest
 
+from draf.provider import ProviderRegistry
+
 
 def _mock_response(data: dict):
     class MockResponse:
@@ -146,7 +148,7 @@ class TestHttpRetry:
 
         monkeypatch.setattr(httpx.AsyncClient, "post", mock_post)
 
-        h = Harness(model="gpt-4", max_retries=3, retry_on=(500,))
+        h = Harness(model="gpt-4", provider="openai", max_retries=3, retry_on=(500,))
         reply = await h.call([{"role": "user", "content": "hi"}])
         assert reply.content == "ok"
         assert calls["n"] == 2
@@ -173,7 +175,7 @@ class TestHttpRetry:
 
         monkeypatch.setattr(httpx.AsyncClient, "post", mock_post)
 
-        h = Harness(model="gpt-4", max_retries=2)
+        h = Harness(model="gpt-4", provider="openai", max_retries=2)
         with pytest.raises(httpx.ConnectError):
             await h.call([{"role": "user", "content": "hi"}])
         assert calls["n"] == 3  # initial + 2 retries
@@ -206,6 +208,7 @@ class TestFailover:
 
         h = Harness(
             model="gpt-4",
+            provider="openai",
             max_retries=0,
             fallbacks=["gpt-4-turbo"],
             base_url="http://primary/v1",
@@ -345,7 +348,9 @@ class TestTokenBudget:
 
         monkeypatch.setattr(httpx.AsyncClient, "post", mock_post)
 
-        h = Harness(model="gpt-4", max_rounds=10, max_total_tokens=150)
+        h = Harness(
+            model="gpt-4", provider="openai", max_rounds=10, max_total_tokens=150
+        )
         step = await h.run(
             [{"role": "user", "content": "go"}],
             {"always": AlwaysTool()},
@@ -414,6 +419,8 @@ class TestToolApproval:
                 Edge("tool", "agent"),
             ],
             entry_point="agent",
+            providers=ProviderRegistry.from_presets("openai"),
+            default_provider="openai",
         )
         r = await g.run(
             state={"input": "delete files"},
@@ -482,6 +489,8 @@ class TestToolApproval:
                 Edge("tool", "agent"),
             ],
             entry_point="agent",
+            providers=ProviderRegistry.from_presets("openai"),
+            default_provider="openai",
         )
         r = await g.run(state={"input": "hi"}, tools=[Safe()], max_iterations=5)
         assert r["output"] == "HELLO"
@@ -543,6 +552,8 @@ class TestToolApproval:
                 Edge("tool", "agent"),
             ],
             entry_point="agent",
+            providers=ProviderRegistry.from_presets("openai"),
+            default_provider="openai",
         )
         with pytest.raises(GraphInterrupt) as excinfo:
             await g.run(
@@ -618,6 +629,8 @@ class TestToolApproval:
                 Edge("tool", "agent"),
             ],
             entry_point="agent",
+            providers=ProviderRegistry.from_presets("openai"),
+            default_provider="openai",
         )
         cp = JSONFileCheckpointer(str(tmp_path / "cp.json"))
         state = {"input": "do it"}
@@ -684,7 +697,7 @@ class TestToolApproval:
 
         monkeypatch.setattr(httpx.AsyncClient, "post", mock_post)
 
-        h = Harness(model="gpt-4")
+        h = Harness(model="gpt-4", provider="openai")
 
         async def hook(name, args):
             seen.append((name, args))
@@ -744,6 +757,8 @@ class TestReActStreaming:
             },
             edges=[],
             entry_point="agent",
+            providers=ProviderRegistry.from_presets("openai"),
+            default_provider="openai",
         )
         r = await g.run(state={"input": "hi"})
         assert r["output"] == "hello world"

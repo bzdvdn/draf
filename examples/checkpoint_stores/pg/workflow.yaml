@@ -1,4 +1,5 @@
 name: durable-pg
+plugins: [../failing.py]
 checkpoint:
   type: pg
   dsn: postgresql://postgres:postgres@localhost:5433/postgres

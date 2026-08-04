@@ -4,16 +4,24 @@ Small but useful functions exported from the top-level `draf` package. The
 bigger surfaces are covered in their own pages: [Nodes](nodes.md),
 [Tools](tools.md), [Providers](providers.md), [State guide](../guide/state.md).
 
-## `set_defaults(provider=...)`
+## Setting the default provider
 
-Set global defaults for subsequent `LLM`/`harness()` nodes (e.g. which
-provider to use when a node doesn't name one):
+There is no global provider default. Instead, LLM nodes fall back to the
+**graph-level default** — set it on `Flow`/`Graph` (or a workflow's
+top-level `provider:`), so nodes that don't name a provider inherit it:
 
 ```python
-from draf import set_defaults
+from draf.flow import Flow
+from draf.provider import ProviderRegistry
 
-set_defaults(provider="ollama")
+flow = Flow(
+    "my-flow",
+    providers=ProviderRegistry.from_presets("ollama"),
+    default_provider="ollama",
+)
 ```
+
+See [Providers: resolving provider and model](providers.md#resolving-provider-and-model).
 
 ## `from_yaml(source)`
 

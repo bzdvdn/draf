@@ -94,6 +94,32 @@ WORKFLOW_JSON_SCHEMA: dict[str, Any] = {
             ]
         },
         "plugins_folder": {"type": "string"},
+        "default_provider": {"type": "string"},
+        "default_model": {"type": "string"},
+        "providers": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "required": ["name"],
+                "properties": {
+                    "name": {"type": "string"},
+                    "type": {
+                        "enum": [
+                            "openai_compatible",
+                            "anthropic_compatible",
+                            "ollama",
+                        ]
+                    },
+                    "base_url": {"type": "string"},
+                    "chat_path": {"type": "string"},
+                    "api_key_env": {"type": "string"},
+                    "auth_header": {"type": "string"},
+                    "auth_prefix": {"type": "string"},
+                    "timeout": {"type": "number", "minimum": 0},
+                },
+                "additionalProperties": True,
+            },
+        },
     },
     "additionalProperties": True,
 }

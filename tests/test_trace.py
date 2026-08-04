@@ -2,6 +2,8 @@ import asyncio
 
 import pytest
 
+from draf.provider import ProviderRegistry
+
 
 def _make_node(state_update):
     from draf.node import Node
@@ -278,9 +280,12 @@ class TestRunTracerLLM:
         monkeypatch.setattr(httpx.AsyncClient, "post", mock_post)
 
         g = Graph(
-            nodes={"a": LLM({"model": "gpt-4", "output_key": "out"})},
+            nodes={
+                "a": LLM({"model": "gpt-4", "output_key": "out", "provider": "openai"})
+            },
             edges=[],
             entry_point="a",
+            providers=ProviderRegistry.from_presets("openai"),
         )
         tracer = RunTracer()
         await g.run(state={}, tracer=tracer)
@@ -329,7 +334,7 @@ class TestRunTracerLLM:
 
         monkeypatch.setattr(httpx.AsyncClient, "post", mock_post)
 
-        node = LLM({"model": "gpt-4"})
+        node = LLM({"model": "gpt-4", "provider": "openai"})
         ctx = ExecContext(state={}, tools={})
         result = await node.execute(ctx, {})
         assert result["output"] == "hi"

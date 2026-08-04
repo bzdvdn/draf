@@ -17,6 +17,7 @@ from draf.node.node import Node
 from draf.tool.tool import Tool
 
 if typing.TYPE_CHECKING:
+    from draf.provider import ProviderRegistry
     from draf.stream import StreamEvent
     from draf.trace import RunTracer
 
@@ -138,6 +139,18 @@ class ExecContext:
         emit: Optional async sink receiving :class:`~draf.stream.StreamEvent`
             objects as the run progresses (used by ``graph.stream()``).
             ``None`` for plain ``graph.run()``.
+        providers: Optional ``{name: Provider}`` map or
+            :class:`~draf.provider.ProviderRegistry` for LLM nodes
+            (custom providers declared in a workflow / passed to
+            ``graph.run(providers=...)``).  ``None`` uses the built-in
+            presets.
+        default_provider: Optional default provider name for the graph.
+            LLM nodes use it when they don't set ``provider`` themselves
+            (the graph-level ``Graph(default_provider=...)`` / workflow
+            ``default_provider:``).
+        default_model: Optional default model name for the graph.  LLM
+            nodes use it when they don't set ``model`` themselves
+            (the graph-level ``Graph(default_model=...)``).
     """
 
     def __init__(
@@ -150,6 +163,9 @@ class ExecContext:
         tracer: "RunTracer | None" = None,
         reducers: dict[str, Any] | None = None,
         emit: "Callable[[StreamEvent], Awaitable[None]] | None" = None,
+        providers: "dict | ProviderRegistry | None" = None,
+        default_provider: str | None = None,
+        default_model: str | None = None,
     ):
         self.state = state
         self.tools = tools
@@ -158,6 +174,9 @@ class ExecContext:
         self.tracer = tracer
         self.reducers = reducers
         self.emit = emit
+        self.providers = providers
+        self.default_provider = default_provider
+        self.default_model = default_model
 
     def tool(self, name: str) -> Tool:
         """Look up a tool by name.

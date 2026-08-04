@@ -19,13 +19,11 @@ Usage:
 import asyncio
 from typing import TypedDict
 
-from draf import set_defaults
 from draf.flow import Flow
 from draf.node import LLM
 from draf.node.interrupt import GraphInterrupt
+from draf.provider import ProviderRegistry
 from draf.state import State
-
-set_defaults(provider="ollama")
 
 SYSTEM = "Ты инженер по ремонту. Составляй краткие планы работ по-русски, 3-5 пунктов."
 
@@ -38,35 +36,39 @@ class ApprovalState(TypedDict):
 
 
 async def main():
-    flow = Flow("human-in-the-loop")
-    flow.step(
-        LLM(
+    flow = (
+        Flow(
+            "human-in-the-loop",
+            providers=ProviderRegistry.from_presets("ollama"),
+            default_provider="ollama",
+        )
+        .llm(
             model="llama3.1:8b",
             system=SYSTEM,
             prompt="Составь план ремонта санузла на сумму {summ} рублей.",
             output_key="draft",
         )
-    )
-    flow.interrupt(key="approved", prompt="Одобрить? (да / правки)")
-    flow.loop(
-        key="approved",
-        until="да",
-        done=LLM(
-            model="llama3.1:8b",
-            system=SYSTEM,
-            prompt="Клиент одобрил план: {draft}\nВерни финальную версию плана.",
-            output_key="final",
-        ),
-        body=LLM(
-            model="llama3.1:8b",
-            system=SYSTEM,
-            prompt=(
-                "Клиент отклонил план с правками: {approved}\n\n"
-                "План: {draft}\n\n"
-                "Переработай план с учётом правок клиента и верни новый план."
+        .interrupt(key="approved", prompt="Одобрить? (да / правки)")
+        .loop(
+            key="approved",
+            until="да",
+            done=LLM(
+                model="llama3.1:8b",
+                system=SYSTEM,
+                prompt="Клиент одобрил план: {draft}\nВерни финальную версию плана.",
+                output_key="final",
             ),
-            output_key="draft",
-        ),
+            body=LLM(
+                model="llama3.1:8b",
+                system=SYSTEM,
+                prompt=(
+                    "Клиент отклонил план с правками: {approved}\n\n"
+                    "План: {draft}\n\n"
+                    "Переработай план с учётом правок клиента и верни новый план."
+                ),
+                output_key="draft",
+            ),
+        )
     )
 
     graph = flow.compile()

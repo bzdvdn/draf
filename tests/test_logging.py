@@ -4,6 +4,8 @@ import logging
 
 import pytest
 
+from draf.provider import ProviderRegistry
+
 
 def _make_node(state_update=None):
     from draf.node import Node
@@ -294,7 +296,11 @@ class TestHarnessLogging:
         from draf.node import LLM
 
         mock_llm.content = "reply with secret=sk-abc123 " + "word " * 400
-        flow = Flow("qa")
+        flow = Flow(
+            "qa",
+            providers=ProviderRegistry.from_presets("openai"),
+            default_provider="openai",
+        )
         flow.step(LLM(model="gpt-4o-mini", prompt="Say {topic}", output_key="a"))
         graph = flow.compile()
 
@@ -325,7 +331,11 @@ class TestHarnessLogging:
         from draf.node import LLM
 
         mock_llm.content = "super secret reply"
-        flow = Flow("qa")
+        flow = Flow(
+            "qa",
+            providers=ProviderRegistry.from_presets("openai"),
+            default_provider="openai",
+        )
         flow.step(LLM(model="gpt-4o-mini", prompt="hi", output_key="a"))
         graph = flow.compile()
 

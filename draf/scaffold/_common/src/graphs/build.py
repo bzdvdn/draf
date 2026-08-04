@@ -26,6 +26,7 @@ HOW TO EXTEND
 from __future__ import annotations
 
 from draf.flow import Flow, agent_step
+from draf.provider import ProviderRegistry
 from src.graphs.prompts import (
     PLANNER_PROMPT,
     REVIEWER_PROMPT,
@@ -65,7 +66,7 @@ def build_flow(model: str = MODEL_DEFAULT, *, provider: str = "ollama", catalog=
     """
     tools = build_tools(catalog=catalog)
 
-    flow = Flow("{{project_slug}}")
+    flow = Flow("{{project_slug}}", providers=ProviderRegistry.from_presets(provider))
     flow.supervisor(
         system=SUPERVISOR_PROMPT,
         model=model,

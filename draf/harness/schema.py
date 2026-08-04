@@ -5,7 +5,7 @@ from __future__ import annotations
 import inspect
 import typing
 
-from draf.harness.providers import _JSON_TYPE_MAP
+from draf.provider.providers import _JSON_TYPE_MAP
 from draf.schema import _py_to_schema
 from draf.tool.tool import Tool
 

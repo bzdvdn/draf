@@ -29,9 +29,9 @@ Or run the identical workflow as a daemon via YAML:
 import asyncio
 import os
 
-from draf import set_defaults
 from draf.flow import Flow
 from draf.node import ContextBuilder
+from draf.provider import ProviderRegistry
 from draf.tool.builtin import (
     CsvQueryTool,
     GitTool,
@@ -90,7 +90,11 @@ status did not report.
 
 
 def build_flow() -> Flow:
-    flow = Flow("repo_health")
+    flow = Flow(
+        "repo_health",
+        providers=ProviderRegistry.from_presets("ollama"),
+        default_provider="ollama",
+    )
     flow.step(
         ContextBuilder(
             sections={"priority_csv": "File priority table (CSV: file,owner,priority)"},
@@ -134,5 +138,4 @@ async def main() -> None:
 
 
 if __name__ == "__main__":
-    set_defaults(provider="ollama")
     asyncio.run(main())

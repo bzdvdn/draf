@@ -2,6 +2,8 @@
 
 import pytest
 
+from draf.provider import ProviderRegistry
+
 
 class TestStreamLifecycle:
     @pytest.mark.asyncio
@@ -131,10 +133,13 @@ class TestStreamTokens:
 
         g = Graph(
             nodes={
-                "llm": LLM({"model": "gpt-4", "output_key": "answer"}),
+                "llm": LLM(
+                    {"model": "gpt-4", "output_key": "answer", "provider": "openai"}
+                ),
             },
             edges=[],
             entry_point="llm",
+            providers=ProviderRegistry.from_presets("openai"),
         )
         events = [ev async for ev in g.stream({})]
         tokens = [ev.data["token"] for ev in events if ev.type == "token"]
@@ -142,6 +147,75 @@ class TestStreamTokens:
         run_end = events[-1]
         assert run_end.type == "run_end"
         assert run_end.data["status"] == "ok"
+
+    @pytest.mark.asyncio
+    async def test_stream_uses_default_model(self, monkeypatch):
+        from draf.graph import Graph
+        from draf.node import LLM
+
+        monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
+        bodies = []
+
+        sse_lines = [
+            'data: {"choices":[{"delta":{"content":"hi"}}]}\n',
+            "data: [DONE]\n",
+        ]
+
+        class MockStreamResponse:
+            def raise_for_status(self):
+                pass
+
+            async def aiter_lines(self):
+                for line in sse_lines:
+                    yield line
+
+        class MockStreamCM:
+            async def __aenter__(self):
+                return MockStreamResponse()
+
+            async def __aexit__(self, *a):
+                pass
+
+        def mock_stream(*a, **kw):
+            bodies.append(kw.get("json") or {})
+            return MockStreamCM()
+
+        import httpx
+
+        monkeypatch.setattr(httpx.AsyncClient, "stream", mock_stream)
+
+        g = Graph(
+            nodes={
+                "llm": LLM({"output_key": "answer", "provider": "openai"}),
+            },
+            edges=[],
+            entry_point="llm",
+            providers=ProviderRegistry.from_presets("openai"),
+            default_model="gpt-default",
+        )
+        events = [ev async for ev in g.stream({})]
+        assert events[-1].type == "run_end"
+        assert bodies[0]["model"] == "gpt-default"
+
+    @pytest.mark.asyncio
+    async def test_stream_requires_checkpoint_id_with_checkpointer(self, tmp_path):
+        from draf.checkpoint import JSONFileCheckpointer
+        from draf.graph import Graph
+        from draf.node import Transform
+
+        cp = JSONFileCheckpointer(str(tmp_path))
+        g = Graph(
+            nodes={
+                "a": Transform(
+                    {"action": "uppercase", "input_key": "x", "output_key": "out"}
+                ),
+            },
+            edges=[],
+            entry_point="a",
+        )
+        with pytest.raises(ValueError, match="checkpoint_id"):
+            async for _ in g.stream({}, checkpointer=cp):
+                pass
 
     @pytest.mark.asyncio
     async def test_run_does_not_emit_tokens(self, monkeypatch):
@@ -166,10 +240,13 @@ class TestStreamTokens:
 
         g = Graph(
             nodes={
-                "llm": LLM({"model": "gpt-4", "output_key": "answer"}),
+                "llm": LLM(
+                    {"model": "gpt-4", "output_key": "answer", "provider": "openai"}
+                ),
             },
             edges=[],
             entry_point="llm",
+            providers=ProviderRegistry.from_presets("openai"),
         )
         result = await g.run({})
         assert result["answer"] == "hi"
@@ -210,10 +287,13 @@ class TestStreamTokens:
 
         g = Graph(
             nodes={
-                "llm": LLM({"model": "gpt-4", "output_key": "answer"}),
+                "llm": LLM(
+                    {"model": "gpt-4", "output_key": "answer", "provider": "ollama"}
+                ),
             },
             edges=[],
             entry_point="llm",
+            providers=ProviderRegistry.from_presets("ollama"),
         )
         events = [ev async for ev in g.stream({})]
         tokens = [ev.data["token"] for ev in events if ev.type == "token"]
@@ -436,9 +516,14 @@ class TestRunEmit:
         monkeypatch.setattr(httpx.AsyncClient, "stream", mock_stream)
 
         g = Graph(
-            nodes={"llm": LLM({"model": "gpt-4", "output_key": "answer"})},
+            nodes={
+                "llm": LLM(
+                    {"model": "gpt-4", "output_key": "answer", "provider": "openai"}
+                ),
+            },
             edges=[],
             entry_point="llm",
+            providers=ProviderRegistry.from_presets("openai"),
         )
         events = []
 

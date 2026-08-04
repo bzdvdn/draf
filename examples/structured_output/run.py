@@ -22,11 +22,9 @@ import asyncio
 import json
 from typing import TypedDict
 
-from draf import set_defaults
 from draf.flow import Flow
 from draf.node.llm import StructuredOutputError
-
-set_defaults(provider="ollama")
+from draf.provider import ProviderRegistry
 
 
 class RepairPlan(TypedDict):
@@ -36,7 +34,11 @@ class RepairPlan(TypedDict):
 
 
 async def main():
-    flow = Flow("structured-output")
+    flow = Flow(
+        "structured-output",
+        providers=ProviderRegistry.from_presets("ollama"),
+        default_provider="ollama",
+    )
     flow.llm(
         model="llama3.1:8b",
         prompt=(

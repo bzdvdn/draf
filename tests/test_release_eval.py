@@ -117,6 +117,7 @@ class TestRunEval:
             (graph, [], {}, {}),
             [{"id": "a", "text": "hello", "expected": "hello world"}],
             judge_model="gpt-4o",
+            judge_provider="openai",
         )
         assert report["cases"][0]["verdict"] == "PASS"
         assert "close enough" in report["cases"][0]["reason"]
@@ -131,6 +132,7 @@ class TestRunEval:
             (graph, [], {}, {}),
             [{"id": "a", "text": "hello", "expected": "totally different"}],
             judge_model="gpt-4o",
+            judge_provider="openai",
         )
         assert report["cases"][0]["verdict"] == "FAIL"
 

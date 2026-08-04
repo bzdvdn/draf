@@ -20,7 +20,7 @@ def agent_step(
     output_key: str,
     *,
     model: str,
-    provider: str = "",
+    provider: str,
     sections: dict[str, str] | None = None,
     messages_key: str = "messages",
     use_tools: str | list[str] | None = None,
@@ -49,7 +49,9 @@ def agent_step(
         system: System prompt for the agent.
         output_key: State key that receives the agent's final answer.
         model: LLM model name (e.g. ``llama3.1:8b``).
-        provider: Provider name (e.g. ``ollama``).
+        provider: Provider name (e.g. ``ollama``).  Must be declared in the
+            ``providers`` of the enclosing flow/workflow — this sub-flow
+            inherits its provider set from the parent at run time.
         sections: Shared state key → label mapping rendered into the agent's
             context.  Defaults to ``{output_key: output_key.capitalize()}``.
         messages_key: State key holding the shared conversation.

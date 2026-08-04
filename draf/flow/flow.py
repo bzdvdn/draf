@@ -10,6 +10,7 @@ from draf.node.node import Node
 from draf.node.parallel import Parallel
 from draf.node.supervisor import Supervisor
 from draf.node.transform import Transform
+from draf.provider import ProviderRegistry
 
 
 class Flow:
@@ -17,17 +18,41 @@ class Flow:
 
     Args:
         name: Optional flow name.
+        default_provider: Optional default provider name used by LLM nodes
+            that don't set ``provider`` themselves.  Must be declared in
+            ``providers``.
+        default_model: Optional default model name used by LLM nodes that
+            don't set ``model`` themselves.  ``model=`` on a node always
+            wins.
+        providers: The ``{name: Provider}`` map,
+            :class:`~draf.provider.ProviderRegistry`, or YAML-style list
+            of preset names threaded into the compiled graph.  Every
+            provider the graph references must be declared here.
 
     Usage::
 
-        flow = Flow("my-flow")
-        flow.step(LLM(model="gpt-4"))
+        flow = Flow(
+            "my-flow",
+            providers=ProviderRegistry.from_presets("ollama"),
+            default_provider="ollama",
+        )
+        flow.step(LLM(model="llama3.1:8b"))
         flow.branch("status", Case("ok").add(ok_node), default=err_node)
         graph = flow.compile()
     """
 
-    def __init__(self, name: str = ""):
+    def __init__(
+        self,
+        name: str = "",
+        *,
+        providers: "dict | ProviderRegistry | None" = None,
+        default_provider: str | None = None,
+        default_model: str | None = None,
+    ):
         self._name = name
+        self._default_provider = default_provider
+        self._default_model = default_model
+        self._providers = providers
         self._nodes: list[Node] = []
         self._node_ids: list[str] = []
         self._edges: list[Edge] = []
@@ -696,9 +721,10 @@ class Flow:
             **config,
         }
         if agent is None:
-            if model is None:
+            if model is None and self._default_model is None:
                 raise TypeError(
-                    "harness() requires a model when no agent instance is given"
+                    "harness() requires a model (or a default_model on the "
+                    "flow) when no agent instance is given"
                 )
             agent_node: ReActAgent = ReActAgent(**agent_cfg)
         elif isinstance(agent, type):
@@ -775,6 +801,9 @@ class Flow:
             nodes=dict(zip(self._node_ids, self._nodes)),
             edges=self._edges,
             entry_point=self._node_ids[0],
+            providers=self._providers,
+            default_provider=self._default_provider,
+            default_model=self._default_model,
         )
 
     def to_yaml(

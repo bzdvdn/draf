@@ -9,12 +9,10 @@ Usage:
 
 import asyncio
 
-from draf import set_defaults
 from draf.flow import Case, Flow
 from draf.node import Transform
+from draf.provider import ProviderRegistry
 from draf.state.state import reducers_from_yaml_schema
-
-set_defaults(provider="ollama")
 
 
 async def main():
@@ -35,7 +33,11 @@ async def main():
     )
 
     flow = (
-        Flow("sentiment-router")
+        Flow(
+            "sentiment-router",
+            providers=ProviderRegistry.from_presets("ollama"),
+            default_provider="ollama",
+        )
         .llm(
             model="llama3.1:8b",
             system=(

@@ -17,12 +17,10 @@ Usage:
 
 import asyncio
 
-from draf import set_defaults
 from draf.flow import Flow
+from draf.provider import ProviderRegistry
 from draf.rag import Embedder, RAGTool
 from draf.rag.stores import InMemoryVectorStore
-
-set_defaults(provider="ollama")
 
 # Fictional knowledge base — the model cannot know any of this.
 DOCUMENTS = [
@@ -57,7 +55,11 @@ async def main():
     rag = RAGTool(store=store, embedder=embedder)
     await rag.add_documents(DOCUMENTS)
 
-    flow = Flow("rag_agent")
+    flow = Flow(
+        "rag_agent",
+        providers=ProviderRegistry.from_presets("ollama"),
+        default_provider="ollama",
+    )
     flow.react(
         model="llama3.1:8b",
         system=(

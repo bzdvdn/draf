@@ -41,6 +41,73 @@ def _interpolate_env(value):
     return value
 
 
+def _providers_from_data(data: dict):
+    """Build a :class:`ProviderRegistry` from a workflow's ``providers:`` block.
+
+    The block is a list of mappings, each with a ``name:`` plus any provider
+    fields.  Bare preset-name strings are rejected — every provider must be
+    spelled out explicitly (e.g. ``{name: ollama, type: ollama,
+    base_url: http://localhost:11434}``), so the file says exactly what is
+    configured.  Each ``name`` must be unique (a duplicate raises
+    :class:`ConfigError`).  Returns ``None`` when the block is absent.
+    """
+    from draf.provider import PROVIDER_FIELDS, Provider, ProviderRegistry
+
+    block = data.get("providers")
+    if not block:
+        return None
+    if not isinstance(block, list):
+        raise ConfigError("providers must be a list")
+    reg = ProviderRegistry()
+    for entry in block:
+        if isinstance(entry, str):
+            raise ConfigError(
+                f"providers: preset names are not allowed ({entry!r}) — "
+                "declare a `{name, ...}` mapping for every provider"
+            )
+        if not isinstance(entry, dict):
+            raise ConfigError("providers: each entry must be a mapping with a `name:`")
+        name = entry.get("name")
+        if not name:
+            raise ConfigError("providers: each mapping entry requires a `name:`")
+        unknown = set(entry) - set(PROVIDER_FIELDS)
+        if unknown:
+            raise ConfigError(
+                f"providers.{name} has unknown keys: {', '.join(sorted(unknown))}"
+            )
+        reg.register(Provider.from_mapping(entry))
+    return reg
+
+
+def _validate_provider_refs(data: dict, registry) -> None:
+    """Enforce every provider reference in *data* is declared.
+
+    ``default_provider:`` and each step's ``config.provider`` must name a
+    provider declared in the ``providers:`` block — there is no implicit
+    built-in fallback.
+    """
+    valid = set(registry or ())
+    dp = data.get("default_provider")
+    if dp and dp not in valid:
+        raise ConfigError(f"default_provider {dp!r} is not declared in `providers:`")
+    for step in data.get("steps", []):
+        prov = (step.get("config") or {}).get("provider")
+        sid = step.get("id")
+        if prov and prov not in valid:
+            raise ConfigError(
+                f"step {sid!r}: provider {prov!r} is not declared in `providers:`"
+            )
+
+
+def _providers_to_block(registry) -> list:
+    """Serialize ``graph.providers`` back into a ``providers:`` list.
+
+    Every provider is written as a ``{name, ...}`` mapping — never a bare
+    string, so the file always spells out what is configured.
+    """
+    return [provider.to_dict() for name, provider in registry.items()]
+
+
 def from_yaml(source: str) -> Graph:
     """Parse a YAML string or file path into a ``Graph``.
 
@@ -107,7 +174,17 @@ def from_yaml(source: str) -> Graph:
             )
         )
 
-    return Graph(nodes=nodes, edges=edges, entry_point=entry_point or "")
+    providers = _providers_from_data(data)
+    _validate_provider_refs(data, providers)
+
+    return Graph(
+        nodes=nodes,
+        edges=edges,
+        entry_point=entry_point or "",
+        providers=providers,
+        default_provider=data.get("default_provider"),
+        default_model=data.get("default_model"),
+    )
 
 
 def workflow_to_yaml(
@@ -146,6 +223,12 @@ def workflow_to_yaml(
         edges.append(entry)
 
     data: dict = {"name": name, "steps": steps, "edges": edges}
+    if getattr(graph, "default_provider", None):
+        data["default_provider"] = graph.default_provider
+    if getattr(graph, "default_model", None):
+        data["default_model"] = graph.default_model
+    if getattr(graph, "providers", None) and len(graph.providers):
+        data["providers"] = _providers_to_block(graph.providers)
     if tools:
         data["tools"] = [{"type": t.name, "config": _tool_config(t)} for t in tools]
     if reducers or initial:
@@ -261,7 +344,17 @@ def load_workflow(path: str) -> tuple[Graph, list[Tool], dict, dict[str, Reducer
             tconfig = _resolve_rag_config(tconfig, base_dir)
         tools.append(default_tool_registry.create(ttype, tconfig))
 
-    graph = Graph(nodes=nodes, edges=edges, entry_point=entry_point or "")
+    providers = _providers_from_data(data)
+    _validate_provider_refs(data, providers)
+
+    graph = Graph(
+        nodes=nodes,
+        edges=edges,
+        entry_point=entry_point or "",
+        providers=providers,
+        default_provider=data.get("default_provider"),
+        default_model=data.get("default_model"),
+    )
 
     state_block = data.get("state", {})
     if isinstance(state_block, dict):

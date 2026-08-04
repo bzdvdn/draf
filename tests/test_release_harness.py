@@ -94,7 +94,7 @@ class TestLLMCache:
     def test_from_config_cache_true(self):
         from draf.harness import Harness
 
-        h = Harness.from_config({"model": "gpt-4", "cache": True})
+        h = Harness.from_config({"model": "gpt-4", "cache": True, "provider": "openai"})
         assert h._cache is not None
 
 

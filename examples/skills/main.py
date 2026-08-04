@@ -25,11 +25,9 @@ Usage:
 import asyncio
 from pathlib import Path
 
-from draf import set_defaults
 from draf.flow import Flow
+from draf.provider import ProviderRegistry
 from draf.tool import Tool
-
-set_defaults(provider="ollama")
 
 SKILL_DIR = Path(__file__).resolve().parent / "skills"
 
@@ -70,7 +68,11 @@ class SecretTool(Tool):
 
 
 async def main() -> None:
-    flow = Flow("skills_agent")
+    flow = Flow(
+        "skills_agent",
+        providers=ProviderRegistry.from_presets("ollama"),
+        default_provider="ollama",
+    )
     flow.harness(
         model="llama3.1:8b",
         input_key="query",

@@ -7,12 +7,9 @@ Usage:
 
 import asyncio
 
-from draf import set_defaults
 from draf.graph import Edge, Graph
 from draf.node import LLM, Transform
 from draf.state.state import reducers_from_yaml_schema
-
-set_defaults(provider="ollama")
 
 
 async def main():
@@ -50,6 +47,7 @@ async def main():
             Edge("on_negative", "shout"),
         ],
         entry_point="classify",
+        provider="ollama",
     )
 
     reducers = reducers_from_yaml_schema(

@@ -50,7 +50,14 @@ class TestLLMNode:
 
         monkeypatch.setattr(httpx.AsyncClient, "post", mock_post)
 
-        node = LLM({"model": "gpt-4", "system": "Say hi", "output_key": "greeting"})
+        node = LLM(
+            {
+                "model": "gpt-4",
+                "system": "Say hi",
+                "output_key": "greeting",
+                "provider": "openai",
+            }
+        )
         ctx = ExecContext(state={}, tools={})
         result = await node.execute(ctx, {"greeting": ""})
         assert result["greeting"] == "hi there"
@@ -85,6 +92,7 @@ class TestLLMNode:
                 "system": "Вы инженер",
                 "prompt": "составь план для ремонта {type} на сумму {summ}",
                 "output_key": "plan",
+                "provider": "openai",
             }
         )
         ctx = ExecContext(state={}, tools={})
@@ -128,7 +136,13 @@ class TestLLMNode:
 
         monkeypatch.setattr(httpx.AsyncClient, "post", mock_post)
 
-        node = LLM({"model": "gpt-4", "response_format": {"type": "json_object"}})
+        node = LLM(
+            {
+                "model": "gpt-4",
+                "response_format": {"type": "json_object"},
+                "provider": "openai",
+            }
+        )
         ctx = ExecContext(state={}, tools={})
         result = await node.execute(ctx, {})
         assert result["output"] == '{"ok": true}'
@@ -189,7 +203,7 @@ class TestLLMNode:
 
         monkeypatch.setattr(httpx.AsyncClient, "post", mock_post)
 
-        node = LLM({"model": "gpt-4", "use_tools": True})
+        node = LLM({"model": "gpt-4", "use_tools": True, "provider": "openai"})
         ctx = ExecContext(state={}, tools={"uppercase": UppercaseTool()})
         result = await node.execute(ctx, {})
         assert result["output"] == "the result is HELLO"
@@ -249,7 +263,7 @@ class TestLLMNode:
 
         monkeypatch.setattr(httpx.AsyncClient, "post", mock_post)
 
-        node = LLM({"model": "gpt-4", "use_tools": True})
+        node = LLM({"model": "gpt-4", "use_tools": True, "provider": "openai"})
         ctx = ExecContext(state={}, tools={"logger": LogTool()})
         result = await node.execute(ctx, {})
         assert result["output"] == "done"
@@ -279,6 +293,7 @@ class TestLLMNode:
             {
                 "model": "gpt-4",
                 "tools": [{"type": "function", "function": {"name": "x"}}],
+                "provider": "openai",
             }
         )
         ctx = ExecContext(state={}, tools={})
@@ -353,7 +368,7 @@ class TestLLMNode:
 
         monkeypatch.setattr(httpx.AsyncClient, "stream", mock_stream)
 
-        node = LLM({"model": "gpt-4", "stream": True})
+        node = LLM({"model": "gpt-4", "stream": True, "provider": "openai"})
         ctx = ExecContext(state={}, tools={})
         result = await node.execute(ctx, {})
         assert result["output"] == "Hello world"
@@ -397,7 +412,14 @@ class TestLLMNode:
         def on_token(t: str) -> None:
             tokens.append(t)
 
-        node = LLM({"model": "gpt-4", "stream": True, "on_token": on_token})
+        node = LLM(
+            {
+                "model": "gpt-4",
+                "stream": True,
+                "on_token": on_token,
+                "provider": "openai",
+            }
+        )
         ctx = ExecContext(state={}, tools={})
         result = await node.execute(ctx, {})
         assert result["output"] == "ab"
@@ -431,7 +453,9 @@ class TestLLMNode:
             def run(self) -> str:  # type: ignore[override]
                 return "ok"
 
-        node = LLM({"model": "gpt-4", "stream": True, "use_tools": True})
+        node = LLM(
+            {"model": "gpt-4", "stream": True, "use_tools": True, "provider": "openai"}
+        )
         ctx = ExecContext(state={}, tools={"simple": SimpleTool()})
         result = await node.execute(ctx, {})
         assert result["output"] == "done"

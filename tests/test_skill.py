@@ -262,6 +262,7 @@ class TestSkillIntegration:
                 "output_key": "out",
                 "skills": [str(d)],
                 "use_tools": True,
+                "provider": "openai",
             }
         )
         ctx = ExecContext(state={}, tools=_tools())
@@ -321,6 +322,7 @@ class TestSkillIntegration:
                 "system": "Base system",
                 "output_key": "out",
                 "skills": [str(d)],
+                "provider": "openai",
             }
         )
         ctx = ExecContext(state={}, tools=_tools())
@@ -370,6 +372,7 @@ class TestSkillIntegration:
                 "output_key": "answer",
                 "skills": [str(d)],
                 "use_tools": "all",
+                "provider": "openai",
             }
         )
         ctx = ExecContext(state={}, tools=_tools())
@@ -531,6 +534,7 @@ async def test_react_agent_body_scopes_foreign_tools(monkeypatch, tmp_path):
             "output_key": "answer",
             "skills": [str(d)],
             "use_tools": "all",
+            "provider": "openai",
         }
     )
     ctx = ExecContext(state={}, tools=pool)

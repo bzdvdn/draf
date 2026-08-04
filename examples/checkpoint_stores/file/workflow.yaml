@@ -1,4 +1,5 @@
 name: durable-file
+plugins: [../failing.py]
 checkpoint:
   type: file
   path: ./checkpoints

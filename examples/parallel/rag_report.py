@@ -22,14 +22,12 @@ Usage:
 import asyncio
 import os
 
-from draf import set_defaults
 from draf.flow import Flow
 from draf.node import LLM, Node
+from draf.provider import ProviderRegistry
 from draf.rag import Embedder, RAGTool
 from draf.rag.stores import InMemoryVectorStore
 from draf.trace import RunTracer
-
-set_defaults(provider="ollama")
 
 REPORT_PATH = os.path.join(os.path.dirname(__file__), "rag_report.md")
 
@@ -152,7 +150,11 @@ async def main():
     )
     await rag_b.add_documents(KB_RAG)
 
-    flow = Flow("parallel-rag-report")
+    flow = Flow(
+        "parallel-rag-report",
+        providers=ProviderRegistry.from_presets("ollama"),
+        default_provider="ollama",
+    )
     flow.parallel(
         [
             RagSearch(

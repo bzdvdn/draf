@@ -1,5 +1,7 @@
 import pytest
 
+from draf.provider import ProviderRegistry
+
 
 class TestReActAgent:
     @pytest.mark.asyncio
@@ -31,6 +33,8 @@ class TestReActAgent:
             },
             edges=[],
             entry_point="agent",
+            providers=ProviderRegistry.from_presets("openai"),
+            default_provider="openai",
         )
         r = await g.run(state={"input": "hi"})
         assert r["output"] == "hello world"
@@ -101,6 +105,8 @@ class TestReActAgent:
                 Edge("tool", "agent"),
             ],
             entry_point="agent",
+            providers=ProviderRegistry.from_presets("openai"),
+            default_provider="openai",
         )
         r = await g.run(
             state={"input": "make it uppercase"}, tools=[UpperTool()], max_iterations=5
@@ -165,6 +171,8 @@ class TestReActAgent:
                 Edge("tool", "agent"),
             ],
             entry_point="agent",
+            providers=ProviderRegistry.from_presets("openai"),
+            default_provider="openai",
         )
         with pytest.raises(RuntimeError, match="max_iterations"):
             await g.run(
@@ -257,6 +265,8 @@ class TestParallelToolExecution:
                 Edge("tool", "agent"),
             ],
             entry_point="agent",
+            providers=ProviderRegistry.from_presets("openai"),
+            default_provider="openai",
         )
         r = await g.run(
             state={"input": "do two things"}, tools=[SlowTool()], max_iterations=10
@@ -346,6 +356,8 @@ class TestParallelToolExecution:
                 Edge("tool", "agent"),
             ],
             entry_point="agent",
+            providers=ProviderRegistry.from_presets("openai"),
+            default_provider="openai",
         )
         started = asyncio.get_event_loop().time()
         await g.run(
@@ -422,6 +434,8 @@ class TestToolErrorMode:
                 Edge("tool", "agent"),
             ],
             entry_point="agent",
+            providers=ProviderRegistry.from_presets("openai"),
+            default_provider="openai",
         )
         r = await g.run(state={"input": "try"}, tools=[BoomTool()], max_iterations=5)
         assert r["output"] == "recovered"
@@ -500,6 +514,8 @@ class TestToolErrorMode:
                 Edge("tool", "fallback", "__error__"),
             ],
             entry_point="agent",
+            providers=ProviderRegistry.from_presets("openai"),
+            default_provider="openai",
         )
         r = await g.run(state={"input": "try"}, tools=[BoomTool()], max_iterations=5)
         assert r["output"] == "fallback-handled"
@@ -526,7 +542,11 @@ class TestFlowReact:
 
         monkeypatch.setattr(httpx.AsyncClient, "post", mock_post)
 
-        flow = Flow("test")
+        flow = Flow(
+            "test",
+            providers=ProviderRegistry.from_presets("openai"),
+            default_provider="openai",
+        )
         flow.react(
             model="gpt-4",
             system="You are helpful.",
@@ -589,7 +609,11 @@ class TestFlowReact:
 
         monkeypatch.setattr(httpx.AsyncClient, "post", mock_post)
 
-        flow = Flow("test")
+        flow = Flow(
+            "test",
+            providers=ProviderRegistry.from_presets("openai"),
+            default_provider="openai",
+        )
         flow.react(model="gpt-4", input_key="query", output_key="answer")
         g = flow.compile()
         r = await g.run(
@@ -619,7 +643,11 @@ class TestFlowReact:
 
         monkeypatch.setattr(httpx.AsyncClient, "post", mock_post)
 
-        flow = Flow("test")
+        flow = Flow(
+            "test",
+            providers=ProviderRegistry.from_presets("openai"),
+            default_provider="openai",
+        )
         flow.react(model="gpt-4", input_key="query", output_key="answer")
         flow.step(
             Transform(
@@ -651,7 +679,11 @@ class TestFlowReact:
 
         monkeypatch.setattr(httpx.AsyncClient, "post", mock_post)
 
-        flow = Flow("test")
+        flow = Flow(
+            "test",
+            providers=ProviderRegistry.from_presets("openai"),
+            default_provider="openai",
+        )
         flow.harness(
             model="gpt-4",
             system="You are helpful.",

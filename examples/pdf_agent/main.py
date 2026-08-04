@@ -45,10 +45,10 @@ import subprocess
 import sys
 from pathlib import Path
 
-from draf import set_defaults
 from draf.flow import Flow
 from draf.graph import Graph
 from draf.node import LLM
+from draf.provider import ProviderRegistry
 from draf.tool.builtin import ReadFileTool, ShellTool
 
 # The shell tool resolves `python` through PATH.  When running inside a venv,
@@ -58,8 +58,6 @@ if sys.prefix != sys.base_prefix:
     os.environ["PATH"] = (
         os.path.join(sys.prefix, "bin") + os.pathsep + os.environ.get("PATH", "")
     )
-
-set_defaults(provider="ollama")
 
 MODEL = "qwen2.5:7b"
 SKILL_DIR = Path(__file__).resolve().parent / "skills"
@@ -140,7 +138,11 @@ def fill_form_deterministically() -> None:
 async def run_harness() -> None:
     """Skill mounted on a harness/ReAct loop that executes its scripts."""
 
-    flow = Flow("pdf_agent")
+    flow = Flow(
+        "pdf_agent",
+        providers=ProviderRegistry.from_presets("ollama"),
+        default_provider="ollama",
+    )
     flow.harness(
         model=MODEL,
         system=HARNESS_SYSTEM,
@@ -189,6 +191,7 @@ async def run_plain_llm() -> None:
         },
         edges=[],
         entry_point="answer",
+        provider="ollama",
     )
 
     result = await graph.run(

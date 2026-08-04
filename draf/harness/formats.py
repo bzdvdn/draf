@@ -101,12 +101,13 @@ def extract_usage(data: dict) -> tuple[int, int]:
 
 
 def extract_content(
-    data: dict, provider: str, path: str = "", fallback: str = ""
+    data: dict, provider_type: str, path: str = "", fallback: str = ""
 ) -> str:
     """Extract the assistant text from a response.
 
-    *path* is a dot-separated path into *data*; otherwise provider-aware
-    extraction (Anthropic content blocks, Ollama root ``message``).
+    *path* is a dot-separated path into *data*; otherwise the extraction
+    follows the wire protocol *provider_type* (Anthropic content blocks,
+    Ollama root ``message``).
     """
     if path:
         parts = path.split(".")
@@ -118,13 +119,13 @@ def extract_content(
                 val = val.get(p, "")
         return str(val) if val else ""
 
-    if provider == "anthropic":
+    if provider_type == "anthropic_compatible":
         for block in data.get("content", []):
             if block.get("type") == "text":
                 return block.get("text", "")
         return ""
 
-    if provider == "ollama":
+    if provider_type == "ollama":
         return data.get("message", {}).get("content", "")
 
     return fallback

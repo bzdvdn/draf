@@ -42,13 +42,10 @@ from graphs import (
 from pydantic import BaseModel
 from sse_starlette.sse import EventSourceResponse
 
-from draf import set_defaults
 from draf.checkpoint import DEFAULT_OWNER, Checkpoint, JSONFileCheckpointer
 from draf.graph import Graph
 from draf.node.interrupt import GraphInterrupt
 from draf.tool import Tool
-
-set_defaults(provider="ollama")
 
 app = FastAPI(title="DRAFTFLOW FastAPI server", version="0.1")
 

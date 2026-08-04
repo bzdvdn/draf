@@ -76,8 +76,8 @@ class LLM(Node):
         input_key: State key for user message (default: whole state).
         output_key: State key for the response (default ``"output"``).
         provider: Provider name (``"openai"``, ``"ollama"``, etc.).
-            Falls back to ``LLM.DEFAULT_PROVIDER``, then auto-detection
-            from model name.
+            Falls back to the graph-level default (``Graph(default_provider=...)``
+            / workflow ``default_provider:``) when unset.
         use_tools: Tool capability for the node: a list of names restricts
             it to exactly those tools; ``"all"`` uses every ``ctx.tools``
             entry.  ``None``/``[]`` (default) — no tools are surfaced.
@@ -130,13 +130,12 @@ class LLM(Node):
 
     type = "llm_chat"
     _MAX_TOOL_ROUNDS = 10
-    DEFAULT_PROVIDER: str | None = None
 
     def __init__(
         self,
         config: dict | None = None,
         *,
-        model: str = "gpt-4",
+        model: str | None = None,
         system: str = "",
         prompt: str | None = None,
         input_key: str | None = None,
@@ -209,7 +208,6 @@ class LLM(Node):
 
     async def execute(self, ctx, state: dict) -> dict:
         cfg = self.config
-        provider_key = self._resolve_provider(cfg)
 
         skills = resolve_skills(cfg)
         skill_text = skills_instructions(skills)
@@ -250,15 +248,21 @@ class LLM(Node):
         structured = schema is not None
         parse_only = bool(cfg.get("parse", False)) and not structured
 
-        harness = Harness.from_config(cfg, default_provider=self.DEFAULT_PROVIDER)
+        harness = Harness.from_config(
+            cfg,
+            default_provider=getattr(ctx, "default_provider", None),
+            default_model=getattr(ctx, "default_model", None),
+            providers=getattr(ctx, "providers", None),
+        )
         if cfg.get("http_max_retries") is not None:
             harness.max_retries = int(cfg.get("http_max_retries", 2))
         if cfg.get("fallbacks") is not None:
             harness.fallbacks = [str(f) for f in cfg["fallbacks"]]
+        provider_key = harness.provider_key
         harness.on_llm = self._record_llm_cb(ctx, cfg, provider_key)
 
         if structured and not cfg.get("response_format"):
-            if provider_key == "ollama":
+            if harness.type == "ollama":
                 harness._body_extra["format"] = "json"
             else:
                 harness._body_extra["response_format"] = {"type": "json_object"}
@@ -374,13 +378,6 @@ class LLM(Node):
         if isinstance(content, dict):
             return {output_key: content}
         return {output_key: content or ""}
-
-    def _resolve_provider(self, cfg: dict) -> str:
-        p = cfg.get("provider") or self.DEFAULT_PROVIDER
-        if p:
-            return p.lower()
-        detected = cfg.get("model", "gpt-4").split("-")[0].split("/")[0]
-        return detected.lower()
 
     def _record_llm_cb(self, ctx, cfg: dict, provider_key: str):
         """Build the ``on_llm`` callback recording usage + ``llm`` events."""

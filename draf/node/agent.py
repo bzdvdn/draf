@@ -11,7 +11,6 @@ from draf.harness import (
     tool_to_schema,
 )
 from draf.node.interrupt import GraphInterrupt
-from draf.node.llm import LLM
 from draf.node.node import Node
 from draf.skill import resolve_skills, scope_tools, skills_instructions
 from draf.stream import StreamEvent
@@ -71,7 +70,7 @@ class ReActAgent(Node):
         self,
         config: dict | None = None,
         *,
-        model: str = "gpt-4",
+        model: str | None = None,
         system: str = "",
         input_key: str = "input",
         output_key: str = "output",
@@ -160,7 +159,12 @@ class ReActAgent(Node):
             tool_to_schema(t) for t in scope_tools(ctx.tools, cfg, skills).values()
         ]
 
-        harness = Harness.from_config(cfg, default_provider=LLM.DEFAULT_PROVIDER)
+        harness = Harness.from_config(
+            cfg,
+            default_provider=getattr(ctx, "default_provider", None),
+            default_model=getattr(ctx, "default_model", None),
+            providers=getattr(ctx, "providers", None),
+        )
         tracer = getattr(ctx, "tracer", None)
         if tracer is not None:
 
