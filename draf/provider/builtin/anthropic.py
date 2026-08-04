@@ -1,6 +1,6 @@
 """Anthropic preset (responses normalised to a shared message shape)."""
 
-from draf.provider.base import Provider
+from draf.provider.builtin.base import Provider
 
 
 class Anthropic(Provider):

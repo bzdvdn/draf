@@ -311,6 +311,81 @@ class TestSubFlow:
         r = asyncio.run(g.run({"val": 0}))
         assert r["val"] == 2
 
+    def test_subflow_propagates_append_reducers(self):
+        import asyncio
+
+        from draf.flow import Flow
+        from draf.node import Node
+
+        class AppendMsg(Node):
+            type = "am"
+
+            async def execute(self, ctx, state):
+                return {"msgs": [{"role": "user", "content": "hi"}]}
+
+        sub = Flow("inner").step(AppendMsg({})).step(AppendMsg({}))
+        parent = Flow("parent").add_flow(sub, output_map={"msgs": "result"})
+        g = parent.compile()
+
+        r = asyncio.run(g.run({}, reducers={"msgs": "append"}))
+        assert r["result"] == [
+            {"role": "user", "content": "hi"},
+            {"role": "user", "content": "hi"},
+        ]
+
+    def test_subflow_appends_into_existing_list_once(self):
+        import asyncio
+
+        from draf.flow import Flow
+        from draf.node import Node
+
+        class AppendMsg(Node):
+            type = "am2"
+
+            async def execute(self, ctx, state):
+                return {"msgs": [{"role": "assistant", "content": "reply"}]}
+
+        sub = Flow("inner").step(AppendMsg({}))
+        parent = Flow("parent").add_flow(sub)
+        g = parent.compile()
+
+        r = asyncio.run(
+            g.run(
+                {"msgs": [{"role": "user", "content": "hello"}]},
+                reducers={"msgs": "append"},
+            )
+        )
+        assert r["msgs"] == [
+            {"role": "user", "content": "hello"},
+            {"role": "assistant", "content": "reply"},
+        ]
+
+    def test_subflow_runs_twice_accumulates_once(self):
+        import asyncio
+
+        from draf.flow import Flow
+        from draf.node import Node
+
+        class AppendMsg(Node):
+            type = "am3"
+
+            async def execute(self, ctx, state):
+                return {"msgs": [{"role": "assistant", "content": "reply"}]}
+
+        sub = Flow("inner").step(AppendMsg({}))
+        parent = Flow("parent").add_flow(sub)
+        g = parent.compile()
+
+        state = {"msgs": [{"role": "user", "content": "hello"}]}
+        r1 = asyncio.run(g.run(dict(state), reducers={"msgs": "append"}))
+        assert len(r1["msgs"]) == 2
+        r2 = asyncio.run(g.run(dict(r1), reducers={"msgs": "append"}))
+        assert [m["content"] for m in r2["msgs"]] == [
+            "hello",
+            "reply",
+            "reply",
+        ]
+
     def test_subflow_with_maps(self):
         import asyncio
 
@@ -897,6 +972,17 @@ class TestNodeIds:
         assert set(g.nodes) == {"assistant/agent", "assistant/tool"}
         edges = {(e.source_id, e.target_id, e.condition) for e in g.edges}
         assert ("assistant/agent", "assistant/tool", "_tool_call_name!=") in edges
+
+    def test_harness_uses_custom_tool_call_key_in_edge(self):
+        from draf.flow import Flow
+
+        flow = Flow()
+        flow.harness(
+            model="m", output_key="answer", config={"tool_call_key": "_my_call"}
+        )
+        g = flow.compile()
+        edges = {(e.source_id, e.target_id, e.condition) for e in g.edges}
+        assert any(cond == "_my_call!=" for _, _, cond in edges)
 
     def test_route_subflow_named_by_prefix(self):
         from draf.flow import Flow, agent_step

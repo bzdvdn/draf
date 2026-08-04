@@ -29,6 +29,37 @@ class TestParallelNode:
         assert r["b"] == 2
 
     @pytest.mark.asyncio
+    async def test_failing_branch_cancels_siblings(self):
+        from draf.graph import Graph
+        from draf.node import Node, Parallel
+
+        started = {"n": 0, "finished": 0}
+
+        class Failing(Node):
+            type = "failing"
+
+            async def execute(self, ctx, state):
+                started["n"] += 1
+                raise ValueError("boom")
+
+        class Slow(Node):
+            type = "slow"
+
+            async def execute(self, ctx, state):
+                started["n"] += 1
+                await asyncio.sleep(5)
+                started["finished"] += 1
+                return {"slow": True}
+
+        node = Parallel([[Failing({})], [Slow({})]])
+        g = Graph(nodes={"p": node}, edges=[], entry_point="p")
+        with pytest.raises(ValueError, match="boom"):
+            await g.run(state={})
+        assert started["n"] == 2
+        # the surviving branch must be cancelled, not left running for 5s
+        assert started["finished"] == 0
+
+    @pytest.mark.asyncio
     async def test_branches_run_concurrently(self):
         from draf.graph import Graph
         from draf.node import Node, Parallel

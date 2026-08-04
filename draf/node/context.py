@@ -144,13 +144,21 @@ class ExecContext:
             (custom providers declared in a workflow / passed to
             ``graph.run(providers=...)``).  ``None`` uses the built-in
             presets.
-        default_provider: Optional default provider name for the graph.
-            LLM nodes use it when they don't set ``provider`` themselves
+        default_provider: Optional default provider name for the graph.  LLM
+            nodes use it when they don't set ``provider`` themselves
             (the graph-level ``Graph(default_provider=...)`` / workflow
             ``default_provider:``).
         default_model: Optional default model name for the graph.  LLM
             nodes use it when they don't set ``model`` themselves
             (the graph-level ``Graph(default_model=...)``).
+        hooks: Observability hooks dict (forwarded to nested runs, e.g.
+            :class:`~draf.flow.sub_flow.SubFlow`).
+        node_timeout: Per-node timeout for nested runs (seconds).
+        checkpointer: Optional persistence backend, forwarded to nested
+            runs so interrupts inside a subflow stay resumable.
+        checkpoint_id: Run key of the enclosing run, used to namespace
+            nested run checkpoints.
+        owner: Owner scope of the enclosing run.
     """
 
     def __init__(
@@ -166,6 +174,11 @@ class ExecContext:
         providers: "dict | ProviderRegistry | None" = None,
         default_provider: str | None = None,
         default_model: str | None = None,
+        hooks: "dict | None" = None,
+        node_timeout: float | None = None,
+        checkpointer: Any = None,
+        checkpoint_id: str | None = None,
+        owner: str | None = None,
     ):
         self.state = state
         self.tools = tools
@@ -177,6 +190,11 @@ class ExecContext:
         self.providers = providers
         self.default_provider = default_provider
         self.default_model = default_model
+        self.hooks = hooks
+        self.node_timeout = node_timeout
+        self.checkpointer = checkpointer
+        self.checkpoint_id = checkpoint_id
+        self.owner = owner
 
     def tool(self, name: str) -> Tool:
         """Look up a tool by name.

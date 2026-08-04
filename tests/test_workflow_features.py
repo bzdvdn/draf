@@ -99,6 +99,24 @@ state:
         assert initial["token"] == "${MISSING_TOKEN}"
 
 
+class TestNodeTypePreserved:
+    def test_yaml_load_keeps_real_node_type(self, tmp_path):
+        from draf.yaml import load_workflow
+
+        path = tmp_path / "wf.yaml"
+        path.write_text(
+            """\
+name: types
+steps:
+  - id: first
+    type: transform
+    config: {action: uppercase, input_key: t, output_key: o}
+"""
+        )
+        graph, _, _, _ = load_workflow(str(path))
+        assert graph.nodes["first"].type == "transform"
+
+
 class TestJsonGet:
     @pytest.mark.asyncio
     async def test_extracts_field_from_state_dict(self):

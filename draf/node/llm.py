@@ -7,13 +7,14 @@ from draf.errors import DrafError
 from draf.harness import (
     Harness,
     execute_tool_calls,
+    normalize_text_tool_calls,
     tool_to_schema,
 )
 from draf.harness import (
     extract_usage as _extract_usage,  # noqa: F401  (re-export for tests)
 )
 from draf.harness import (
-    parse_text_tool_call as _parse_text_tool_call,
+    parse_text_tool_call as _parse_text_tool_call,  # noqa: F401  (re-export for tests)
 )
 from draf.node.node import Node
 from draf.prompt import render_template
@@ -293,21 +294,9 @@ class LLM(Node):
                 tool_calls = msg.get("tool_calls")
 
                 if has_tools and not tool_calls and harness.parse_text_tool_calls:
-                    parsed = _parse_text_tool_call(content)
-                    if parsed:
-                        name, args = parsed
-                        call_id = f"call_{len(messages)}"
-                        tool_calls = [
-                            {
-                                "id": call_id,
-                                "type": "function",
-                                "function": {
-                                    "name": name,
-                                    "arguments": json.dumps(args),
-                                },
-                            }
-                        ]
-                        msg = {**msg, "tool_calls": tool_calls}
+                    tool_calls, msg = normalize_text_tool_calls(
+                        content, msg, seq=len(messages)
+                    )
 
                 if has_tools and tool_calls:
                     messages.append(msg)

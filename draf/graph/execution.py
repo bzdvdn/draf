@@ -277,6 +277,11 @@ async def _execute_impl(
                 providers=providers,
                 default_provider=default_provider,
                 default_model=default_model,
+                hooks=hooks,
+                node_timeout=node_timeout,
+                checkpointer=checkpointer,
+                checkpoint_id=cid,
+                owner=owner,
             )
             start = time.monotonic()
 
@@ -362,7 +367,8 @@ async def _execute_impl(
                             )
                         )
                 exc.node_id = current_id
-                exc.checkpoint_id = cid or None
+                if exc.checkpoint_id is None:
+                    exc.checkpoint_id = cid or None
                 raise
             except Exception as exc:
                 log.error("node_error duration_ms=%s error=%r", _ms(start), str(exc))
@@ -408,6 +414,11 @@ async def _execute_impl(
                 raise
 
             log.info("node_end duration_ms=%s", _ms(start))
+            if result:
+                if isinstance(state, State):
+                    state.merge(result)
+                else:
+                    apply_reducers(state, result, reducers or {})
             await _call_hook(hooks, "on_node_end", current_id, node, state, result)
             if tracer is not None:
                 tracer.node_end(current_id, node.type, _ms(start))
@@ -420,12 +431,6 @@ async def _execute_impl(
                         data={"duration_ms": _ms(start)},
                     )
                 )
-
-            if result:
-                if isinstance(state, State):
-                    state.merge(result)
-                else:
-                    apply_reducers(state, result, reducers or {})
 
             outgoing = [
                 e

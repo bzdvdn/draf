@@ -1,40 +1,16 @@
 """The :class:`ProviderRegistry` and the built-in preset catalogue.
 
-Register :class:`~draf.provider.base.Provider` instances once and reference
-them by ``name`` anywhere a provider key is expected (``provider=`` on nodes,
-``default_provider=`` on the graph, ``providers=`` at run time, ``providers:``
-in YAML).  The registry starts empty and is the single source of truth: a
-provider is only usable once it has been explicitly registered (built-in
-presets are registered as instances, e.g.
+Register :class:`~draf.provider.builtin.base.Provider` instances once and
+reference them by ``name`` anywhere a provider key is expected (``provider=``
+on nodes, ``default_provider=`` on the graph, ``providers=`` at run time,
+``providers:`` in YAML).  The registry starts empty and is the single source
+of truth: a provider is only usable once it has been explicitly registered
+(built-in presets are registered as instances, e.g.
 ``providers=ProviderRegistry.from_presets("ollama")``).
 """
 
 from draf.errors import ConfigError
-from draf.provider.anthropic import Anthropic
-from draf.provider.base import Provider
-from draf.provider.deepseek import DeepSeek
-from draf.provider.gemini import Gemini
-from draf.provider.groq import Groq
-from draf.provider.mistral import Mistral
-from draf.provider.ollama import Ollama
-from draf.provider.openai import OpenAI
-from draf.provider.openai_compatible import OpenAICompatible
-from draf.provider.openrouter import OpenRouter
-from draf.provider.together import Together
-
-#: Built-in preset classes by name, in the order they appear in messages.
-BUILTINS: dict[str, type[Provider]] = {
-    "openai": OpenAI,
-    "anthropic": Anthropic,
-    "deepseek": DeepSeek,
-    "ollama": Ollama,
-    "mistral": Mistral,
-    "together": Together,
-    "groq": Groq,
-    "openrouter": OpenRouter,
-    "gemini": Gemini,
-    "openai_compatible": OpenAICompatible,
-}
+from draf.provider.builtin import BUILTINS, Provider
 
 #: Built-in providers as fresh instances (backward-compatible dict).
 DEFAULT_PROVIDERS: dict[str, Provider] = {name: cls() for name, cls in BUILTINS.items()}

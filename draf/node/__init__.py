@@ -93,7 +93,6 @@ def _build_subgraph(
         if not isinstance(sid, str) or not isinstance(stype, str):
             raise ConfigError("subflow graph step requires string id and type")
         node = default_registry.create(stype, step.get("config", {}))
-        node.type = sid
         if step.get("retry"):
             from draf.node.retry import wrap_with_retry
 

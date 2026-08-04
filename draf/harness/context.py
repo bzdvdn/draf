@@ -22,11 +22,12 @@ def _estimate_tokens(messages: list[dict]) -> int:
     """Estimate total tokens for a message list."""
     total = 0
     for msg in messages:
-        content = msg.get("content", "")
-        total += _content_tokens(content)
-        if isinstance(msg.get("content"), list):
-            for block in msg["content"]:
+        content = msg.get("content")
+        if isinstance(content, list):
+            for block in content:
                 total += _content_tokens(block.get("text", ""))
+        else:
+            total += _content_tokens(content)
     return total
 
 
@@ -41,6 +42,10 @@ def trim_messages(
     messages are dropped from the front of the conversation until the
     estimated token count and message count fit the limits.
 
+    A limit ``<= 0`` keeps only the system message(s).  When the system
+    message alone cannot fit *max_tokens* (and dropping it is not allowed)
+    a :class:`ContextLimitError` is raised.
+
     Args:
         messages: The conversation history.
         max_tokens: Maximum estimated tokens to keep.
@@ -48,13 +53,13 @@ def trim_messages(
 
     Returns:
         A new list of messages, trimmed from the front (system kept).
+
+    Raises:
+        ContextLimitError: When even the system message alone would exceed
+            *max_tokens* (system is never dropped).
     """
     if not messages:
         return []
-    if max_messages is not None and max_messages <= 0:
-        return messages
-    if max_tokens is not None and max_tokens <= 0:
-        return messages
 
     system: list[dict] = []
     body: list[dict] = []
@@ -64,11 +69,20 @@ def trim_messages(
         else:
             body.append(msg)
 
+    if max_messages is not None and max_messages <= 0:
+        return system
+    if max_tokens is not None and max_tokens <= 0:
+        return system
+
     if max_messages is not None and len(body) > max_messages:
         body = body[-max_messages:]
     if max_tokens is not None and _estimate_tokens(messages) > max_tokens:
         while body and _estimate_tokens(system + body) > max_tokens:
             body.pop(0)
+        if not body and _estimate_tokens(system) > max_tokens:
+            raise ContextLimitError(
+                "conversation system message exceeds max_context_tokens"
+            )
     return system + body
 
 

@@ -6,9 +6,11 @@ module only re-exports it so ``from draf.provider.providers import ...``
 keeps working.
 """
 
-from draf.provider.base import PROVIDER_FIELDS, Provider  # noqa: F401
+from draf.provider.builtin.base import PROVIDER_FIELDS, Provider  # noqa: F401
 from draf.provider.concurrency import (  # noqa: F401
     _EXPLICIT_LIMITS,
+    _PROVIDER_ACTIVE,
+    _PROVIDER_LIMITS,
     _PROVIDER_SEMAPHORES,
     provider_concurrency,
     set_provider_concurrency,

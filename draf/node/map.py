@@ -4,6 +4,7 @@ import asyncio
 import time
 from typing import Sequence
 
+from draf._async_util import gather_or_cancel
 from draf.node.context import ExecContext
 from draf.node.node import Node
 from draf.state import apply_reducers
@@ -148,7 +149,7 @@ class Map(Node):
                 group, idx, ctx, state, reducers, input_keys, result_key, chunk_size
             )
 
-        results = await asyncio.gather(
+        results = await gather_or_cancel(
             *(run_group(group, idx) for idx, group in enumerate(groups))
         )
         return {output_key: list(results)}

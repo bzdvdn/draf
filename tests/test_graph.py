@@ -201,6 +201,24 @@ class TestHooks:
         assert result["done"] is True
 
     @pytest.mark.asyncio
+    async def test_on_node_end_sees_merged_state(self):
+        from draf.graph import Graph
+        from draf.node import Node
+
+        class Simple(Node):
+            type = "s"
+
+            async def execute(self, ctx, state):
+                return {"done": True}
+
+        g = Graph(nodes={"a": Simple({})}, edges=[], entry_point="a")
+        seen = {}
+        await g.run(
+            state={}, hooks={"on_node_end": lambda nid, n, s, r: seen.update(s)}
+        )
+        assert seen["done"] is True
+
+    @pytest.mark.asyncio
     async def test_on_node_error_called_before_fallback(self):
         from draf.graph import Edge, Graph
         from draf.node import Node

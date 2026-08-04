@@ -178,6 +178,27 @@ class TestRetry:
         assert result == {"done": True}
 
     @pytest.mark.asyncio
+    async def test_retry_does_not_retry_graph_interrupt(self):
+        from draf.node import ExecContext, Node, Retry
+        from draf.node.interrupt import GraphInterrupt
+
+        attempt = 0
+
+        class Interrupting(Node):
+            type = "interrupting"
+
+            async def execute(self, ctx, state):
+                nonlocal attempt
+                attempt += 1
+                raise GraphInterrupt(key="pause", prompt="wait")
+
+        retry = Retry(Interrupting({}), max_retries=3)
+        ctx = ExecContext(state={}, tools={})
+        with pytest.raises(GraphInterrupt):
+            await retry.execute(ctx, {})
+        assert attempt == 1
+
+    @pytest.mark.asyncio
     async def test_retry_backoff_scales_delay(self):
         from draf.node import ExecContext, Node, Retry
 

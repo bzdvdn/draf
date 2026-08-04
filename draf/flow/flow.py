@@ -756,7 +756,9 @@ class Flow:
         tool_id = self._next_id(tool_exec, f"{id}/tool" if id else None)
         self._node_ids.append(tool_id)
 
-        self._edges.append(Edge(agent_id, tool_id, "_tool_call_name!="))
+        self._edges.append(
+            Edge(agent_id, tool_id, f"{agent_node.config.get('tool_call_key', '_tool_call_name')}!=")
+        )
         self._edges.append(Edge(tool_id, agent_id))
 
         if self._last_added is not None:

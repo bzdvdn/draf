@@ -22,7 +22,7 @@ from draf.harness.formats import (
     extract_content,
     extract_message,
     extract_usage,
-    parse_text_tool_call,
+    normalize_text_tool_calls,
 )
 from draf.harness.schema import tool_to_schema
 from draf.harness.tools import execute_tool_calls
@@ -35,11 +35,17 @@ from draf.provider import (
 )
 from draf.provider.providers import (
     _EXPLICIT_LIMITS,
+    _PROVIDER_ACTIVE,
+    _PROVIDER_LIMITS,
     _PROVIDER_SEMAPHORES,
 )
 from draf.tool.tool import Tool
 
 log = get_logger(__name__)
+
+#: Shared request cache used when ``cache=True`` so re-runs / checkpoint
+#: resumes across distinct :class:`Harness` instances hit the same store.
+_DEFAULT_CACHE: dict[str, str] = {}
 
 
 def _last_user_message(messages: list[dict]) -> str:
@@ -87,6 +93,19 @@ def _opt_int(value: typing.Any) -> int | None:
         return int(value)
     except (TypeError, ValueError):
         return None
+
+
+def _cfg_int(cfg: dict, key: str, default: int) -> int:
+    """Parse *cfg[key]* as ``int``, using *default* when absent or ``None``.
+
+    Unlike the ``or``-based coercion, an explicit ``0`` is honoured rather
+    than silently replaced by *default* (e.g. ``max_retries: 0`` disables
+    retries).
+    """
+    value = cfg.get(key)
+    if value is None:
+        return default
+    return int(value)
 
 
 @dataclass
@@ -206,7 +225,9 @@ class Harness:
         self._cache: MutableMapping[str, str] | None = None
         if isinstance(cache, bool):
             if cache:
-                self._cache = {}
+                # ``True`` shares one process-wide store so distinct harnesses
+                # (per-node/per-run instances) reuse the same responses.
+                self._cache = _DEFAULT_CACHE
         elif cache is not None:
             self._cache = cache
 
@@ -322,12 +343,12 @@ class Harness:
             auth_header=cfg.get("auth_header") or "",
             auth_prefix=cfg.get("auth_prefix") or "",
             timeout=_opt_float(cfg.get("timeout")),
-            max_rounds=int(cfg.get("max_tool_rounds") or 10),
+            max_rounds=_cfg_int(cfg, "max_tool_rounds", 10),
             parse_text_tool_calls=bool(cfg.get("parse_text_tool_calls", True)),
             tool_error_mode=str(cfg.get("tool_error_mode", "message")),
             tool_timeout=_opt_float(cfg.get("tool_timeout")),
-            tool_retries=int(cfg.get("tool_retries") or 0),
-            max_retries=int(cfg.get("max_retries") or 2),
+            tool_retries=_cfg_int(cfg, "tool_retries", 0),
+            max_retries=_cfg_int(cfg, "max_retries", 2),
             retry_on=tuple(int(x) for x in cfg.get("retry_on") or ())
             or (429, 500, 502, 503, 504),
             fallbacks=cfg.get("fallbacks"),
@@ -441,58 +462,82 @@ class Harness:
 
         An explicit cap (``set_provider_concurrency``) is authoritative;
         otherwise the shared semaphore grows to the largest ``max_parallel``
-        any harness has configured for the provider.
+        any harness has configured for the provider.  Growth only replaces an
+        idle semaphore, so in-flight requests never exceed the new cap
+        (replacing a contended semaphore would let old + new holders run
+        concurrently past the limit).
         """
         key = self.provider_key
         if key in _EXPLICIT_LIMITS:
             return _PROVIDER_SEMAPHORES.get(key)
         if self.max_parallel and self.max_parallel > 0:
             sem = _PROVIDER_SEMAPHORES.get(key)
-            if sem is None or sem._value < self.max_parallel:
+            current = _PROVIDER_LIMITS.get(key, 0)
+            if current >= self.max_parallel:
+                return sem
+            # Grow only while no request is in flight (idle).  Replacing a
+            # contended semaphore would let old + new holders run past the cap.
+            if sem is None or _PROVIDER_ACTIVE.get(key, 0) == 0:
                 sem = asyncio.Semaphore(self.max_parallel)
                 _PROVIDER_SEMAPHORES[key] = sem
-            return sem
+                _PROVIDER_LIMITS[key] = self.max_parallel
+                _PROVIDER_ACTIVE[key] = 0
+            return _PROVIDER_SEMAPHORES[key]
         return None
 
     async def _post_with_retries(
         self, url: str, headers: dict, body: dict, *, allow_fallback: bool = True
-    ) -> dict:
-        """POST *body* with retries + backoff, then fail over on repeated errors."""
+    ) -> tuple[dict, bool]:
+        """POST *body* with retries + backoff + failover.
+
+        Returns ``(data, used_fallback)`` where *used_fallback* is ``True``
+        when the response came from a fallback model rather than the primary.
+
+        The provider semaphore is held for the whole retry cycle (including
+        the backoff sleeps) — a slow/failing request keeps one slot so healthy
+        in-flight calls never exceed the agreed cap.
+        """
+        key = self.provider_key
         sem = self._concurrency_semaphore()
-        if sem is not None:
+        if sem is None:
+            return await self._post_with_retries_impl(
+                url, headers, body, allow_fallback=allow_fallback
+            )
+        _PROVIDER_ACTIVE[key] = _PROVIDER_ACTIVE.get(key, 0) + 1
+        try:
             async with sem:
                 return await self._post_with_retries_impl(
                     url, headers, body, allow_fallback=allow_fallback
                 )
-        return await self._post_with_retries_impl(
-            url, headers, body, allow_fallback=allow_fallback
-        )
+        finally:
+            _PROVIDER_ACTIVE[key] = max(0, _PROVIDER_ACTIVE.get(key, 0) - 1)
 
     async def _post_with_retries_impl(
         self, url: str, headers: dict, body: dict, *, allow_fallback: bool = True
-    ) -> dict:
+    ) -> tuple[dict, bool]:
         last_exc: Exception | None = None
         async with httpx.AsyncClient(timeout=self.timeout) as client:
             for attempt in range(self.max_retries + 1):
                 try:
                     response = await client.post(url, headers=headers, json=body)
                     response.raise_for_status()
-                    return response.json()
+                    return response.json(), False
                 except Exception as exc:  # noqa: BLE001 — retry policy drives handling
                     last_exc = exc
                     if not self._is_retryable(exc) or attempt >= self.max_retries:
                         break
                     await asyncio.sleep(min(4.0, 0.5 * (2**attempt)))
-        # Primary transport exhausted — try fallback models (once).
+        # Primary transport exhausted — try fallback models (once each).
         if allow_fallback and last_exc is not None and self._fallback_transports:
             for fb_model, fb_url, fb_headers in self._fallback_transports:
                 try:
-                    return await self._post_with_retries_impl(
+                    data, _ = await self._post_with_retries_impl(
                         fb_url,
                         fb_headers,
                         {**body, "model": fb_model},
                         allow_fallback=False,
                     )
+                    return data, True
                 except Exception as exc:  # noqa: BLE001
                     last_exc = exc
         assert last_exc is not None
@@ -500,21 +545,30 @@ class Harness:
 
     async def _post_stream_with_retries(
         self, url: str, headers: dict, body: dict, *, allow_fallback: bool = True
-    ) -> str:
-        """Stream a POST response with retries + backoff + failover."""
+    ) -> tuple[str, dict]:
+        """Stream a POST response with retries + backoff + failover.
+
+        Returns ``(content, usage)``; *usage* carries the provider-reported
+        token counts when the final chunk included them, otherwise ``{}``.
+        """
+        key = self.provider_key
         sem = self._concurrency_semaphore()
-        if sem is not None:
+        if sem is None:
+            return await self._post_stream_with_retries_impl(
+                url, headers, body, allow_fallback=allow_fallback
+            )
+        _PROVIDER_ACTIVE[key] = _PROVIDER_ACTIVE.get(key, 0) + 1
+        try:
             async with sem:
                 return await self._post_stream_with_retries_impl(
                     url, headers, body, allow_fallback=allow_fallback
                 )
-        return await self._post_stream_with_retries_impl(
-            url, headers, body, allow_fallback=allow_fallback
-        )
+        finally:
+            _PROVIDER_ACTIVE[key] = max(0, _PROVIDER_ACTIVE.get(key, 0) - 1)
 
     async def _post_stream_with_retries_impl(
         self, url: str, headers: dict, body: dict, *, allow_fallback: bool = True
-    ) -> str:
+    ) -> tuple[str, dict]:
         last_exc: Exception | None = None
         for attempt in range(self.max_retries + 1):
             try:
@@ -527,16 +581,22 @@ class Harness:
         if allow_fallback and last_exc is not None and self._fallback_transports:
             for fb_model, fb_url, fb_headers in self._fallback_transports:
                 try:
-                    return await self._stream_once(
-                        fb_url, fb_headers, {**body, "model": fb_model}
+                    return await self._post_stream_with_retries_impl(
+                        fb_url,
+                        fb_headers,
+                        {**body, "model": fb_model},
+                        allow_fallback=False,
                     )
                 except Exception as exc:  # noqa: BLE001
                     last_exc = exc
         assert last_exc is not None
         raise last_exc
 
-    async def _stream_once(self, url: str, headers: dict, body: dict) -> str:
+    async def _stream_once(
+        self, url: str, headers: dict, body: dict
+    ) -> tuple[str, dict]:
         content = ""
+        usage: dict = {}
         async with httpx.AsyncClient(timeout=self.timeout) as client:
             async with client.stream("POST", url, headers=headers, json=body) as resp:
                 resp.raise_for_status()
@@ -555,6 +615,9 @@ class Harness:
                         chunk = json.loads(data)
                     except json.JSONDecodeError:
                         continue
+                    chunk_usage = chunk.get("usage")
+                    if isinstance(chunk_usage, dict) and chunk_usage:
+                        usage = chunk_usage
                     token = self._stream_token(chunk)
                     if token:
                         content += token
@@ -562,7 +625,7 @@ class Harness:
                             result = self.on_token(token)
                             if inspect.isawaitable(result):
                                 await result
-        return content
+        return content, usage
 
     def _stream_token(self, chunk: dict) -> str:
         """Extract a text delta from a streaming chunk (provider-aware)."""
@@ -571,18 +634,18 @@ class Harness:
             if delta.get("type") == "text_delta":
                 return str(delta.get("text", ""))
             return ""
-        delta = chunk.get("choices", [{}])[0].get("delta", {})
+        delta = (chunk.get("choices") or [{}])[0].get("delta", {})
         token = delta.get("content", "")
         if not token:
             token = (chunk.get("message") or {}).get("content", "")
         return str(token)
 
-    async def _post(self, body: dict) -> dict:
+    async def _post(self, body: dict) -> tuple[dict, bool]:
         return await self._post_with_retries(
             self._url, self._headers, {**body, "stream": False}
         )
 
-    async def _post_stream(self, body: dict) -> str:
+    async def _post_stream(self, body: dict) -> tuple[str, dict]:
         body = {**body, "stream": True}
         return await self._post_stream_with_retries(self._url, self._headers, body)
 
@@ -591,6 +654,37 @@ class Harness:
         payload = json.dumps(body, sort_keys=True, default=str)
         digest = hashlib.sha256(payload.encode()).hexdigest()
         return f"{self.provider_key}:{self.model}:{digest}"
+
+    @staticmethod
+    def _estimate_message_tokens(messages: list[dict]) -> int:
+        """Rough prompt-token estimate (~4 chars per token)."""
+        total = 0
+        for m in messages:
+            content = m.get("content")
+            if isinstance(content, list):
+                for block in content:
+                    total += max(1, len(str(block.get("text", ""))) // 4)
+            else:
+                total += max(1, len(str(content)) // 4)
+        return total
+
+    def _stream_tokens(
+        self, messages: list[dict], content: str, stream_usage: dict
+    ) -> tuple[int, int]:
+        """Token counts for a streamed call.
+
+        Uses provider-reported usage from the streamed chunks when present;
+        otherwise falls back to rough estimates so budgets/hooks still work.
+        """
+        prompt = stream_usage.get("prompt_tokens") or stream_usage.get("input_tokens")
+        completion = stream_usage.get("completion_tokens") or stream_usage.get(
+            "output_tokens"
+        )
+        if prompt is None:
+            prompt = self._estimate_message_tokens(messages)
+        if completion is None:
+            completion = len(content) // 4
+        return int(prompt or 0), int(completion or 0)
 
     async def call(
         self,
@@ -626,14 +720,25 @@ class Harness:
                 cached = True
 
         if use_stream:
-            content = await self._post_stream(body)
+            content, stream_usage = await self._post_stream(body)
             msg: dict = {"role": "assistant", "content": content}
             data = {"message": msg}
-            usage: dict = {"prompt": 0, "completion": 0}
+            prompt, completion = self._stream_tokens(messages, content, stream_usage)
+            usage = {"prompt": prompt, "completion": completion}
+            if self.on_llm:
+                await self.on_llm(
+                    self.provider_key, self.model, prompt, completion, _ms(t0)
+                )
         else:
             if not cached:
-                data = await self._post(body)
-                if self._cache is not None and cache_key is not None:
+                data, used_fallback = await self._post(body)
+                if (
+                    self._cache is not None
+                    and cache_key is not None
+                    and not used_fallback
+                ):
+                    # Never cache a fallback model's reply under the primary's key,
+                    # otherwise a recovered primary keeps serving stale fallback output.
                     self._cache[cache_key] = json.dumps(data, default=str)
             if self.type == "anthropic_compatible":
                 msg = _anthropic_to_message(data)
@@ -687,21 +792,9 @@ class Harness:
         tool_calls = reply.message.get("tool_calls")
 
         if tool_defs and not tool_calls and self.parse_text_tool_calls:
-            parsed = parse_text_tool_call(reply.content)
-            if parsed:
-                name, args = parsed
-                call_id = f"call_{len(messages)}"
-                tool_calls = [
-                    {
-                        "id": call_id,
-                        "type": "function",
-                        "function": {
-                            "name": name,
-                            "arguments": json.dumps(args),
-                        },
-                    }
-                ]
-                reply.message = {**reply.message, "tool_calls": tool_calls}
+            tool_calls, reply.message = normalize_text_tool_calls(
+                reply.content, reply.message, seq=len(messages)
+            )
 
         new_messages = list(messages)
         if tool_calls:

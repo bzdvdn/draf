@@ -8,7 +8,7 @@ are declared in a workflow's ``providers:`` block, registered once in a
 :data:`DEFAULT_PROVIDERS`.
 """
 
-from draf.provider.base import PROVIDER_FIELDS, Provider
+from draf.provider.builtin.base import PROVIDER_FIELDS, Provider
 from draf.provider.concurrency import (
     provider_concurrency,
     set_provider_concurrency,

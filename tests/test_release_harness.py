@@ -251,6 +251,36 @@ class TestConcurrency:
         set_provider_concurrency("openai", 0)
 
 
+class TestFromConfigNumbers:
+    def test_from_config_honors_zero_max_retries(self):
+        from draf.harness import Harness
+
+        h = Harness.from_config(
+            {"model": "gpt-4", "provider": "openai", "api_key_env": "X", "max_retries": 0}
+        )
+        assert h.max_retries == 0
+
+    def test_from_config_honors_zero_max_tool_rounds(self):
+        from draf.harness import Harness
+
+        h = Harness.from_config(
+            {"model": "gpt-4", "provider": "openai", "api_key_env": "X", "max_tool_rounds": 0}
+        )
+        assert h.max_rounds == 0
+
+    def test_from_config_default_max_retries(self):
+        from draf.harness import Harness
+
+        h = Harness.from_config({"model": "gpt-4", "provider": "openai", "api_key_env": "X"})
+        assert h.max_retries == 2
+
+    def test_stream_token_empty_choices(self):
+        from draf.harness import Harness
+
+        h = Harness(model="gpt-4", provider="openai", api_key_env="X")
+        assert h._stream_token({"choices": []}) == ""
+
+
 class TestCostReporting:
     def test_model_pricing_lookup(self):
         from draf.trace import model_pricing, tokens_cost

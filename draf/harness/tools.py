@@ -8,6 +8,7 @@ import json
 import typing
 from collections.abc import Mapping
 
+from draf._async_util import gather_or_cancel
 from draf.harness.formats import _tool_call_parts
 from draf.tool.tool import Tool, coerce_args
 
@@ -70,6 +71,7 @@ async def _run_one_tool_call(
         return f"Error: unknown tool '{name}'"
 
     attempts = tool_retries + 1
+    last_exc: Exception | None = None
     for attempt in range(attempts):
         try:
             coro = tool.arun(**coerce_args(tool, args))
@@ -77,13 +79,16 @@ async def _run_one_tool_call(
                 coro = asyncio.wait_for(coro, timeout=timeout)
             result = await coro
             return str(result) if result is not None else ""
-        except asyncio.TimeoutError:
-            return f"Error calling '{name}': timed out after {timeout}s"
-        except Exception as exc:
-            if tool_error_mode == "raise" or attempt == attempts - 1:
-                if tool_error_mode == "raise":
-                    raise
-                return f"Error calling '{name}': {exc}"
+        except asyncio.TimeoutError as exc:
+            last_exc = exc
+        except Exception as exc:  # noqa: BLE001 — mode drives final handling
+            last_exc = exc
+        if tool_error_mode == "raise" and attempt == attempts - 1:
+            raise last_exc  # type: ignore[misc]
+        if attempt == attempts - 1:
+            if isinstance(last_exc, asyncio.TimeoutError):
+                return f"Error calling '{name}': timed out after {timeout}s"
+            return f"Error calling '{name}': {last_exc}"
     return f"Error calling '{name}': failed"
 
 
@@ -114,7 +119,7 @@ async def execute_tool_calls(
     """
     if not tool_calls:
         return []
-    return await asyncio.gather(
+    return await gather_or_cancel(
         *(
             _run_one_tool_call(
                 tc, tools, tool_error_mode, timeout, tool_retries, approver

@@ -1,7 +1,7 @@
 """Provider resolution helpers shared by the harness and graph layers."""
 
 from draf.errors import ConfigError
-from draf.provider.base import Provider
+from draf.provider.builtin.base import Provider
 from draf.provider.registry import BUILTINS, DEFAULT_PROVIDERS, ProviderRegistry
 
 #: Wire-protocol families a :class:`Provider` can speak.

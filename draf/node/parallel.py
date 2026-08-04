@@ -1,8 +1,8 @@
 """Parallel node — runs independent branches concurrently."""
 
-import asyncio
 import time
 
+from draf._async_util import gather_or_cancel
 from draf.node.context import ExecContext
 from draf.node.node import Node
 from draf.state import apply_reducers
@@ -13,7 +13,7 @@ class Parallel(Node):
     """Execute several branch chains concurrently and merge their results.
 
     Each *branch* is a list of nodes run sequentially on an isolated
-    copy of the state.  Branches run concurrently via ``asyncio.gather``;
+    copy of the state.  Branches run concurrently via ``gather_or_cancel``;
     only the updates each node *returns* are merged back (per-key
     reducers apply, so ``append`` branches accumulate instead of
     overwriting one another).
@@ -47,7 +47,7 @@ class Parallel(Node):
 
     async def execute(self, ctx: ExecContext, state: dict) -> dict:
         reducers = getattr(ctx, "reducers", None) or {}
-        deltas = await asyncio.gather(
+        deltas = await gather_or_cancel(
             *(
                 self._run_branch(branch, idx, ctx, state, reducers)
                 for idx, branch in enumerate(self._branches)

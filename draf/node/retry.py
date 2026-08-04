@@ -3,6 +3,7 @@
 import asyncio
 
 from draf.node.context import ExecContext
+from draf.node.interrupt import GraphInterrupt
 from draf.node.node import Node
 
 
@@ -77,6 +78,8 @@ class Retry(Node):
                 if self._timeout:
                     coro = asyncio.wait_for(coro, timeout=self._timeout)
                 return await coro
+            except GraphInterrupt:
+                raise
             except Exception as e:
                 last_exc = e
                 if attempt >= self._max_retries - 1:

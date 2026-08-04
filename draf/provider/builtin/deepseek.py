@@ -1,6 +1,6 @@
 """DeepSeek preset."""
 
-from draf.provider.base import Provider
+from draf.provider.builtin.base import Provider
 
 
 class DeepSeek(Provider):

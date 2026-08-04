@@ -73,19 +73,22 @@ class MockLLM:
         self.tool_calls = list(tool_calls or [])
         self.calls: list[dict] = []
 
-    async def _post(self, body: dict) -> dict:
+    async def _post(self, body: dict) -> tuple[dict, bool]:
         self.calls.append(dict(body))
         msg: dict = {"role": "assistant", "content": self.content}
         if self.tool_calls:
             msg["tool_calls"] = self.tool_calls
-        return {
-            "choices": [{"message": msg}],
-            "usage": {"prompt_tokens": 10, "completion_tokens": 5},
-        }
+        return (
+            {
+                "choices": [{"message": msg}],
+                "usage": {"prompt_tokens": 10, "completion_tokens": 5},
+            },
+            False,
+        )
 
-    async def _post_stream(self, body: dict) -> str:
+    async def _post_stream(self, body: dict) -> tuple[str, dict]:
         self.calls.append(dict(body))
-        return self.content
+        return self.content, {"prompt_tokens": 10, "completion_tokens": 5}
 
 
 try:

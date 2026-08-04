@@ -156,7 +156,6 @@ def from_yaml(source: str) -> Graph:
         stype = step["type"]
         config = step.get("config", {})
         node = default_registry.create(stype, config)
-        node.type = sid
         if step.get("retry"):
             from draf.node.retry import wrap_with_retry
 
@@ -317,7 +316,6 @@ def load_workflow(path: str) -> tuple[Graph, list[Tool], dict, dict[str, Reducer
         stype = step["type"]
         config = step.get("config", {})
         node = default_registry.create(stype, config)
-        node.type = sid
         if step.get("retry"):
             from draf.node.retry import wrap_with_retry
 

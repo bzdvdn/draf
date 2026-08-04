@@ -1,6 +1,6 @@
 """Generic OpenAI-compatible provider (vLLM, LM Studio, Azure, ...)."""
 
-from draf.provider.base import Provider
+from draf.provider.builtin.base import Provider
 
 
 class OpenAICompatible(Provider):

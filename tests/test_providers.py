@@ -612,7 +612,7 @@ def test_provider_submodules_import_cleanly():
     import importlib
 
     for mod in (
-        "draf.provider.base",
+        "draf.provider.builtin.base",
         "draf.provider.registry",
         "draf.provider.resolve",
         "draf.provider.providers",

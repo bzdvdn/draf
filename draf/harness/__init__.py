@@ -40,6 +40,7 @@ from draf.harness.formats import (
     extract_content,
     extract_message,
     extract_usage,
+    normalize_text_tool_calls,
     parse_text_tool_call,
 )
 from draf.harness.loop import Harness, ModelReply, Step
@@ -73,6 +74,7 @@ __all__ = [
     "extract_content",
     "extract_usage",
     "parse_text_tool_call",
+    "normalize_text_tool_calls",
     "execute_tool_calls",
     "resolve_approval",
     "trim_messages",
