@@ -8,7 +8,8 @@ bigger surfaces are covered in their own pages: [Nodes](nodes.md),
 
 There is no global provider default. Instead, LLM nodes fall back to the
 **graph-level default** — set it on `Flow`/`Graph` (or a workflow's
-top-level `provider:`), so nodes that don't name a provider inherit it:
+top-level `default_provider:`), so nodes that don't name a provider inherit
+it:
 
 ```python
 from draf.flow import Flow
@@ -115,7 +116,7 @@ from draf.errors import redact
 redact("Bearer sk-1234-secret")  # -> "Bearer ***"
 ```
 
-See also [Providers: cost & token reports](providers.md#cost--token-reports).
+See also [Providers: cost & token reports](providers.md#cost-token-reports).
 
 ## Full export list
 

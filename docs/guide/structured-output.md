@@ -6,7 +6,9 @@ text. Pass a JSON Schema (`json_schema`) or a Python type spec (`output_type`
 
 ```python
 from typing import TypedDict
-from draf import Flow, LLM
+from draf.flow import Flow
+from draf.node import LLM
+from draf.provider import ProviderRegistry
 
 
 class Weather(TypedDict):
@@ -14,8 +16,13 @@ class Weather(TypedDict):
     temp: float
 
 
-flow = Flow("weather")
-flow.step(LLM(model="llama3.1:8b", output_key="weather", output_type=Weather))
+flow = Flow(
+    "weather",
+    providers=ProviderRegistry.from_presets("ollama"),
+    default_provider="ollama",
+    default_model="llama3.1:8b",
+)
+flow.step(LLM(output_key="weather", output_type=Weather))
 graph = flow.compile()
 
 result = await graph.run({"city": "Москва"})
@@ -32,14 +39,22 @@ Without a schema, `parse=True` still parses the response into a dict (no
 validation):
 
 ```python
-flow.step(LLM(model="llama3.1:8b", output_key="data", parse=True))
+flow.step(LLM(output_key="data", parse=True))
 ```
 
 ## In YAML
 
-The same field map works declaratively:
+The same field map works declaratively (with the provider declared at the
+top):
 
 ```yaml
+name: weather
+default_provider: ollama
+providers:
+  - name: ollama
+    type: ollama
+    base_url: http://localhost:11434
+    chat_path: /api/chat
 steps:
   - id: weather
     type: llm_chat

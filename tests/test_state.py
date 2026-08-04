@@ -51,6 +51,25 @@ class TestTypedState:
         apply_reducers(state, {"msgs": ["hello"]}, {"msgs": "append"})
         assert state["msgs"] == ["hello"]
 
+    def test_apply_append_non_list_value(self):
+        from draf.state import apply_reducers
+
+        state = {"msgs": ["hello"]}
+        apply_reducers(state, {"msgs": {"role": "assistant", "content": "hi"}}, {"msgs": "append"})
+        assert state["msgs"] == ["hello", {"role": "assistant", "content": "hi"}]
+
+    def test_reducer_appends_classification(self):
+        from draf.state import reducer_appends
+
+        def callable_reducer(old, new):
+            return old + new
+
+        assert reducer_appends("append") is True
+        assert reducer_appends(callable_reducer) is True
+        assert reducer_appends(None) is False
+        assert reducer_appends("override") is False
+        assert reducer_appends("keep") is False
+
     def test_apply_keep_existing(self):
         from draf.state import apply_reducers
 

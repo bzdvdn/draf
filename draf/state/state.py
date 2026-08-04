@@ -7,6 +7,20 @@ Reducer = Callable[[Any, Any], Any] | str
 """Merge strategy: ``"override"``, ``"append"``, ``"keep"``, or a callable ``(old, new) -> value``."""
 
 
+def reducer_appends(reducer: Reducer | None) -> bool:
+    """True when *reducer* accumulates list contributions (append semantics).
+
+    ``"append"`` and any callable treat a node's returned value as new items
+    to merge into the existing value. ``None`` / ``"override"`` / ``"keep"``
+    treat it as a full replacement (or a keep-if-absent), so a node that
+    writes a whole value back must return that whole value under those
+    strategies and only its delta under append semantics.
+    """
+    if reducer is None or reducer == "override" or reducer == "keep":
+        return False
+    return True
+
+
 def reducers_from_yaml_schema(schema: dict) -> dict[str, Reducer]:
     """Convert a YAML state schema dict into a reducer map.
 
@@ -87,21 +101,29 @@ def apply_reducers(state: dict, new_values: dict, reducers: dict[str, Reducer]) 
     """Merge *new_values* into *state* using the provided per-key *reducers*.
 
     Keys without a reducer are overridden (backward-compatible default).
+    A callable reducer for a key that is missing from *state* receives no
+    ``old`` value — the new value is stored as-is instead of calling it
+    with ``None`` (so ``add_messages(old, new) = old + new`` works from a
+    fresh state).
     """
     for key, new_val in new_values.items():
         reducer = reducers.get(key)
         if reducer is None or reducer == "override":
             state[key] = new_val
         elif reducer == "append":
-            if key in state:
-                state[key].extend(new_val)
+            old = state.get(key)
+            if isinstance(old, list):
+                old.extend(new_val if isinstance(new_val, list) else [new_val])
             else:
                 state[key] = new_val
         elif reducer == "keep":
             if key not in state:
                 state[key] = new_val
         elif callable(reducer):
-            state[key] = reducer(state.get(key), new_val)
+            if key in state:
+                state[key] = reducer(state[key], new_val)
+            else:
+                state[key] = new_val
 
 
 _TYPE_MAP = {

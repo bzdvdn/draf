@@ -10,13 +10,21 @@ without leaking secrets into your console.
 ## Quick start
 
 ```python
-from draf import configure_logging, Flow, LLM
+from draf import configure_logging
+from draf.flow import Flow
+from draf.node import LLM
+from draf.provider import ProviderRegistry
 import asyncio
 
 configure_logging()  # INFO -> stderr, text
 
-flow = Flow("chat")
-flow.step(LLM(model="llama3.1:8b", prompt="Скажи привет", output_key="answer"))
+flow = Flow(
+    "chat",
+    providers=ProviderRegistry.from_presets("ollama"),
+    default_provider="ollama",
+    default_model="llama3.1:8b",
+)
+flow.step(LLM(prompt="Скажи привет", output_key="answer"))
 graph = flow.compile()
 
 asyncio.run(graph.run({}, checkpoint_id="thread-42"))

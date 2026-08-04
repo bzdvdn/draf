@@ -43,10 +43,12 @@ log = get_logger(__name__)
 __all__ = ["execute"]
 
 
-def _call_hook(hooks: dict, name: str, *args: Any) -> None:
+async def _call_hook(hooks: dict, name: str, *args: Any) -> None:
     fn = hooks.get(name)
     if fn is not None:
-        fn(*args)
+        res = fn(*args)
+        if asyncio.iscoroutine(res):
+            await res
 
 
 def _restore_state(original: dict | State, data: dict) -> dict | State:
@@ -303,7 +305,7 @@ async def _execute_impl(
                         )
                     )
 
-            _call_hook(hooks, "on_node_start", current_id, node, state)
+            await _call_hook(hooks, "on_node_start", current_id, node, state)
             if tracer is not None:
                 tracer.node_start(current_id, node.type)
             if emit is not None:
@@ -366,7 +368,7 @@ async def _execute_impl(
                 log.error("node_error duration_ms=%s error=%r", _ms(start), str(exc))
                 if tracer is not None:
                     tracer.node_error(current_id, node.type, _ms(start), exc)
-                _call_hook(hooks, "on_node_error", current_id, node, state, exc)
+                await _call_hook(hooks, "on_node_error", current_id, node, state, exc)
                 if emit is not None:
                     await emit(
                         StreamEvent(
@@ -406,7 +408,7 @@ async def _execute_impl(
                 raise
 
             log.info("node_end duration_ms=%s", _ms(start))
-            _call_hook(hooks, "on_node_end", current_id, node, state, result)
+            await _call_hook(hooks, "on_node_end", current_id, node, state, result)
             if tracer is not None:
                 tracer.node_end(current_id, node.type, _ms(start))
             if emit is not None:

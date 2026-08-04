@@ -19,8 +19,17 @@ You are a city guide.  When asked to compare cities, call BOTH
 Mount it on any LLM-capable call — the `LLM` node or `react()` / `harness()`:
 
 ```python
+from draf.flow import Flow
+from draf.node import LLM
+from draf.provider import ProviderRegistry
+
+flow = Flow(
+    "city-bot",
+    providers=ProviderRegistry.from_presets("ollama"),
+    default_provider="ollama",
+    default_model="llama3.1:8b",
+)
 flow.harness(
-    model="llama3.1:8b",
     input_key="query",
     output_key="answer",
     skills=["city-guide"],
@@ -28,7 +37,7 @@ flow.harness(
 )
 
 # same for a plain LLM node
-flow.step(LLM(model="llama3.1:8b", skills=["city-guide"], use_tools=True))
+flow.step(LLM(skills=["city-guide"], use_tools=True))
 ```
 
 A mounted skill:

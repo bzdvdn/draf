@@ -48,6 +48,7 @@ class Graph:
     Hook callbacks receive ``(node_id, node, state)``.
     ``on_node_end`` additionally receives the result dict.
     ``on_node_error`` additionally receives the exception.
+    Hooks may be sync or async; async hooks are awaited.
     """
 
     def __init__(

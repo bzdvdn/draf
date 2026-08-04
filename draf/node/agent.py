@@ -1,5 +1,6 @@
 """ReAct agent: graph-visible tool-calling loop."""
 
+import asyncio
 import json
 import typing
 
@@ -13,6 +14,7 @@ from draf.harness import (
 from draf.node.interrupt import GraphInterrupt
 from draf.node.node import Node
 from draf.skill import resolve_skills, scope_tools, skills_instructions
+from draf.state import reducer_appends
 from draf.stream import StreamEvent
 
 
@@ -148,6 +150,7 @@ class ReActAgent(Node):
             system = f"{system}\n\n{skill_text}" if system else skill_text
 
         messages = list(state.get(messages_key, []))
+        start = len(messages)
         if not messages:
             user_input = str(state.get(input_key, ""))
             if system:
@@ -178,7 +181,9 @@ class ReActAgent(Node):
 
         async def token_sink(token: str) -> None:
             if on_token_cfg is not None:
-                on_token_cfg(token)
+                res = on_token_cfg(token)
+                if asyncio.iscoroutine(res):
+                    await res
             if emit is not None:
                 await emit(
                     StreamEvent(
@@ -243,7 +248,10 @@ class ReActAgent(Node):
                 result["_tool_calls"] = []
                 messages.append({"role": "assistant", "content": content})
 
-        result[messages_key] = messages
+        if reducer_appends((ctx.reducers or {}).get(messages_key)):
+            result[messages_key] = messages[start:]
+        else:
+            result[messages_key] = messages
         return result
 
 
@@ -362,6 +370,7 @@ class ToolExec(Node):
         )
 
         messages = list(state.get(messages_key, []))
+        start = len(messages)
         for call, res in zip(to_run, results):
             messages.append(
                 {
@@ -379,10 +388,14 @@ class ToolExec(Node):
                 }
             )
 
-        return {
-            messages_key: messages,
+        out: dict = {
             tool_call_key: "",
             "_tool_calls": [],
             "_tool_call_args": "",
             "_tool_call_id": "",
         }
+        if reducer_appends((ctx.reducers or {}).get(messages_key)):
+            out[messages_key] = messages[start:]
+        else:
+            out[messages_key] = messages
+        return out

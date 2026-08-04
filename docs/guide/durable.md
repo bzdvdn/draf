@@ -63,13 +63,18 @@ reaches it, `graph.run()` raises `GraphInterrupt`; resume with the same
 from draf.checkpoint import JSONFileCheckpointer
 from draf.node.interrupt import GraphInterrupt
 from draf.flow import Flow
+from draf.node import LLM
+from draf.provider import ProviderRegistry
 
-flow = Flow("approval")
-flow.step(LLM(model="llama3.1:8b", prompt="Составь план: {task}", output_key="draft"))
-flow.interrupt(key="approved", prompt="Одобрить? (да / правки)")
-flow.step(
-    LLM(model="llama3.1:8b", prompt="{draft}\nВердикт: {approved}", output_key="final")
+flow = Flow(
+    "approval",
+    providers=ProviderRegistry.from_presets("ollama"),
+    default_provider="ollama",
+    default_model="llama3.1:8b",
 )
+flow.step(LLM(prompt="Составь план: {task}", output_key="draft"))
+flow.interrupt(key="approved", prompt="Одобрить? (да / правки)")
+flow.step(LLM(prompt="{draft}\nВердикт: {approved}", output_key="final"))
 
 graph = flow.compile()
 cp = JSONFileCheckpointer("checkpoints")

@@ -82,18 +82,20 @@ asyncio.run(main())
 
 ```python
 import asyncio
-from draf import set_defaults
 from draf.flow import Flow, Case
 from draf.node import LLM, Transform
-
-set_defaults(provider="ollama")
+from draf.provider import ProviderRegistry
 
 
 async def main():
-    flow = Flow("sentiment-router")
+    flow = Flow(
+        "sentiment-router",
+        providers=ProviderRegistry.from_presets("ollama"),
+        default_provider="ollama",
+        default_model="llama3.1:8b",
+    )
     flow.step(
         LLM(
-            model="llama3.1:8b",
             system='Classify the sentiment. Reply "positive" or "negative".',
             input_key="text",
             output_key="sentiment",
@@ -238,15 +240,21 @@ branch count is derived from the data, not declared up front. The processor
 reads the same keys the Map fans out, so no glue node is needed::
 
 ```python
-flow = Flow("repair-plans").map(
-    LLM(
-        model="llama3.1:8b",
-        prompt="Составь план для ремонта {type} на сумму {summ} рублей.",
-        output_key="plan",
-    ),
-    input_keys=["type", "summ"],  # lists zipped per index
-    output_key="plans",  # list of per-item results
-    max_concurrency=2,
+flow = (
+    Flow(
+        "repair-plans",
+        providers=ProviderRegistry.from_presets("ollama"),
+        default_provider="ollama",
+        default_model="llama3.1:8b",
+    ).map(
+        LLM(
+            prompt="Составь план для ремонта {type} на сумму {summ} рублей.",
+            output_key="plan",
+        ),
+        input_keys=["type", "summ"],  # lists zipped per index
+        output_key="plans",  # list of per-item results
+        max_concurrency=2,
+    )
 )
 result = await flow.compile().run(
     state={
@@ -272,13 +280,18 @@ the same `checkpoint_id` plus a `resume` dict::
 from draf.checkpoint import JSONFileCheckpointer
 from draf.node.interrupt import GraphInterrupt
 from draf.flow import Flow
+from draf.node import LLM
+from draf.provider import ProviderRegistry
 
-flow = Flow("approval")
-flow.step(LLM(model="llama3.1:8b", prompt="Составь план: {task}", output_key="draft"))
-flow.interrupt(key="approved", prompt="Одобрить? (да / правки)")
-flow.step(
-    LLM(model="llama3.1:8b", prompt="{draft}\nВердикт: {approved}", output_key="final")
+flow = Flow(
+    "approval",
+    providers=ProviderRegistry.from_presets("ollama"),
+    default_provider="ollama",
+    default_model="llama3.1:8b",
 )
+flow.step(LLM(prompt="Составь план: {task}", output_key="draft"))
+flow.interrupt(key="approved", prompt="Одобрить? (да / правки)")
+flow.step(LLM(prompt="{draft}\nВердикт: {approved}", output_key="final"))
 
 graph = flow.compile()
 cp = JSONFileCheckpointer("checkpoints")
@@ -344,10 +357,17 @@ progress before the run finishes. Build the graph with the `Flow` API (or
 directly with `Graph`) and stream it:
 
 ```python
-from draf import Flow, LLM
+from draf.flow import Flow
+from draf.node import LLM
+from draf.provider import ProviderRegistry
 
-flow = Flow("chat")
-flow.step(LLM(model="llama3.1:8b", prompt="Скажи привет", output_key="answer"))
+flow = Flow(
+    "chat",
+    providers=ProviderRegistry.from_presets("ollama"),
+    default_provider="ollama",
+    default_model="llama3.1:8b",
+)
+flow.step(LLM(prompt="Скажи привет", output_key="answer"))
 graph = flow.compile()
 
 async for event in graph.stream(state):
@@ -376,7 +396,9 @@ text. Pass a JSON Schema (`json_schema`) or a Python type spec
 
 ```python
 from typing import TypedDict
-from draf import Flow, LLM
+from draf.flow import Flow
+from draf.node import LLM
+from draf.provider import ProviderRegistry
 
 
 class Weather(TypedDict):
@@ -384,8 +406,13 @@ class Weather(TypedDict):
     temp: float
 
 
-flow = Flow("weather")
-flow.step(LLM(model="llama3.1:8b", output_key="weather", output_type=Weather))
+flow = Flow(
+    "weather",
+    providers=ProviderRegistry.from_presets("ollama"),
+    default_provider="ollama",
+    default_model="llama3.1:8b",
+)
+flow.step(LLM(output_key="weather", output_type=Weather))
 graph = flow.compile()
 
 result = await graph.run({"city": "Москва"})
@@ -399,9 +426,16 @@ all attempts fail, a `StructuredOutputError` is raised — route it with an
 tracer and the stream. Without a schema, `parse=True` still parses the
 response into a dict (no validation).
 
-The same field map works in YAML:
+The same field map works in YAML (with the provider declared at the top):
 
 ```yaml
+name: weather
+default_provider: ollama
+providers:
+  - name: ollama
+    type: ollama
+    base_url: http://localhost:11434
+    chat_path: /api/chat
 steps:
   - id: weather
     type: llm_chat
@@ -423,8 +457,9 @@ executor stay visible as graph topology, so the loop is inspectable and can
 be followed by more nodes:
 
 ```python
-from draf import Flow
+from draf.flow import Flow
 from draf.node import Transform
+from draf.provider import ProviderRegistry
 from draf.tool import Tool
 
 
@@ -436,9 +471,14 @@ class Search(Tool):
         return f"results for {query}"
 
 
-flow = Flow("agent")
+flow = Flow(
+    "agent",
+    providers=ProviderRegistry.from_presets("ollama"),
+    default_provider="ollama",
+    default_model="llama3.1:8b",
+)
 flow.react(
-    model="gpt-4", system="Answer using tools.", input_key="query", output_key="answer"
+    system="Answer using tools.", input_key="query", output_key="answer"
 )
 flow.step(Transform(action="uppercase", input_key="answer", output_key="result"))
 
@@ -513,8 +553,17 @@ You are a city guide. When asked to compare cities, call BOTH
 Mount it on any LLM-capable call — the `LLM` node or `react()`/`harness()`:
 
 ```python
+from draf.flow import Flow
+from draf.node import LLM
+from draf.provider import ProviderRegistry
+
+flow = Flow(
+    "city-bot",
+    providers=ProviderRegistry.from_presets("ollama"),
+    default_provider="ollama",
+    default_model="llama3.1:8b",
+)
 flow.harness(
-    model="llama3.1:8b",
     input_key="query",
     output_key="answer",
     skills=["city-guide"],
@@ -522,7 +571,7 @@ flow.harness(
 )
 
 # same for a plain LLM node
-flow.step(LLM(model="llama3.1:8b", skills=["city-guide"], use_tools=True))
+flow.step(LLM(skills=["city-guide"], use_tools=True))
 ```
 
 A mounted skill:
@@ -613,11 +662,17 @@ as ordinary `Tool` instances, so `graph.run(state, tools=tools)` needs no
 changes. The `mcp` SDK is bundled with the core package and imported lazily.
 
 ```python
-from draf import Flow
+from draf.flow import Flow
+from draf.provider import ProviderRegistry
 from draf.tool import mcp_tools
 
-flow = Flow("agent")
-flow.react(model="llama3.1:8b", input_key="query", output_key="answer")
+flow = Flow(
+    "agent",
+    providers=ProviderRegistry.from_presets("ollama"),
+    default_provider="ollama",
+    default_model="llama3.1:8b",
+)
+flow.react(input_key="query", output_key="answer")
 graph = flow.compile()
 
 # stdio server: spawn a subprocess
@@ -884,22 +939,95 @@ used automatically. `clear_pricing()` resets everything to the built-in table.
 
 ## Providers
 
-`Harness` (and the `LLM` / `react()` / `harness()` nodes) speaks the OpenAI
-chat-completions format by default and ships presets for several providers —
-just pick a provider key and an API key env var:
+A provider is a **named model endpoint**: how to speak to it (the wire
+protocol — OpenAI-compatible, Anthropic, or Ollama) and where it lives
+(`base_url` / `chat_path` / auth keys). `Harness`, `LLM`, `react()` and
+`supervisor()` route model calls through a provider.
 
-| `provider`          | API key env var      | Notes                                        |
-| ------------------- | -------------------- | -------------------------------------------- |
-| `openai`            | `OPENAI_API_KEY`     | default                                      |
-| `anthropic`         | `ANTHROPIC_API_KEY`  | responses normalised to OpenAI shape         |
-| `deepseek`          | `DEEPSEEK_API_KEY`   |                                              |
-| `mistral`           | `MISTRAL_API_KEY`    |                                              |
-| `together`          | `TOGETHER_API_KEY`   |                                              |
-| `groq`              | `GROQ_API_KEY`       |                                              |
-| `openrouter`        | `OPENROUTER_API_KEY` |                                              |
-| `gemini`            | `GEMINI_API_KEY`     | Google's OpenAI-compatible endpoint          |
-| `openai_compatible` | `OPENAI_API_KEY`     | any custom endpoint (vLLM, LM Studio, Azure) |
-| `ollama`            | — (local)            |                                              |
+Built-in **presets** carry the defaults for the common providers — you
+declare exactly which ones you use, either with
+`ProviderRegistry.from_presets(...)` in code or a `providers:` block in YAML.
+A bare, standalone `Harness` (no `providers=` map) falls back to the preset
+matching its `provider`; everywhere a `providers=` map / registry is supplied
+the rule is **strict** — a provider is only usable after it has been declared
+there, and there is **no silent fallback** (no implicit `openai`, no
+model-name auto-detection).
+
+| preset    | API key env var      | Notes                                   |
+| --------- | -------------------- | --------------------------------------- |
+| `openai`  | `OPENAI_API_KEY`     |                                         |
+| `anthropic` | `ANTHROPIC_API_KEY` | responses normalised to OpenAI shape    |
+| `deepseek`  | `DEEPSEEK_API_KEY` |                                         |
+| `mistral`   | `MISTRAL_API_KEY`  |                                         |
+| `together`  | `TOGETHER_API_KEY` |                                         |
+| `groq`      | `GROQ_API_KEY`     |                                         |
+| `openrouter` | `OPENROUTER_API_KEY` |                                      |
+| `gemini`   | `GEMINI_API_KEY`     | Google's OpenAI-compatible endpoint     |
+| `openai_compatible` | `OPENAI_API_KEY` | any custom endpoint (vLLM, LM Studio, Azure) |
+| `ollama`   | — (local)            |                                         |
+
+### Resolving provider and model
+
+There is no global default provider *or* model. Per node:
+
+1. **provider** — the node's explicit `provider=`, else the graph-level
+   `default_provider=` (`Graph(...)`, `Flow("...", default_provider=...)`, or
+   a workflow's top-level `default_provider:`);
+2. **model** — the node's explicit `model=`, else the graph-level
+   `default_model=`.
+
+If neither is set, the node raises `ConfigError`. The resolved provider must
+be *declared* in the `providers=` map / `providers:` block:
+
+```python
+from draf.flow import Flow
+from draf.provider import ProviderRegistry
+
+flow = Flow(
+    "repair",
+    providers=ProviderRegistry.from_presets("ollama"),
+    default_provider="ollama",
+    default_model="llama3.1:8b",
+)
+flow.llm()  # inherits provider="ollama" and model="llama3.1:8b"
+```
+
+A node can still override the graph default with its own `provider=` /
+`model=` (for example `fallbacks=["gpt-4o"]` still names a provider/model).
+
+### Custom providers (`Provider`)
+
+For anything not covered by a preset (a vLLM box, an Anthropic proxy, a
+self-hosted Ollama), declare a `Provider` — a lightweight value object that
+picks the wire protocol and the endpoint:
+
+```python
+from draf import Provider
+from draf.graph import Graph
+from draf.node import LLM
+
+providers = {
+    "vllm": Provider(base_url="http://vllm:8000/v1"),  # openai_compatible
+    "claude": Provider(type="anthropic_compatible", base_url="http://proxy"),
+}
+
+graph = Graph({"llm": LLM(model="m", provider="claude", api_key_env="X")}, [], "llm")
+result = await graph.run({}, providers=providers)
+```
+
+`type` is the protocol discriminator — `openai_compatible`,
+`anthropic_compatible`, or `ollama` — and decides the request body, streaming
+chunk parsing, and response extraction. `ProviderRegistry` wraps a
+`{name: Provider}` map (or `ProviderRegistry.from_presets(...)` for the
+built-ins) and is the same value you pass to a `Flow`, a `Graph`, a
+`Harness`, or `graph.run(providers=...)`. Any provider referenced but not
+declared raises `ConfigError`, so typos surface early instead of silently
+routing to the wrong wire protocol.
+
+### Standalone `Harness`
+
+A bare harness (no `providers=` map) still works against the built-in
+presets:
 
 ```python
 from draf.harness import Harness
@@ -928,7 +1056,7 @@ re-runs never pay for the same request twice. Cached replies report
 instead of a plain dict; streaming responses are not cached.
 
 ```python
-harness = Harness(model="gpt-4o", cache=True)
+harness = Harness(model="gpt-4o", provider="openai", cache=True)
 first = await harness.call(messages)  # network round-trip
 second = await harness.call(messages)  # served from cache
 assert first.cached is False and second.cached is True

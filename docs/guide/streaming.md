@@ -5,10 +5,17 @@
 progress before the run finishes:
 
 ```python
-from draf import Flow, LLM
+from draf.flow import Flow
+from draf.node import LLM
+from draf.provider import ProviderRegistry
 
-flow = Flow("chat")
-flow.step(LLM(model="llama3.1:8b", prompt="Скажи привет", output_key="answer"))
+flow = Flow(
+    "chat",
+    providers=ProviderRegistry.from_presets("ollama"),
+    default_provider="ollama",
+    default_model="llama3.1:8b",
+)
+flow.step(LLM(prompt="Скажи привет", output_key="answer"))
 graph = flow.compile()
 
 async for event in graph.stream(state):
@@ -44,4 +51,4 @@ print(tracer.summary())  # RunSummary(status, total_ms, nodes, tokens, ...)
 ```
 
 The CLI exposes the same report: `draf -f workflow.yaml --trace`. Cost and
-token accounting live in [Providers](../reference/providers.md#cost--token-reports).
+token accounting live in [Providers](../reference/providers.md#cost-token-reports).

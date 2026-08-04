@@ -8,11 +8,21 @@ result of `flow.compile()` is a `Graph` you can run or stream, and
 ```python
 from draf.flow import Flow, Case
 from draf.node import LLM, Transform
+from draf.provider import ProviderRegistry
 
-flow = Flow("my-flow")  # optional name
-flow.step(LLM(model="gpt-4", output_key="answer"))
+flow = Flow(
+    "my-flow",  # optional name
+    providers=ProviderRegistry.from_presets("ollama"),
+    default_provider="ollama",
+    default_model="llama3.1:8b",
+)
+flow.step(LLM(output_key="answer"))
 result = await flow.compile().run(state={"..."})
 ```
+
+LLM nodes fall back to the graph-level `default_provider=` / `default_model=`
+when they don't set one — every provider a graph uses must be declared in
+`providers=` (see [Providers](../reference/providers.md)).
 
 ## Linear chain
 
@@ -190,14 +200,20 @@ Export the compiled flow as a `workflow.yaml` document — including the ReAct
 loop wiring. `Flow` does not track tools/state, so pass them explicitly:
 
 ```python
-from draf import Flow
+from draf.flow import Flow
+from draf.provider import ProviderRegistry
 from draf.tool.builtin.git import GitTool
 
 yaml_text = (
-    Flow("repo").react(model="llama3.1:8b", use_tools="all").to_yaml(tools=[GitTool()])
+    Flow(
+        "repo",
+        providers=ProviderRegistry.from_presets("ollama"),
+        default_provider="ollama",
+        default_model="llama3.1:8b",
+    )
+    .react(use_tools="all")
+    .to_yaml(tools=[GitTool()])
 )
-with open("workflow.yaml", "w") as f:
-    f.write(yaml_text)
 ```
 
 The result validates with `draf validate` and round-trips through

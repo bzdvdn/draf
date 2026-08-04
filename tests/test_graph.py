@@ -231,6 +231,62 @@ class TestHooks:
         assert errors == [("a", "boom")]
         assert result["ok"] is True
 
+    @pytest.mark.asyncio
+    async def test_async_hooks_are_awaited(self):
+        from draf.graph import Edge, Graph
+        from draf.node import Node
+
+        class Simple(Node):
+            type = "s"
+
+            async def execute(self, ctx, state):
+                return {"done": True}
+
+        class Crash(Node):
+            type = "cr"
+
+            async def execute(self, ctx, state):
+                raise RuntimeError("boom")
+
+        class Fallback(Node):
+            type = "fb"
+
+            async def execute(self, ctx, state):
+                return {"ok": True}
+
+        calls = []
+
+        async def on_start(nid, n, s):
+            await asyncio.sleep(0)
+            calls.append(f"start:{nid}")
+
+        async def on_end(nid, n, s, r):
+            await asyncio.sleep(0)
+            calls.append(f"end:{nid}:{r}")
+
+        async def on_error(nid, n, s, e):
+            await asyncio.sleep(0)
+            calls.append(f"error:{nid}:{e}")
+
+        g = Graph(
+            nodes={"a": Simple({}), "b": Crash({}), "c": Fallback({})},
+            edges=[Edge("a", "b"), Edge("b", "c", "__error__")],
+            entry_point="a",
+        )
+        result = await g.run(
+            state={},
+            hooks={
+                "on_node_start": on_start,
+                "on_node_end": on_end,
+                "on_node_error": on_error,
+            },
+        )
+        assert "start:a" in calls
+        assert "end:a:{'done': True}" in calls
+        assert "error:b:boom" in calls
+        assert "end:c:{'ok': True}" in calls
+        assert result["ok"] is True
+
 
 class TestNodeTimeout:
     @pytest.mark.asyncio

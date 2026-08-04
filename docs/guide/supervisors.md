@@ -25,11 +25,16 @@ exits through the optional `finish` chain.
 ```python
 from draf.flow import Flow
 from draf.node import LLM
+from draf.provider import ProviderRegistry
 
-flow = Flow("support")
+flow = Flow(
+    "support",
+    providers=ProviderRegistry.from_presets("ollama"),
+    default_provider="ollama",
+    default_model="llama3.1:8b",
+)
 flow.step(
     LLM(
-        model="llama3.1:8b",
         output_key="next_agent",
         system="Reply 'planner', 'estimator' or 'finish'.",
     )
@@ -68,11 +73,15 @@ silently end the graph:
 
 ```python
 from draf.flow import Flow, agent_step
+from draf.provider import ProviderRegistry
 
-flow = Flow("support")
+flow = Flow(
+    "support",
+    providers=ProviderRegistry.from_presets("ollama"),
+    default_provider="ollama",
+)
 flow.supervisor(
     model="llama3.1:8b",
-    provider="ollama",
     sections={"plan": "План", "review": "Ревью"},
     route_keys={"planner": "plan", "reviewer": "review"},
     done_keys={"plan", "review"},
@@ -81,8 +90,8 @@ flow.supervisor(
 flow.route(
     "next_agent",
     finish=final_llm,
-    planner=agent_step(PLANNER_PROMPT, "plan", model=model, provider=provider),
-    reviewer=agent_step(REVIEWER_PROMPT, "review", model=model, provider=provider),
+    planner=agent_step(PLANNER_PROMPT, "plan", model="llama3.1:8b"),
+    reviewer=agent_step(REVIEWER_PROMPT, "review", model="llama3.1:8b"),
 )
 ```
 
@@ -167,25 +176,27 @@ builder); only the final reply reaches the shared `messages`.
 
 ```python
 from draf.flow import Flow, agent_step
+from draf.provider import ProviderRegistry
 
-flow = Flow("support")
+flow = Flow(
+    "support",
+    providers=ProviderRegistry.from_presets("ollama"),
+    default_provider="ollama",
+)
 
 flow.step(supervisor)  # decider writes "next_agent"
 flow.route(
     "next_agent",
-    planner=agent_step(
-        PLANNER_PROMPT, "plan", model=model, provider=provider, sections=SECTIONS
-    ),
+    planner=agent_step(PLANNER_PROMPT, "plan", model="llama3.1:8b", sections=SECTIONS),
     writer=agent_step(
         WRITER_PROMPT,
         "draft",
-        model=model,
-        provider=provider,
+        model="llama3.1:8b",
         sections=SECTIONS,
         use_tools=["current_date", "search_catalog"],
     ),
     reviewer=agent_step(
-        REVIEWER_PROMPT, "review", model=model, provider=provider, sections=SECTIONS
+        REVIEWER_PROMPT, "review", model="llama3.1:8b", sections=SECTIONS
     ),
 )
 graph = flow.compile()

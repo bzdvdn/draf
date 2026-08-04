@@ -42,13 +42,21 @@ responses. It returns a `MockLLM` with:
 - `calls` — the request bodies sent, for asserting on prompts/models.
 
 ```python
+from draf.provider import ProviderRegistry
+
+
 async def test_flow(mock_llm):
     mock_llm.content = "42"
 
     g = Graph(
-        nodes={"a": LLM({"model": "gpt-4", "prompt": "calc", "output_key": "answer"})},
+        nodes={
+            "a": LLM(
+                {"model": "gpt-4", "prompt": "calc", "output_key": "answer", "provider": "openai"}
+            )
+        },
         edges=[],
         entry_point="a",
+        providers=ProviderRegistry.from_presets("openai"),
     )
     result = await g.run(state={})
     assert result["answer"] == "42"

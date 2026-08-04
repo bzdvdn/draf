@@ -5,8 +5,9 @@ executor stay visible as graph topology, so the loop is inspectable and can
 be followed by more nodes:
 
 ```python
-from draf import Flow
+from draf.flow import Flow
 from draf.node import Transform
+from draf.provider import ProviderRegistry
 from draf.tool import Tool
 
 
@@ -18,10 +19,13 @@ class Search(Tool):
         return f"results for {query}"
 
 
-flow = Flow("agent")
-flow.react(
-    model="gpt-4", system="Answer using tools.", input_key="query", output_key="answer"
+flow = Flow(
+    "agent",
+    providers=ProviderRegistry.from_presets("ollama"),
+    default_provider="ollama",
+    default_model="llama3.1:8b",
 )
+flow.react(system="Answer using tools.", input_key="query", output_key="answer")
 flow.step(Transform(action="uppercase", input_key="answer", output_key="result"))
 
 graph = flow.compile()
@@ -78,11 +82,17 @@ and its tools become ordinary `Tool` instances — no `graph.run` changes.
 Requires the `mcp` package (bundled with the core install, imported lazily):
 
 ```python
-from draf import Flow
+from draf.flow import Flow
+from draf.provider import ProviderRegistry
 from draf.tool import mcp_tools
 
-flow = Flow("agent")
-flow.react(model="llama3.1:8b", input_key="query", output_key="answer")
+flow = Flow(
+    "agent",
+    providers=ProviderRegistry.from_presets("ollama"),
+    default_provider="ollama",
+    default_model="llama3.1:8b",
+)
+flow.react(input_key="query", output_key="answer")
 graph = flow.compile()
 
 async with mcp_tools(command=["uvx", "mcp-server-git"]) as tools:
@@ -96,7 +106,7 @@ async with mcp_tools(command=["uvx", "mcp-server-git"]) as tools:
 
 `command` starts a stdio server (split into argv), `url` connects to a
 Streamable HTTP endpoint. The session stays open for the `async with` block.
-A runnable pair lives in [`examples/mcp/`](../examples.md#mcp).
+A runnable pair lives in [`examples/mcp/`](https://github.com/bzdvdn/draf/tree/main/examples/mcp/).
 
 ## Multi-agent supervisors
 

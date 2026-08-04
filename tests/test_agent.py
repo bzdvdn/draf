@@ -116,6 +116,84 @@ class TestReActAgent:
         assert len(r["messages"]) == 4  # user + assistant(tool_call) + tool + assistant
 
     @pytest.mark.asyncio
+    async def test_agent_tool_cycle_append_reducer_no_duplicates(self, monkeypatch):
+        from draf.graph import Edge, Graph
+        from draf.node.agent import ReActAgent, ToolExec
+        from draf.tool import Tool
+
+        monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
+
+        class UpperTool(Tool):
+            name = "uppercase"
+            description = "Make it uppercase"
+
+            def run(self, text: str = "") -> str:  # type: ignore[override]
+                return text.upper()
+
+        tool_response = {
+            "choices": [
+                {
+                    "message": {
+                        "content": None,
+                        "tool_calls": [
+                            {
+                                "id": "call_1",
+                                "function": {
+                                    "name": "uppercase",
+                                    "arguments": '{"text": "hello"}',
+                                },
+                            }
+                        ],
+                    },
+                }
+            ],
+        }
+        final_response = {
+            "choices": [{"message": {"content": "Result: HELLO"}}],
+        }
+
+        responses = [tool_response, final_response]
+
+        async def mock_post(*a, **kw):
+            class MockResponse:
+                def raise_for_status(self):
+                    pass
+
+                def json(self):
+                    return responses.pop(0)
+
+            return MockResponse()
+
+        import httpx
+
+        monkeypatch.setattr(httpx.AsyncClient, "post", mock_post)
+
+        g = Graph(
+            nodes={
+                "agent": ReActAgent(
+                    {"model": "gpt-4", "input_key": "input", "output_key": "output"}
+                ),
+                "tool": ToolExec({}),
+            },
+            edges=[
+                Edge("agent", "tool", "_tool_call_name!="),
+                Edge("tool", "agent"),
+            ],
+            entry_point="agent",
+            providers=ProviderRegistry.from_presets("openai"),
+            default_provider="openai",
+        )
+        r = await g.run(
+            state={"input": "make it uppercase"},
+            tools=[UpperTool()],
+            reducers={"messages": "append"},
+            max_iterations=5,
+        )
+        assert r["output"] == "Result: HELLO"
+        assert r["_tool_call_name"] == ""
+        assert len(r["messages"]) == 4  # no duplication under append reducer
+
+    @pytest.mark.asyncio
     async def test_agent_loop_exceeds_max_iterations(self, monkeypatch):
         from draf.graph import Edge, Graph
         from draf.node.agent import ReActAgent, ToolExec

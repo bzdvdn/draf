@@ -5,8 +5,6 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Callable
 
-from draf.node.node import Node
-
 #: Condition that matches when a node execution raises an exception.
 _ERROR_CONDITION = "__error__"
 #: Internal state key that carries a paused interrupt payload.
@@ -32,7 +30,12 @@ class Edge:
     condition: str | None = None
 
 
-Hook = Callable[[str, Node, dict], Any]
-"""Signature for observability hooks: ``(node_id, node, state)``."""
+Hook = Callable[..., Any]
+"""Signature for observability hooks: ``(node_id, node, state)``.
+
+Hooks may be synchronous or asynchronous — async hooks are awaited by the
+executor. ``on_node_end`` additionally receives the result dict and
+``on_node_error`` additionally receives the exception.
+"""
 
 __all__ = ["Edge", "Hook", "_ERROR_CONDITION", "_INTERRUPT_KEY"]
