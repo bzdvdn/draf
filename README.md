@@ -794,6 +794,63 @@ print(tracer.summary())  # RunSummary(status, total_ms, nodes, tokens, ...)
 
 The CLI exposes the same report: `draf -f workflow.yaml --trace`.
 
+### Trace dashboard
+
+For the full picture — graph topology, per-node spans and the **complete
+request/response of every LLM call** — wrap the run in a `GraphObserver`
+and point it at a dashboard-backed exporter:
+
+![Trace dashboard](docs/assets/observability/runs-dark.png)
+
+```python
+from draf.observability import GraphObserver, SQLiteExporter, topology_from_graph
+
+observer = GraphObserver(
+    "repair-agent",
+    exporter=SQLiteExporter("./data/traces.db"),
+    topology=topology_from_graph(graph),
+)
+state = await graph.run(
+    state,
+    tracer=observer.tracer,                  # node/edge/checkpoint events
+    on_llm_payload=observer.on_llm_payload,  # full prompt/response
+)
+observer.export()
+```
+
+Browse it in the browser:
+
+```bash
+draf obs-server --db ./data/traces.db --port 8001
+# open http://localhost:8001/obs/ui
+```
+
+`workflow.yaml` workflows get the same tracing with **no code** — a top-level
+`observability:` block that `draf run` / `draf daemon` pick up automatically:
+
+```yaml
+observability:
+  db: ./data/traces.db            # local SQLite dashboard
+  export:                          # optional: fan out to remote sinks
+    - type: webhook               # our obs-server (no API needed on your side)
+      url: http://collector:8001/obs/ingest
+    - type: langfuse              # langfuse / langsmith, zero SDK deps
+      host: https://cloud.langfuse.com
+      public_key_env: LANGFUSE_PUBLIC_KEY
+      secret_key_env: LANGFUSE_SECRET_KEY
+```
+
+Pushes happen in a background thread with retries — a slow remote sink never
+blocks or crashes the workflow. Centralise traces from cron jobs, daemons and
+serverless functions into one `draf obs-server` collector, or run the image:
+
+```bash
+docker run -d -p 8001:8001 -v draf-traces:/data \
+  bzdvdn/draf-obs:latest --db /data/traces.db --host 0.0.0.0
+```
+
+See [Observability](docs/guide/observability.md) for the full guide.
+
 ## CLI
 
 `draf` runs YAML workflows, validates them, and reports on runs and evals:
@@ -810,6 +867,7 @@ draf new support-ai                        # scaffold a FastAPI app (default)
 draf new support-cli --template cli        # scaffold a terminal-only app
 draf new support-worker --template daemon  # scaffold a background worker
 draf new support-chat --template fastapi --with postgres,rag,celery  # + variants
+draf obs-server --db traces.db --port 8001  # trace dashboard + ingest
 draf version
 ```
 
@@ -840,13 +898,14 @@ server and worker behave identically.
 ## Docker
 
 Official images are published to Docker Hub for every `v*` tag. One build,
-five variants — pick the one that matches how you deploy:
+six variants — pick the one that matches how you deploy:
 
 | Image                 | Contents                  | Runs                                            |
 | --------------------- | ------------------------- | ----------------------------------------------- |
 | `bzdvdn/draf`         | core + `draf[tools]`      | the `draf` CLI — run/validate/inspect workflows |
 | `bzdvdn/draf-fastapi` | core + `draf[fastapi]`    | `uvicorn` — a FastAPI server app                |
 | `bzdvdn/draf-worker`  | core + `draf[queue]`      | `celery` — background workers / beat            |
+| `bzdvdn/draf-obs`     | core + `draf[observability]` | `draf obs-server` — trace dashboard + ingest |
 | `bzdvdn/draf-rag`     | core + `draf[stores-qdrant,tools,rag-pdf]` | the `draf` CLI, slim RAG build     |
 | `bzdvdn/draf-all`     | every extra except `docs` | the `draf` CLI with the full optional surface   |
 
@@ -1221,9 +1280,9 @@ fully offline (no API keys), and the LLM examples that need Ollama are not run.
    ```
 
 3. `release.yml` runs tests, builds the package, publishes it to PyPI, pushes
-   the five Docker images (`draf`, `draf-fastapi`, `draf-worker`, `draf-rag`,
-   `draf-all`) to Docker Hub, attaches the artifacts to a GitHub Release, and
-   deploys the docs.
+   the six Docker images (`draf`, `draf-fastapi`, `draf-worker`, `draf-obs`,
+   `draf-rag`, `draf-all`) to Docker Hub, attaches the artifacts to a GitHub
+   Release, and deploys the docs.
 
 See [CONSTITUTION.md](CONSTITUTION.md) for the framework's principles and
 non-negotiable rules.

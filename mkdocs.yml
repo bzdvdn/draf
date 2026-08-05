@@ -83,6 +83,7 @@ nav:
       - Evaluation: guide/evaluation.md
       - Streaming: guide/streaming.md
       - Logging: guide/logging.md
+      - Observability: guide/observability.md
       - Testing: guide/testing.md
   - Reference:
       - Overview: reference.md
