@@ -87,7 +87,9 @@ Namespace → metadata mapping:
 API:
 
 ```python
-await memory.put(("users", "u1"), "prefs", {"text": "prefers email over Slack", "channel": "email"})
+await memory.put(
+    ("users", "u1"), "prefs", {"text": "prefers email over Slack", "channel": "email"}
+)
 item = await memory.get(("users", "u1"), "prefs")
 hits = await memory.search(("users", "u1"), query="how to reach them?", k=5)
 await memory.delete(("users", "u1"), "prefs")
@@ -191,7 +193,7 @@ flow.react(
     model="gpt-4o",
     memory=MemoryConfig(
         store=memory,
-        namespace=["users", "${owner}"],   # resolved from the run context
+        namespace=["users", "${owner}"],  # resolved from the run context
         k=5,
     ),
 )

@@ -72,7 +72,7 @@ observer = GraphObserver(
 )
 state = await graph.run(
     state,
-    tracer=observer.tracer,                  # node/edge/checkpoint events
+    tracer=observer.tracer,  # node/edge/checkpoint events
     on_llm_payload=observer.on_llm_payload,  # full prompt/response
 )
 observer.export()
@@ -91,8 +91,8 @@ from draf.observability import SQLiteExporter, attach_dashboard, attach_ingest
 
 app = FastAPI()
 exporter = SQLiteExporter("./data/traces.db")
-attach_dashboard(app, exporter)   # GET  /obs/ui, /obs/runs, /obs/runs/{id}
-attach_ingest(app, exporter)      # POST /obs/ingest (accepts Run.to_dict())
+attach_dashboard(app, exporter)  # GET  /obs/ui, /obs/runs, /obs/runs/{id}
+attach_ingest(app, exporter)  # POST /obs/ingest (accepts Run.to_dict())
 ```
 
 - `GET /obs/ui` — the dashboard: runs list with status/tag filters and

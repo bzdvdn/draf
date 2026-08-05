@@ -137,7 +137,9 @@ async def run(owner: str, *, extract: bool, db: str) -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Multi-user streaming memory chat")
-    parser.add_argument("--owner", default="", help="owner id (asked on stdin if empty)")
+    parser.add_argument(
+        "--owner", default="", help="owner id (asked on stdin if empty)"
+    )
     parser.add_argument(
         "--no-extract",
         action="store_true",

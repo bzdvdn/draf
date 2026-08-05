@@ -812,7 +812,7 @@ observer = GraphObserver(
 )
 state = await graph.run(
     state,
-    tracer=observer.tracer,                  # node/edge/checkpoint events
+    tracer=observer.tracer,  # node/edge/checkpoint events
     on_llm_payload=observer.on_llm_payload,  # full prompt/response
 )
 observer.export()
@@ -1235,6 +1235,10 @@ looks through common keys first), `--max-examples` caps the run.
 | [rag_stores](examples/rag_stores/)                      | Same RAG agent on every vector store (in-memory, sqlite, chroma, faiss, lance, milvus, weaviate, qdrant, pgvector, pinecone)                   |
 | [checkpoint_resume](examples/checkpoint_resume/)        | Crash/resume in a few lines                                                                                                                    |
 | [checkpoint_stores](examples/checkpoint_stores/)        | Durable workflow on file/sqlite/pg                                                                                                             |
+| [self_refine](examples/self_refine/)                    | Generate → critique → revise loop with structured JSON verdicts — low-level `graph.py` and `Flow`-API `flow.py` (mocked, no API key)             |
+| [plan_and_execute](examples/plan_and_execute/)          | LLM plans a JSON step list, `Map` fans out to parallel executors, a reviewer replans on rejection — `graph.py` and `flow.py` (mocked, no API key) |
+| [deep_research](examples/deep_research/)                | Plan research questions → ReAct web research (`web_search`/`fetch_url`) → report → review-revise loop — `graph.py` and `flow.py` (mocked, no API key) |
+| [time_travel](examples/time_travel/)                    | Rewind a finished run to any checkpoint, edit the state, replay — past preserved, future rewritten — `graph.py`, `flow.py` and `workflow.yaml` (Python-only, no LLM) |
 | [release_features](examples/release_features/)          | Release API tour — validation, typed errors, `draf eval`, cost reports, response cache (mocked, no API key)                                    |
 | [simple_router](examples/simple_router/)                | Minimal `Flow.route()` supervisor — two agents, a bounded loop (can't hang), offline tests                                                     |
 | [repair-ai-chat](examples/applications/repair-ai-chat/) | Full FastAPI app built on `route()` — five agents, tools, RAG, streaming (Russian repair workflow)                                             |

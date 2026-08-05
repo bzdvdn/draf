@@ -142,6 +142,83 @@ class TestJsonGet:
         with pytest.raises(ValueError, match="dict"):
             await node.execute(None, {"payload": "not a dict"})
 
+    @pytest.mark.asyncio
+    async def test_raw_keeps_list(self):
+        node = Transform(
+            action="json_get",
+            input_key="payload",
+            field="steps",
+            output_key="steps",
+            raw=True,
+        )
+        out = await node.execute(
+            None, {"payload": {"steps": ["a", "b"], "verdict": "approve"}}
+        )
+        assert out == {"steps": ["a", "b"]}
+
+    @pytest.mark.asyncio
+    async def test_default_stringifies_list(self):
+        node = Transform(
+            action="json_get",
+            input_key="payload",
+            field="steps",
+            output_key="steps",
+        )
+        out = await node.execute(None, {"payload": {"steps": ["a", "b"]}})
+        assert out == {"steps": "['a', 'b']"}
+
+
+class TestAppendTransform:
+    @pytest.mark.asyncio
+    async def test_appends_template_to_list(self):
+        node = Transform(
+            action="append",
+            template="Chapter 1: A hero named {hero} sets out.",
+            output_key="chapters",
+        )
+        out = await node.execute(None, {"hero": "Ada", "chapters": []})
+        assert out == {"chapters": ["Chapter 1: A hero named Ada sets out."]}
+
+    @pytest.mark.asyncio
+    async def test_creates_list_if_absent(self):
+        node = Transform(
+            action="append",
+            template="They come to the town of {setting}.",
+            output_key="chapters",
+        )
+        out = await node.execute(None, {"setting": "Bellmore"})
+        assert out == {"chapters": ["They come to the town of Bellmore."]}
+
+    @pytest.mark.asyncio
+    async def test_accumulates_across_calls(self):
+        node = Transform(
+            action="append",
+            template="They come to the town of {setting}.",
+            output_key="chapters",
+        )
+        state = {"setting": "Bellmore", "chapters": []}
+        await node.execute(None, state)
+        state["setting"] = "Lakeside"
+        out = await node.execute(None, state)
+        assert out == {
+            "chapters": [
+                "They come to the town of Bellmore.",
+                "They come to the town of Lakeside.",
+            ]
+        }
+
+    @pytest.mark.asyncio
+    async def test_uses_input_key_without_template(self):
+        node = Transform(action="append", input_key="note", output_key="notes")
+        out = await node.execute(None, {"note": "hello"})
+        assert out == {"notes": ["hello"]}
+
+    @pytest.mark.asyncio
+    async def test_missing_template_key_raises(self):
+        node = Transform(action="append", template="Ref {hero}", output_key="chapters")
+        with pytest.raises(KeyError):
+            await node.execute(None, {"chapters": []})
+
 
 class TestNumericConditions:
     def _run(self, condition: str, state: dict) -> bool:

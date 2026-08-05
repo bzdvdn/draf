@@ -40,6 +40,19 @@ def _checkpointer_from_config(config: dict):
         if not isinstance(dsn, str):
             raise typer.BadParameter("checkpoint 'dsn' is required for type 'pg'")
         return PGCheckpointer(dsn, config.get("table", "checkpoints"))
+    if ctype == "sqlite_history":
+        from draf.checkpoint import SQLiteHistoryCheckpointer
+
+        return SQLiteHistoryCheckpointer(config.get("path", "checkpoints.db"))
+    if ctype == "pg_history":
+        from draf.checkpoint import PGHistoryCheckpointer
+
+        dsn = config.get("dsn")
+        if not isinstance(dsn, str):
+            raise typer.BadParameter(
+                "checkpoint 'dsn' is required for type 'pg_history'"
+            )
+        return PGHistoryCheckpointer(dsn, config.get("table", "checkpoints"))
     raise typer.BadParameter(f"unknown checkpoint type: {ctype!r}")
 
 

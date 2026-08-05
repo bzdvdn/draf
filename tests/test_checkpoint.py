@@ -542,6 +542,132 @@ class TestCheckpointResume:
         assert cp.state == {"kept": True}
 
 
+class TestSQLiteHistoryCheckpointer:
+    def test_save_load_history(self, tmp_path):
+        import asyncio
+
+        from draf.checkpoint import Checkpoint, SQLiteHistoryCheckpointer
+
+        ck = SQLiteHistoryCheckpointer(str(tmp_path / "ck.db"))
+        try:
+            asyncio.run(
+                ck.save(
+                    "run-1", Checkpoint(state={"n": 1}, next_node_id="n1", iteration=1)
+                )
+            )
+            asyncio.run(
+                ck.save(
+                    "run-1", Checkpoint(state={"n": 2}, next_node_id="n2", iteration=2)
+                )
+            )
+            asyncio.run(
+                ck.save(
+                    "run-1", Checkpoint(state={"n": 3}, next_node_id=None, iteration=3)
+                )
+            )
+
+            hist = asyncio.run(ck.history("run-1"))
+            assert hist == [(1, "n1"), (2, "n2"), (3, None)]
+
+            past = asyncio.run(ck.load_at("run-1", 1))
+            assert past is not None
+            assert past.state == {"n": 1}
+            assert past.next_node_id == "n1"
+            assert past.iteration == 1
+
+            cur = asyncio.run(ck.load("run-1"))
+            assert cur is not None
+            assert cur.state == {"n": 3}
+        finally:
+            ck.close()
+
+    def test_load_at_missing(self, tmp_path):
+        import asyncio
+
+        from draf.checkpoint import SQLiteHistoryCheckpointer
+
+        ck = SQLiteHistoryCheckpointer(str(tmp_path / "ck.db"))
+        try:
+            assert asyncio.run(ck.load_at("run-1", 99)) is None
+            assert asyncio.run(ck.history("run-1")) == []
+        finally:
+            ck.close()
+
+    def test_time_travel_replay(self, tmp_path):
+        """Rewind to a past checkpoint, edit state, replay from a branch id."""
+        import asyncio
+
+        from draf.checkpoint import SQLiteHistoryCheckpointer
+
+        g = _build_linear_graph()
+        ck = SQLiteHistoryCheckpointer(str(tmp_path / "ck.db"))
+        try:
+            result = asyncio.run(
+                g.run(
+                    state={"text": "Hello World"},
+                    checkpointer=ck,
+                    checkpoint_id="story",
+                )
+            )
+            assert result["b"] == "hello world"
+
+            timeline = asyncio.run(ck.history("story"))
+            assert timeline  # at least the pre-node snapshots
+
+            past = asyncio.run(ck.load_at("story", 1))
+            assert past is not None
+            past.state["a"] = "HELLO DRAFTFLOW"
+            asyncio.run(ck.save("story-branch", past))
+
+            branch = asyncio.run(
+                g.run(
+                    state={"text": "ignored"},
+                    checkpointer=ck,
+                    checkpoint_id="story-branch",
+                )
+            )
+            assert branch["b"] == "hello draftflow"
+        finally:
+            ck.close()
+
+
+class TestPGHistoryCheckpointer:
+    @pytest.fixture(autouse=True)
+    def _maybe_skip(self):
+        import importlib.util
+        import os
+
+        if os.environ.get("DRAF_TEST_PG_DSN") is None:
+            pytest.skip("set DRAF_TEST_PG_DSN to run PostgreSQL checkpoint tests")
+        if importlib.util.find_spec("asyncpg") is None:
+            pytest.skip("asyncpg is not installed")
+
+    @pytest.fixture
+    def pg(self):
+        import os
+
+        from draf.checkpoint import PGHistoryCheckpointer
+
+        return PGHistoryCheckpointer(os.environ["DRAF_TEST_PG_DSN"])
+
+    async def test_save_load_history(self, pg):
+        from draf.checkpoint import Checkpoint
+
+        await pg.save(
+            "run-1", Checkpoint(state={"n": 1}, next_node_id="n1", iteration=1)
+        )
+        await pg.save(
+            "run-1", Checkpoint(state={"n": 2}, next_node_id="n2", iteration=2)
+        )
+        hist = await pg.history("run-1")
+        assert hist == [(1, "n1"), (2, "n2")]
+
+        past = await pg.load_at("run-1", 1)
+        assert past is not None
+        assert past.state == {"n": 1}
+        assert past.next_node_id == "n1"
+
+
 class TestPGCheckpointCleanup:
     @pytest.fixture(autouse=True)
     def _maybe_skip(self):

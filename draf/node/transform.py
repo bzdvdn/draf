@@ -1,19 +1,34 @@
 """Transform node — simple string transformations."""
 
+from typing import Any
+
 from draf.node.node import Node
+from draf.prompt import render_template
 
 
 class Transform(Node):
     """Apply a string transform to state values.
 
     Supported actions: ``uppercase``, ``lowercase``, ``trim``,
-    ``count_lines``, ``value``.
+    ``count_lines``, ``value``, ``json_get``, ``append``.
+
+    ``json_get`` extracts ``field`` from a dict in *input_key*.  Non-string
+    values are stringified by default; pass ``raw=True`` to keep the value
+    as-is (e.g. to hand a parsed list to a ``Map``).
+
+    ``append`` formats a ``template`` (``{key}`` placeholders rendered from
+    state) and appends the result to the list in *output_key*.  When no
+    template is given, *input_key*/*value* supplies the item instead.  The
+    list is created if absent — the common "accumulate formatted results"
+    pattern (report sections, chapter text, step logs).
 
     Parameters:
         action: Transform action name.
         input_key: State key to read from.
         output_key: State key to write to.
         value: Literal value (used with ``action="value"``).
+        template: Template string for ``action="append"``.
+        raw: Return ``json_get`` values without stringifying.
     """
 
     type = "transform"
@@ -26,6 +41,8 @@ class Transform(Node):
         input_key: str = "",
         output_key: str = "",
         value: str | None = None,
+        template: str | None = None,
+        raw: bool = False,
         **kwargs,
     ):
         merged = {
@@ -33,6 +50,8 @@ class Transform(Node):
             "input_key": input_key,
             "output_key": output_key,
             "value": value,
+            "template": template,
+            "raw": raw,
             **(config or {}),
             **kwargs,
         }
@@ -47,16 +66,33 @@ class Transform(Node):
 
         if action == "json_get":
             data = state.get(input_key) if input_key else value
-            result = self._json_get(data, field)
+            result = self._json_get(
+                data, field, raw=bool(self.config.get("raw", False))
+            )
             state[output_key] = result
             return {output_key: result}
+
+        if action == "append":
+            item = self._render_item(state, input_key, value)
+            items = list(state.get(output_key, []))
+            items.append(item)
+            state[output_key] = items
+            return {output_key: items}
 
         source = value if value is not None else state.get(input_key, "")
         result = self._apply(action, source)
         state[output_key] = result
         return {output_key: result}
 
-    def _json_get(self, data, field: str | None) -> str:
+    def _render_item(self, state: dict, input_key: str, value: str | None) -> str:
+        template = self.config.get("template")
+        if template:
+            return render_template(template, state)
+        if value is not None:
+            return value
+        return str(state.get(input_key, ""))
+
+    def _json_get(self, data, field: str | None, raw: bool = False) -> Any:
         if not isinstance(data, dict):
             raise ValueError(
                 f"json_get requires a dict in state key, got {type(data).__name__}"
@@ -66,6 +102,8 @@ class Transform(Node):
         if field not in data:
             raise KeyError(f"json_get: no field {field!r} in object")
         value = data[field]
+        if raw:
+            return value
         return value if isinstance(value, str) else str(value)
 
     def _apply(self, action: str, text: str) -> str:
