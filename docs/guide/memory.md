@@ -179,6 +179,34 @@ Reading is explicit (via `recall`) or injected:
   )
   ```
 
+### Per-user memory behind a shared graph
+
+A single compiled graph can serve many end-users: `graph.run(owner=...)`
+scopes checkpoints per tenant, and the node's run context carries
+`owner` / `session_id` / `checkpoint_id`. Namespace segments may reference
+those, so memory becomes per-user without building a graph per request:
+
+```python
+flow.react(
+    model="gpt-4o",
+    memory=MemoryConfig(
+        store=memory,
+        namespace=["users", "${owner}"],   # resolved from the run context
+        k=5,
+    ),
+)
+```
+
+`memory_context_from_config` resolves `${owner}`, `${session_id}` and
+`${checkpoint_id}` from the node's context at recall time (falling back to
+the process environment, then leaving the reference untouched). Point every
+tenant at the same store and keep the root segment — `"users"` — constant
+so tenants are just separate sub-namespaces. Facts written for one owner
+are never recalled for another; a fact can be shared by putting it under
+the common root instead. This is the pattern for chat apps like
+`examples/applications/repair-ai-chat`, whose `Assistant.run_turn` already
+threads `owner` into `graph.run`.
+
 ### Lifecycle
 
 - **Deduplication** — semantic overwrite (see above).

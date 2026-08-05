@@ -43,6 +43,16 @@ class TestMemoryExtractor:
         assert harness.calls[0][0]["role"] == "system"
 
     @pytest.mark.asyncio
+    async def test_extract_uses_custom_system_prompt(self):
+        from draf.memory import MemoryExtractor
+
+        harness = _FakeHarness('[{"text": "custom fact"}]')
+        custom = "Extract ONLY colors mentioned."
+        facts = await MemoryExtractor(harness, system_prompt=custom).extract([])
+        assert facts == ["custom fact"]
+        assert harness.calls[0][0] == {"role": "system", "content": custom}
+
+    @pytest.mark.asyncio
     async def test_extract_tolerates_fence_and_prose(self):
         from draf.memory import MemoryExtractor
 
@@ -228,6 +238,58 @@ class TestMemoryContextFromConfig:
             "k": 3,
             "header": "Mem:",
         }
+
+    @pytest.mark.asyncio
+    async def test_namespace_interpolates_owner_from_ctx(self):
+        from draf.memory import MemoryStore, memory_context_from_config
+        from draf.rag.stores import InMemoryVectorStore
+
+        mem = MemoryStore(InMemoryVectorStore(dim=16), _TokenEmbedder())
+        await mem.put(("users", "ana"), "prefs", {"text": "prefers email"})
+        state = {"input": "reach method?", "messages": []}
+
+        class _Ctx:
+            owner = "ana"
+            checkpoint_id = "sess-1"
+            session_id = None
+            providers = None
+            default_provider = None
+
+        block = await memory_context_from_config(
+            {
+                "memory": {
+                    "store": mem,
+                    "namespace": ["users", "${owner}"],
+                    "k": 5,
+                }
+            },
+            state=state,
+            ctx=_Ctx,
+        )
+        assert "prefers email" in block
+
+    @pytest.mark.asyncio
+    async def test_namespace_interpolates_owner_from_env(self, monkeypatch):
+        from draf.memory import MemoryStore, memory_context_from_config
+        from draf.rag.stores import InMemoryVectorStore
+
+        mem = MemoryStore(InMemoryVectorStore(dim=16), _TokenEmbedder())
+        await mem.put(("users", "bob"), "prefs", {"text": "wants chat"})
+        state = {"input": "contact?", "messages": []}
+        monkeypatch.setenv("OWNER", "bob")
+
+        block = await memory_context_from_config(
+            {
+                "memory": {
+                    "store": mem,
+                    "namespace": ["users", "${OWNER}"],
+                    "k": 5,
+                }
+            },
+            state=state,
+            ctx=None,
+        )
+        assert "wants chat" in block
 
 
 class TestMemoryFromConfig:

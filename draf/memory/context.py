@@ -7,12 +7,20 @@ relevant cross-session facts without needing the ``memory`` tool.
 
 from __future__ import annotations
 
+import os
+import re
 from dataclasses import dataclass
 from typing import Any
 
 from draf.memory.base import MemoryStore
 
 DEFAULT_HEADER = "Relevant memories:"
+
+#: ``${NAME}`` references in a ``namespace`` are resolved per run.
+_ENV_VAR = re.compile(r"\$\{([^}]*)\}")
+
+#: Dynamic run-scoped variables that a ``namespace`` may reference.
+_RUN_VARS = ("owner", "session_id", "checkpoint_id")
 
 
 @dataclass
@@ -30,7 +38,10 @@ class MemoryConfig:
             config dict (``{"type": "sqlite", ...}``) to build with the
             node's provider registry.
         namespace: Namespace subtree to recall from (a string becomes a
-            single-segment namespace).
+            single-segment namespace).  Each segment may reference
+            ``${owner}``, ``${session_id}`` or ``${checkpoint_id}``, which
+            are resolved from the enclosing run — so a shared graph serves
+            per-user memory via ``["users", "${owner}"]``.
         k: Maximum number of memories recalled per turn.
         header: First line of the injected block.
     """
@@ -58,7 +69,10 @@ async def memory_context_from_config(cfg: dict, *, state: dict, ctx: Any) -> str
     (``{store, namespace, k, header}``), resolves the store — a
     :class:`~draf.memory.base.MemoryStore` instance, or a config dict
     built via ``memory_from_config`` using *ctx*'s provider registry —
-    and recalls memories for the most recent user message.
+    and recalls memories for the most recent user message.  Namespace
+    segments may reference ``${owner}`` / ``${session_id}`` /
+    ``${checkpoint_id}``, resolved from *ctx* — the building block for
+    per-user memory behind a shared multi-tenant graph.
 
     The returned block is meant to be prepended to the LLM messages as a
     ``system`` message; it is empty when memory is unconfigured or
@@ -81,7 +95,7 @@ async def memory_context_from_config(cfg: dict, *, state: dict, ctx: Any) -> str
     if mem_store is None:
         return ""
     ns_raw = memory_cfg.get("namespace")
-    namespace = (ns_raw,) if isinstance(ns_raw, str) else tuple(ns_raw or ())
+    namespace = _resolve_namespace(ns_raw, ctx)
     messages = list(state.get(cfg.get("messages_key", "messages"), []) or [])
     fallback = str(state.get(cfg.get("input_key", "input"), ""))
     return await memory_context(
@@ -137,3 +151,30 @@ def last_user_text(messages: list[dict], fallback: str = "") -> str:
         if text:
             return text
     return fallback
+
+
+def _resolve_namespace(
+    ns_raw: tuple[str, ...] | list[str] | str | None, ctx: Any
+) -> tuple[str, ...]:
+    """Resolve per-run ``${owner}`` / ``${session_id}`` / ``${checkpoint_id}``
+    references in a ``namespace`` from the node's run context, falling back
+    to the process environment (and then leaving the reference untouched).
+    """
+    if isinstance(ns_raw, str):
+        ns_raw = (ns_raw,)
+    if not ns_raw:
+        return ()
+    return tuple(_interpolate_part(str(part), ctx) for part in ns_raw)
+
+
+def _interpolate_part(part: str, ctx: Any) -> str:
+    return _ENV_VAR.sub(lambda m: _replace_var(m, ctx), part)
+
+
+def _replace_var(m: re.Match, ctx: Any) -> str:
+    name = m.group(1)
+    if name in _RUN_VARS and ctx is not None:
+        value = getattr(ctx, name, None)
+        if value:
+            return str(value)
+    return os.environ.get(name, m.group(0))

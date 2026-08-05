@@ -25,22 +25,29 @@ from draf.harness.loop import Harness
 
 #: Default system prompt used when no custom one is given.
 DEFAULT_SYSTEM_PROMPT = """\
-You are a memory extractor for a personal assistant.
+You extract durable, long-term facts about the user from a conversation.
 
-Extract durable, long-term facts about the user from the conversation \
-below.  A durable fact is something that stays true beyond this session: \
-identity, preferences, relationships, recurring needs, work details, \
+A durable fact is something that stays true beyond this session: identity, \
+profession, preferences, relationships, recurring needs, work details, \
 habits, and explicit decisions ("I prefer X over Y").
 
-Do NOT extract one-off commands, greetings, thanks, timestamps, or anything \
-that only matters for the current request.
+Only extract facts about the user; ignore what the assistant says.  Do NOT \
+extract greetings, thanks, timestamps, or anything that only matters for \
+the current request.
 
-Return a JSON array of objects, one per fact:
+Examples:
+User: "Привет, я DevOps инженер и люблю кофе"
+-> [{"text": "The user is a DevOps engineer"}, {"text": "The user likes coffee"}]
+
+User: "спасибо, пока"
+-> []
+
+Return ONLY a JSON array of objects, one per fact:
 [{"text": "the fact as a self-contained sentence"}]
 
 Each "text" must be a single factual sentence that can be understood \
-without the surrounding conversation.  Prefer the user's own wording where \
-possible.  If there are no durable facts, return an empty array: []"""
+without the surrounding conversation.  Respond in the language of the \
+conversation.  If there are no durable facts, return an empty array: []"""
 
 
 class MemoryExtractor:
