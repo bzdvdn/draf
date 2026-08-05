@@ -192,6 +192,10 @@ class Harness:
         stop_when: Callable[[list[dict]], bool] | None = None,
         on_step: Callable[[Step], Awaitable[None]] | None = None,
         on_llm: Callable[[str, str, int, int, float], Awaitable[None]] | None = None,
+        on_llm_payload: Callable[
+            [str, str, list[dict], str, dict, float, bool], Awaitable[None]
+        ]
+        | None = None,
         on_token: Callable[[str], Awaitable[None]] | None = None,
         on_tool_call: Callable[[str, dict], Awaitable[None]] | None = None,
         temperature: float | None = None,
@@ -219,6 +223,7 @@ class Harness:
         self.stop_when = stop_when
         self.on_step = on_step
         self.on_llm = on_llm
+        self.on_llm_payload = on_llm_payload
         self.on_token = on_token
         self.on_tool_call = on_tool_call
         self.stream = stream
@@ -765,6 +770,16 @@ class Harness:
         )
         log.debug("llm_request %s", _truncate(redact(_last_user_message(messages))))
         log.debug("llm_response %s", _truncate(redact(content)))
+        if self.on_llm_payload is not None:
+            await self.on_llm_payload(
+                self.provider_key,
+                self.model,
+                messages,
+                content,
+                usage,
+                _ms(t0),
+                cached,
+            )
         self.total_tokens += int(usage.get("prompt", 0)) + int(
             usage.get("completion", 0)
         )

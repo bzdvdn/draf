@@ -101,6 +101,46 @@ steps:
 `default_model` resolved? The step raises `ConfigError`. Steps may still
 override the default with their own `provider:` / `model:`.
 
+## Tracing a workflow (`observability:`)
+
+A top-level `observability:` block turns on full-run tracing — topology,
+per-node spans and the complete LLM prompt/response — without writing any
+code. `draf run` and `draf daemon` pick it up automatically:
+
+```yaml
+name: my-workflow
+
+observability:
+  db: ./data/traces.db            # local SQLite store (our trace dashboard)
+  export:                          # optional: also push to remote sinks
+    - type: webhook               # any HTTP endpoint (e.g. our obs-server)
+      url: http://obs:8001/obs/ingest
+    - type: langfuse              # langfuse public API (Basic auth)
+      host: https://cloud.langfuse.com
+      public_key_env: LANGFUSE_PUBLIC_KEY
+      secret_key_env: LANGFUSE_SECRET_KEY
+    - type: langsmith             # langsmith runs API (x-api-key)
+      api_key_env: LANGCHAIN_API_KEY
+      project: my-project
+
+steps:
+  - id: answer
+    type: llm_chat
+    config: {model: llama3.1:8b, output_key: reply}
+```
+
+- `db:` resolves relative to the workflow file; `data/` is created if needed.
+- Sinks are fanned out to **all** exporters at once (`CompositeExporter`); a
+  failing sink is retried and then logged, never crashes the run.
+- Secrets come from environment variables (`*_env`), never from the file.
+- Browse the local store in the browser:
+  `draf obs-server --db ./data/traces.db --port 8001` → `http://localhost:8001/obs/ui`.
+- A remote sink that targets `draf obs-server` needs no API at all — pure YAML
+  workflows push their traces over HTTP and the server renders the dashboard.
+
+The same wiring is available in code via
+`draf.observability.build_observability` / `build_observer_factory`.
+
 ## The `${ENV}` interpolation
 
 Every value in the document is interpolated against the process environment.

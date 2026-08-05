@@ -148,6 +148,7 @@ Optional extras (import-error friendly, never block `import draf`):
 - `draf[pg-checkpoint]` — PostgreSQL checkpointer (asyncpg)
 - `draf[tools]` — extra tools: beautifulsoup4, pypdf, boto3, slack-sdk, psycopg, redis
 - `draf[fastapi]` — scaffold web app (fastapi, uvicorn, sse-starlette)
+- `draf[observability]` — trace dashboard (fastapi, uvicorn)
 - `draf[queue]` — scaffold worker (celery[redis])
 - `draf[docs]` — docs build (mkdocs, mkdocs-material, mkdocstrings, mkdocs-gen-files)
 - `draf[all]` — everything above except `docs` (MCP ships in the core package)

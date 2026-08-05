@@ -276,6 +276,9 @@ class LLM(Node):
             harness.fallbacks = [str(f) for f in cfg["fallbacks"]]
         provider_key = harness.provider_key
         harness.on_llm = self._record_llm_cb(ctx, cfg, provider_key)
+        payload_sink = getattr(ctx, "on_llm_payload", None)
+        if payload_sink is not None:
+            harness.on_llm_payload = payload_sink
 
         if structured and not cfg.get("response_format"):
             if harness.type == "ollama":

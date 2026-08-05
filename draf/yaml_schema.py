@@ -96,6 +96,35 @@ WORKFLOW_JSON_SCHEMA: dict[str, Any] = {
         "plugins_folder": {"type": "string"},
         "default_provider": {"type": "string"},
         "default_model": {"type": "string"},
+        "observability": {
+            "type": "object",
+            "properties": {
+                "db": {"type": "string"},
+                "export": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "required": ["type"],
+                        "properties": {
+                            "type": {"enum": ["webhook", "langfuse", "langsmith"]},
+                            "url": {"type": "string"},
+                            "url_env": {"type": "string"},
+                            "host": {"type": "string"},
+                            "api_url": {"type": "string"},
+                            "api_key_env": {"type": "string"},
+                            "public_key_env": {"type": "string"},
+                            "secret_key_env": {"type": "string"},
+                            "project": {"type": "string"},
+                            "timeout": {"type": "number", "minimum": 0},
+                            "retries": {"type": "integer", "minimum": 0},
+                            "backoff": {"type": "number", "minimum": 0},
+                        },
+                        "additionalProperties": True,
+                    },
+                },
+            },
+            "additionalProperties": True,
+        },
         "providers": {
             "type": "array",
             "items": {

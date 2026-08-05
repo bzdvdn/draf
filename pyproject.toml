@@ -78,6 +78,10 @@ fastapi = [
     "uvicorn>=0.30",
     "sse-starlette>=2.0",
 ]
+observability = [
+    "fastapi>=0.115",
+    "uvicorn>=0.30",
+]
 queue = [
     "celery[redis]>=5.4",
 ]
@@ -88,7 +92,7 @@ docs = [
     "mkdocs-gen-files>=0.5",
 ]
 all = [
-    "draf[embedding,tools,rag-pdf,rag-excel,pg-checkpoint,fastapi,queue]",
+    "draf[embedding,tools,rag-pdf,rag-excel,pg-checkpoint,fastapi,queue,observability]",
 ]
 
 [tool.pytest.ini_options]

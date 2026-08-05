@@ -37,6 +37,7 @@ Install only what you need; `draf[all]` pulls in everything.
 | `draf[pg-checkpoint]` | `asyncpg` — PostgreSQL checkpoint backend |
 | `draf[tools]` | Built-in tools that need third-party deps (web fetch, PDF, S3, Slack, SQL, email, Telegram, …) |
 | `draf[fastapi]` | Scaffold templates: `fastapi` + `uvicorn` + `sse-starlette` |
+| `draf[observability]` | Trace dashboard: `fastapi` + `uvicorn` (for `draf.observability.dashboard_router`) |
 | `draf[queue]` | `celery[redis]` — worker/beat scaffold variant |
 | `draf[docs]` | MkDocs toolchain to build this documentation |
 | `draf[all]` | Everything above except `docs` (MCP tooling is bundled with the core package) |

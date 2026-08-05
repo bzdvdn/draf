@@ -1,0 +1,457 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Run #__RUN_ID__ · draf traces</title>
+<script>
+(function(){try{var s=localStorage.getItem('draf-theme');var d=s?s==='dark':true;document.documentElement.classList.toggle('dark',d);}catch(e){document.documentElement.classList.add('dark');}})();
+</script>
+<style>
+  :root {
+    --bg: #f7f7f9;
+    --panel: #ffffff;
+    --panel-alt: #fafafc;
+    --border: #e6e6ee;
+    --border-strong: #d3d3de;
+    --text: #17171f;
+    --muted: #6f6f7e;
+    --accent: #4f46e5;
+    --accent-soft: #eef0ff;
+    --ok: #15803d;
+    --err: #b91c1c;
+    --ok-soft: #e9f7ef;
+    --err-soft: #fdeeee;
+    --chip: #eef0ff;
+    --chip-text: #4338ca;
+    --hover: #f4f4f8;
+    --pre-bg: #fafafc;
+    --pre-border: #ececf2;
+    --shadow: 0 1px 2px rgba(16, 16, 30, .04), 0 1px 6px rgba(16, 16, 30, .05);
+    --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  }
+  html.dark {
+    --bg: #0f1016;
+    --panel: #171820;
+    --panel-alt: #1d1e27;
+    --border: #262733;
+    --border-strong: #33344a;
+    --text: #e7e7f0;
+    --muted: #9a9aae;
+    --accent: #8b93ff;
+    --accent-soft: #232448;
+    --ok: #3ecf7c;
+    --err: #f97c7c;
+    --ok-soft: #123522;
+    --err-soft: #3c1718;
+    --chip: #262a48;
+    --chip-text: #a9b1ff;
+    --hover: #1f202b;
+    --pre-bg: #101116;
+    --pre-border: #2a2b38;
+    --shadow: 0 1px 2px rgba(0, 0, 0, .4), 0 1px 8px rgba(0, 0, 0, .3);
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Inter, sans-serif;
+    font-size: 14px; line-height: 1.5; -webkit-font-smoothing: antialiased;
+  }
+  header {
+    position: sticky; top: 0; z-index: 10;
+    background: var(--panel); border-bottom: 1px solid var(--border);
+    backdrop-filter: saturate(1.4) blur(6px);
+  }
+  .header-inner {
+    max-width: 1240px; margin: 0 auto; padding: 0 28px; height: 56px;
+    display: flex; align-items: center; gap: 14px;
+  }
+  .logo { display: flex; align-items: center; gap: 9px; color: var(--text); text-decoration: none; }
+  .logo svg { color: var(--accent); }
+  .logo b { font-size: 15px; letter-spacing: .1px; }
+  .logo .sub { color: var(--muted); font-family: var(--mono); font-size: 12px; font-weight: 400; }
+  .spacer { flex: 1; }
+  #theme {
+    border: 1px solid var(--border); background: var(--panel); color: var(--text);
+    border-radius: 8px; padding: 5px 11px; font-size: 12.5px; cursor: pointer;
+  }
+  #theme:hover { border-color: var(--accent); color: var(--accent); }
+  main { max-width: 1240px; margin: 0 auto; padding: 28px; }
+  .crumbs { display: flex; align-items: center; gap: 8px; font-size: 13px; margin-bottom: 16px; color: var(--muted); }
+  .crumbs a { color: var(--muted); text-decoration: none; font-weight: 550; }
+  .crumbs a:hover { color: var(--accent); }
+  .crumbs .sep { opacity: .5; }
+  .crumbs b { color: var(--text); font-family: var(--mono); }
+  .head-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 20px; }
+  .head-row h1 { font-size: 21px; margin: 0; font-weight: 650; letter-spacing: -.2px; font-family: var(--mono); }
+  .badge { display: inline-flex; align-items: center; gap: 7px; font-size: 12.5px; font-weight: 600; border-radius: 20px; padding: 3px 12px; }
+  .badge.ok { background: var(--ok-soft); color: var(--ok); }
+  .badge.err { background: var(--err-soft); color: var(--err); }
+  .badge .dot { width: 8px; height: 8px; border-radius: 50%; }
+  .badge.ok .dot { background: var(--ok); }
+  .badge.err .dot { background: var(--err); }
+  .layout { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 20px; align-items: start; }
+  @media (max-width: 960px) { .layout { grid-template-columns: 1fr; } }
+  .main-col { min-width: 0; display: flex; flex-direction: column; gap: 20px; }
+  .side-col { position: sticky; top: 76px; display: flex; flex-direction: column; gap: 20px; }
+  @media (max-width: 960px) { .side-col { position: static; } }
+  .card {
+    background: var(--panel); border: 1px solid var(--border); border-radius: 12px;
+    box-shadow: var(--shadow); padding: 18px 20px;
+  }
+  .card h2 { font-size: 11px; font-weight: 650; letter-spacing: .7px; text-transform: uppercase; color: var(--muted); margin: 0 0 14px; }
+  .meta-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 14px 22px; }
+  .meta-item { display: flex; flex-direction: column; gap: 2px; }
+  .meta-item .k { font-size: 11px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .5px; }
+  .meta-item .v { font-size: 13.5px; font-weight: 550; font-variant-numeric: tabular-nums; word-break: break-all; }
+  .meta-item .v.mono { font-family: var(--mono); }
+  .meta-item .v small { color: var(--muted); font-weight: 400; }
+  #graph ul { margin: 0; padding-left: 20px; font-family: var(--mono); font-size: 12.5px; }
+  #graph li { margin: 3px 0; }
+  #graph .type { color: var(--muted); }
+  .spans { display: flex; flex-direction: column; gap: 10px; }
+  details.node {
+    border: 1px solid var(--border); border-left: 3px solid var(--accent); border-radius: 10px;
+    background: var(--panel-alt); overflow: hidden;
+  }
+  details.node[open] { background: var(--panel); }
+  details.node summary {
+    display: flex; align-items: center; gap: 10px; cursor: pointer; padding: 12px 16px;
+    font-family: var(--mono); font-size: 13px; list-style: none; user-select: none;
+  }
+  details.node summary::-webkit-details-marker { display: none; }
+  details.node summary .caret { color: var(--muted); transition: transform .15s ease; font-size: 10px; }
+  details.node[open] summary .caret { transform: rotate(90deg); }
+  details.node summary .s-dot { width: 8px; height: 8px; border-radius: 50%; flex: none; }
+  details.node summary .s-dot.ok { background: var(--ok); }
+  details.node summary .s-dot.err { background: var(--err); }
+  details.node summary .nid { font-weight: 600; }
+  details.node summary .ntype { color: var(--muted); }
+  details.node summary .stat { margin-left: auto; color: var(--muted); font-size: 12px; white-space: nowrap; }
+  details.node summary .err-tag { color: var(--err); }
+  details.node .body { border-top: 1px solid var(--border); padding: 12px 16px; }
+  .llm { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; margin-bottom: 10px; overflow: hidden; }
+  .llm:last-child { margin-bottom: 0; }
+  details.llm { }
+  details.llm summary {
+    cursor: pointer; padding: 9px 14px; font-family: var(--mono); font-size: 12.5px;
+    display: flex; align-items: center; gap: 9px; list-style: none; user-select: none;
+  }
+  details.llm summary::-webkit-details-marker { display: none; }
+  details.llm summary .caret { color: var(--muted); font-size: 10px; }
+  details.llm[open] summary .caret { transform: rotate(90deg); }
+  details.llm summary b { color: var(--text); }
+  details.llm summary .mi { color: var(--muted); margin-left: auto; white-space: nowrap; font-size: 11.5px; }
+  details.llm summary .cached { color: var(--accent); }
+  details.llm .llm-body { border-top: 1px solid var(--border); padding: 10px 14px; }
+  .msg { margin: 0 0 10px; position: relative; }
+  .msg:last-child { margin-bottom: 0; }
+  .copy-btn {
+    position: absolute; top: 8px; right: 8px;
+    border: 1px solid var(--border); background: var(--panel); color: var(--muted);
+    border-radius: 6px; padding: 2px 8px; font-size: 11px; font-family: inherit;
+    cursor: pointer; opacity: .75;
+  }
+  .copy-btn:hover { color: var(--accent); border-color: var(--accent); opacity: 1; }
+  .copy-btn.done { color: var(--ok); border-color: var(--ok); opacity: 1; }
+  .role {
+    display: inline-block; font-size: 10.5px; font-weight: 650; letter-spacing: .7px; text-transform: uppercase;
+    color: var(--muted); margin-bottom: 5px; border-radius: 5px; padding: 1px 7px; background: var(--panel-alt);
+    border: 1px solid var(--border);
+  }
+  .role.assistant { color: var(--accent); background: var(--accent-soft); border-color: transparent; }
+  .role.user { color: var(--ok); background: var(--ok-soft); border-color: transparent; }
+  .role.tool { color: var(--err); background: var(--err-soft); border-color: transparent; }
+  pre {
+    white-space: pre-wrap; word-break: break-word; background: var(--pre-bg);
+    border: 1px solid var(--pre-border); border-radius: 7px; padding: 10px 12px; margin: 0;
+    font-family: var(--mono); font-size: 12.5px; line-height: 1.6; max-height: 340px; overflow: auto;
+  }
+  .side-col .tags { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; margin-bottom: 8px; }
+  .chip {
+    display: inline-flex; align-items: center; gap: 6px; background: var(--chip);
+    color: var(--chip-text); border-radius: 20px; padding: 2px 6px 2px 11px; font-size: 12.5px; font-weight: 550;
+  }
+  .chip button { border: none; background: none; color: inherit; cursor: pointer; font-size: 13px; line-height: 1; padding: 1px; opacity: .65; }
+  .chip button:hover { opacity: 1; }
+  .tag-input {
+    border: 1px dashed var(--border-strong); border-radius: 20px; padding: 3px 11px; font-size: 12.5px;
+    width: 110px; background: transparent; color: var(--text); outline: none;
+  }
+  .tag-input:focus { border-color: var(--accent); }
+  .side-col textarea {
+    width: 100%; min-height: 96px; border: 1px solid var(--border); border-radius: 8px; padding: 9px 11px;
+    font-size: 13px; font-family: inherit; resize: vertical; background: var(--panel-alt); color: var(--text); outline: none;
+  }
+  .side-col textarea:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+  .save-row { display: flex; align-items: center; gap: 10px; margin-top: 8px; }
+  .save {
+    border: 1px solid var(--border); background: var(--panel); color: var(--text); border-radius: 8px;
+    padding: 5px 14px; font-size: 12.5px; font-weight: 550; cursor: pointer; font-family: inherit;
+  }
+  .save:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+  .save:disabled { opacity: .5; cursor: default; }
+  .saved { font-size: 12px; color: var(--ok); opacity: 0; transition: opacity .3s; }
+  .saved.show { opacity: 1; }
+  .empty { color: var(--muted); padding: 16px 0; }
+  .error-box { color: var(--err); }
+</style>
+</head>
+<body>
+<header>
+  <div class="header-inner">
+    <a class="logo" href="__BASE_PATH__/ui">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+        <circle cx="5" cy="12" r="2.6" fill="currentColor"/>
+        <circle cx="19" cy="5" r="2.6" fill="currentColor"/>
+        <circle cx="19" cy="19" r="2.6" fill="currentColor"/>
+        <path d="M7.4 11 16.6 6M7.4 13l9.2 5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+      </svg>
+      <b>draf <span style="color:var(--accent)">traces</span></b>
+      <span class="sub">graph run observer</span>
+    </a>
+    <div class="spacer"></div>
+    <button id="theme" title="toggle dark mode">dark</button>
+  </div>
+</header>
+<main>
+  <div class="crumbs">
+    <a href="__BASE_PATH__/ui">Runs</a><span class="sep">/</span>
+    <b id="crumb-run">#__RUN_ID__</b>
+  </div>
+  <div class="head-row" id="head"></div>
+  <div class="layout">
+    <div class="main-col">
+      <section class="card">
+        <h2>Summary</h2>
+        <div class="meta-grid" id="summary"></div>
+      </section>
+      <section class="card" id="topology-card" style="display:none">
+        <h2>Topology</h2>
+        <div id="graph"></div>
+      </section>
+      <section class="card">
+        <h2>Spans</h2>
+        <div class="spans" id="spans"></div>
+      </section>
+    </div>
+    <aside class="side-col">
+      <section class="card">
+        <h2>Tags</h2>
+        <div class="tags" id="tags"></div>
+        <input class="tag-input" id="tag-input" placeholder="+ add tag…" autocomplete="off"/>
+      </section>
+      <section class="card">
+        <h2>Notes</h2>
+        <textarea id="notes"></textarea>
+        <div class="save-row">
+          <button class="save" id="save-notes">Save</button>
+          <span class="saved" id="saved">saved</span>
+        </div>
+      </section>
+    </aside>
+  </div>
+</main>
+<script>
+const RUN_ID = __RUN_ID__;
+const BASE = "__BASE_PATH__";
+const state = { run: null, dirty: false };
+
+function applyTheme(dark) {
+  document.documentElement.classList.toggle('dark', dark);
+  document.getElementById('theme').textContent = dark ? 'light' : 'dark';
+  try { localStorage.setItem('draf-theme', dark ? 'dark' : 'light'); } catch (_) {}
+}
+function initTheme() {
+  let saved = null;
+  try { saved = localStorage.getItem('draf-theme'); } catch (_) {}
+  const dark = saved ? saved === 'dark' : true;
+  applyTheme(dark);
+}
+document.getElementById('theme').addEventListener('click', () =>
+  applyTheme(!document.body.classList.contains('dark')));
+
+async function load() {
+  const res = await fetch(BASE + '/runs/' + RUN_ID);
+  if (!res.ok) {
+    document.querySelector('.crumbs b').textContent = `#${RUN_ID} — not found`;
+    document.getElementById('head').innerHTML =
+      `<h1 class="error-box">Run #${RUN_ID} not found</h1>`;
+    return;
+  }
+  state.run = await res.json();
+  render();
+}
+
+function render() {
+  const run = state.run;
+  const ok = run.status === 'ok';
+  document.title = `Run #${run.run_id} · draf traces`;
+  document.getElementById('head').innerHTML =
+    `<h1>#${run.run_id}</h1>` +
+    `<span class="badge ${ok ? 'ok' : 'err'}"><span class="dot"></span>${escapeHtml(run.status)}</span>`;
+
+  document.getElementById('summary').innerHTML =
+    meta('name', run.name, true) +
+    meta('owner', run.owner || '—', true) +
+    meta('checkpoint', run.checkpoint_id || '—', true) +
+    meta('total', `${Number(run.total_ms).toFixed(1)} <small>ms</small>`) +
+    meta('tokens', `${run.prompt_tokens} <small>in</small> / ${run.completion_tokens} <small>out</small>`) +
+    meta('created', fmtTime(run.created_at));
+
+  const topo = run.topology && run.topology.nodes;
+  if (topo && topo.length) {
+    document.getElementById('topology-card').style.display = '';
+    document.getElementById('graph').innerHTML =
+      '<ul>' + topo.map(n => `<li>${escapeHtml(n.id)} <span class="type">(${escapeHtml(n.type)})</span></li>`).join('') + '</ul>';
+  }
+
+  const spans = run.nodes || [];
+  document.getElementById('spans').innerHTML = spans.length
+    ? spans.map((n, i) => spanHtml(n, i === 0)).join('')
+    : '<div class="empty">no node spans captured</div>';
+
+  renderTags();
+  document.getElementById('notes').value = run.notes || '';
+}
+
+function meta(k, v, mono) {
+  return `<div class="meta-item"><span class="k">${k}</span>` +
+         `<span class="v${mono ? ' mono' : ''}">${v}</span></div>`;
+}
+
+function spanHtml(n, open) {
+  const ok = n.status === 'ok';
+  const errBlock = n.error
+    ? `<div class="msg"><span class="role tool">error</span>` +
+      `<pre>${escapeHtml(n.error)}</pre>` +
+      `<button class="copy-btn" title="copy to clipboard" onclick="copyFrom(this)">⧉ copy</button></div>`
+    : '';
+  const calls = (n.llm_calls || []).map(llmHtml).join('');
+  return `<details class="node"${open ? ' open' : ''}>` +
+      `<summary><span class="caret">▸</span><span class="s-dot ${ok ? 'ok' : 'err'}"></span>` +
+      `<span class="nid">${escapeHtml(n.node_id)}</span>` +
+      `<span class="ntype">${escapeHtml(n.node_type)}</span>` +
+      `<span class="stat">${n.duration_ms} ms${ok ? '' : ' · <span class="err-tag">failed</span>'}</span></summary>` +
+      `<div class="body">${errBlock}${calls || '<div class="empty">no LLM calls in this node</div>'}</div></details>`;
+}
+
+function llmHtml(c) {
+  const msgs = (c.messages || []).map(m => msgHtml(m.role, renderContent(m.content))).join('');
+  const resp = msgHtml('response', c.response);
+  return `<details class="llm"><summary>` +
+      `<span class="caret">▸</span><b>${escapeHtml(c.provider)} / ${escapeHtml(c.model)}</b>` +
+      `<span class="mi">${c.prompt_tokens}→${c.completion_tokens} tok · ${Number(c.latency_ms).toFixed(0)} ms` +
+      (c.cached ? ` · <span class="cached">cached</span>` : '') + `</span></summary>` +
+      `<div class="llm-body">${msgs}${resp}</div></details>`;
+}
+
+function msgHtml(role, content) {
+  const cls = ['assistant', 'user', 'tool'].includes(role) ? role : '';
+  return `<div class="msg"><span class="role ${cls}">${escapeHtml(role)}</span>` +
+         `<pre>${escapeHtml(content)}</pre>` +
+         `<button class="copy-btn" title="copy to clipboard" onclick="copyFrom(this)">⧉ copy</button></div>`;
+}
+
+function copyFrom(btn) {
+  const text = btn.previousElementSibling.textContent || '';
+  const done = () => {
+    btn.innerHTML = '✓ copied';
+    btn.classList.add('done');
+    setTimeout(() => {
+      btn.innerHTML = '⧉ copy';
+      btn.classList.remove('done');
+    }, 1500);
+  };
+  if (navigator.clipboard && window.isSecureContext) {
+    navigator.clipboard.writeText(text).then(done).catch(() => legacyCopy(text, btn, done));
+  } else {
+    legacyCopy(text, btn, done);
+  }
+}
+function legacyCopy(text, btn, done) {
+  const ta = document.createElement('textarea');
+  ta.value = text;
+  ta.style.position = 'fixed';
+  ta.style.opacity = '0';
+  document.body.appendChild(ta);
+  ta.select();
+  try { document.execCommand('copy'); done(); } catch (_) {}
+  document.body.removeChild(ta);
+}
+
+function renderTags() {
+  const box = document.getElementById('tags');
+  box.innerHTML = (state.run.tags || []).map(t =>
+    `<span class="chip">${escapeHtml(t)}<button title="remove" onclick="removeTag('${escapeHtml(t)}')">×</button></span>`).join('');
+}
+
+function currentTags() {
+  return (state.run.tags || []).slice();
+}
+
+async function addTag() {
+  const input = document.getElementById('tag-input');
+  const tag = input.value.trim();
+  if (!tag) return;
+  const tags = currentTags();
+  if (!tags.includes(tag)) tags.push(tag);
+  state.run.tags = tags;
+  await patch({ tags });
+  renderTags();
+  input.value = '';
+}
+
+async function removeTag(tag) {
+  state.run.tags = currentTags().filter(t => t !== tag);
+  await patch({ tags: state.run.tags });
+  renderTags();
+}
+
+async function saveNotes() {
+  const notes = document.getElementById('notes').value;
+  state.run.notes = notes;
+  state.dirty = false;
+  await patch({ notes });
+  flashSaved();
+}
+
+async function patch(body) {
+  await fetch(BASE + '/runs/' + RUN_ID, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+}
+
+function flashSaved() {
+  const el = document.getElementById('saved');
+  el.classList.add('show');
+  setTimeout(() => el.classList.remove('show'), 1400);
+}
+
+function renderContent(content) {
+  if (content == null) return '';
+  if (typeof content === 'string') return content;
+  try { return JSON.stringify(content, null, 2); } catch (_) { return String(content); }
+}
+function fmtTime(unix) {
+  try { return new Date(unix * 1000).toLocaleString(); } catch (_) { return '—'; }
+}
+function escapeHtml(s) {
+  return String(s ?? '').replace(/[&<>"']/g,
+    (ch) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
+}
+
+document.getElementById('tag-input').addEventListener('keydown', (e) => { if (e.key === 'Enter') addTag(); });
+document.getElementById('save-notes').addEventListener('click', saveNotes);
+document.getElementById('notes').addEventListener('input', () => {
+  state.dirty = true;
+  document.getElementById('save-notes').disabled = false;
+});
+
+initTheme();
+load();
+</script>
+</body>
+</html>

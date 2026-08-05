@@ -189,6 +189,10 @@ class Supervisor(Node):
 
             harness.on_llm = on_llm
 
+        payload_sink = getattr(ctx, "on_llm_payload", None)
+        if payload_sink is not None:
+            harness.on_llm_payload = payload_sink
+
         messages_key = cfg.get("messages_key", "messages")
         user = (
             f"User: {last_user_message(state.get(messages_key, []))}"

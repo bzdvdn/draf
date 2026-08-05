@@ -87,6 +87,7 @@ class Graph:
         providers: "dict[str, Provider] | ProviderRegistry | None" = None,
         default_provider: str | None = None,
         default_model: str | None = None,
+        on_llm_payload: "Callable[..., Awaitable[None]] | None" = None,
     ) -> dict | State:
         """Execute the graph starting from the entry point.
 
@@ -183,6 +184,7 @@ class Graph:
                 default_model=default_model
                 if default_model is not None
                 else self.default_model,
+                on_llm_payload=on_llm_payload,
             )
         except GraphInterrupt:
             raise
@@ -220,6 +222,7 @@ class Graph:
         providers: "dict[str, Provider] | ProviderRegistry | None" = None,
         default_provider: str | None = None,
         default_model: str | None = None,
+        on_llm_payload: "Callable[..., Awaitable[None]] | None" = None,
     ) -> AsyncIterator[StreamEvent]:
         """Stream events as the graph executes.
 
@@ -280,6 +283,7 @@ class Graph:
                         default_model=default_model
                         if default_model is not None
                         else self.default_model,
+                        on_llm_payload=on_llm_payload,
                     )
                 except GraphInterrupt:
                     return

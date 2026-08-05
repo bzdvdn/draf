@@ -190,6 +190,10 @@ class ReActAgent(Node):
 
             harness.on_llm = on_llm
 
+        payload_sink = getattr(ctx, "on_llm_payload", None)
+        if payload_sink is not None:
+            harness.on_llm_payload = payload_sink
+
         emit = getattr(ctx, "emit", None)
         on_token_cfg = cfg.get("on_token")
 

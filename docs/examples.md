@@ -22,6 +22,7 @@ README for exact commands.
 | [mcp](https://github.com/bzdvdn/draf/tree/main/examples/mcp/) | ReAct agent calling tools from an MCP server (stdio) |
 | [plugins](https://github.com/bzdvdn/draf/tree/main/examples/plugins/) | Custom nodes/tools via decorators and via subclasses; offline + agent variants |
 | [streaming](https://github.com/bzdvdn/draf/tree/main/examples/streaming/) | Live LLM tokens + graph events via `graph.stream()` |
+| [observability](https://github.com/bzdvdn/draf/tree/main/examples/observability/) | langfuse-style trace viewer — `GraphObserver` captures topology, node spans and full LLM prompt/response into SQLite; FastAPI dashboard UI + push exporters (webhook/langfuse/langsmith) and `draf obs-server` |
 | [structured_output](https://github.com/bzdvdn/draf/tree/main/examples/structured_output/) | Schema-validated LLM JSON via `output_type` / `json_schema` |
 | [rag_search](https://github.com/bzdvdn/draf/tree/main/examples/rag_search/) | RAG over a local CSV, in-memory store |
 | [rag_stores](https://github.com/bzdvdn/draf/tree/main/examples/rag_stores/) | Same RAG agent on every vector store |

@@ -23,8 +23,27 @@ draf new support-ai                       # scaffold a FastAPI app (default)
 draf new support-cli --template cli       # scaffold a terminal-only app
 draf new support-worker --template daemon # scaffold a background worker
 draf new support-chat --template fastapi --with postgres,rag,celery  # + variants
+draf obs-server --db traces.db --port 8001 # serve the trace dashboard + ingest
 draf version
 ```
+
+## obs-server
+
+Serves the trace dashboard and an HTTP ingest endpoint. Workflows with an
+`observability:` block (and no API of their own) push their traces here and
+this process renders them:
+
+```bash
+draf obs-server --db ./data/traces.db --host 0.0.0.0 --port 8001
+# open http://localhost:8001/obs/ui
+```
+
+- `--db` — SQLite file holding the traces (default `traces.db`).
+- `--host` / `--port` — bind address / port (default `127.0.0.1:8001`).
+- `--prefix` — URL prefix for the dashboard and ingest (default `/obs`).
+- Ingest: `POST /obs/ingest` accepts a run in `Run.to_dict()` shape — the same
+  body an `HttpExporter` (`type: webhook`) produces.
+- Requires `draf[observability]` (fastapi + uvicorn).
 
 ## daemon
 

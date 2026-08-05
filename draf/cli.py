@@ -61,6 +61,7 @@ def _run_workflow(
 
     try:
         graph, tools, initial_state, reducers = load_workflow(file)
+        cfg = _load_yaml(file)
     except Exception as e:
         typer.echo(f"error: failed to load workflow: {e}", err=True)
         raise typer.Exit(1)
@@ -70,6 +71,9 @@ def _run_workflow(
         base_dir = os.path.dirname(os.path.abspath(file))
         cfg = _resolve_checkpoint_config(json.loads(checkpoint), base_dir)
         checkpointer = _checkpointer_from_config(cfg)
+
+    base_dir = os.path.dirname(os.path.abspath(file))
+    observer_factory = _observer_factory(file, cfg, graph, base_dir)
 
     try:
         result = asyncio.run(
@@ -86,6 +90,7 @@ def _run_workflow(
                 max_iterations=max_iterations,
                 interactive=interactive,
                 trace=trace,
+                observer_factory=observer_factory,
             )
         )
     except Exception as e:
@@ -114,41 +119,48 @@ async def _run_loop(
     max_iterations,
     interactive,
     trace,
+    observer_factory=None,
 ) -> dict | None:
     """Run a graph, handling interrupts interactively or via resume."""
     from draf.node.interrupt import GraphInterrupt
     from draf.trace import RunTracer
 
-    tracer = RunTracer() if trace else None
-    while True:
-        try:
-            result = await graph.run(
-                state,
-                tools=tools,
-                reducers=reducers,
-                checkpointer=checkpointer,
-                checkpoint_id=checkpoint_id,
-                owner=checkpoint_owner,
-                resume=resume,
-                node_timeout=node_timeout,
-                max_iterations=max_iterations,
-                tracer=tracer,
-            )
-            if tracer is not None:
-                typer.echo(tracer.to_json(), err=True)
-            return result
-        except GraphInterrupt as interrupt:
-            if not interactive:
-                if tracer is not None:
+    observer = observer_factory() if observer_factory else None
+    tracer = observer.tracer if observer else (RunTracer() if trace else None)
+    try:
+        while True:
+            try:
+                result = await graph.run(
+                    state,
+                    tools=tools,
+                    reducers=reducers,
+                    checkpointer=checkpointer,
+                    checkpoint_id=checkpoint_id,
+                    owner=checkpoint_owner,
+                    resume=resume,
+                    node_timeout=node_timeout,
+                    max_iterations=max_iterations,
+                    tracer=tracer,
+                    on_llm_payload=observer.on_llm_payload if observer else None,
+                )
+                if tracer is not None and observer is None:
                     typer.echo(tracer.to_json(), err=True)
-                raise
-            typer.echo(
-                f"\n-- paused: {interrupt.prompt or interrupt.key} "
-                f"(checkpoint {interrupt.checkpoint_id!r}) --",
-                err=True,
-            )
-            answer = input("> ").strip()
-            resume = {interrupt.key: answer}
+                return result
+            except GraphInterrupt as interrupt:
+                if not interactive:
+                    if tracer is not None:
+                        typer.echo(tracer.to_json(), err=True)
+                    raise
+                typer.echo(
+                    f"\n-- paused: {interrupt.prompt or interrupt.key} "
+                    f"(checkpoint {interrupt.checkpoint_id!r}) --",
+                    err=True,
+                )
+                answer = input("> ").strip()
+                resume = {interrupt.key: answer}
+    finally:
+        if observer is not None:
+            observer.export()
 
 
 def _resolve_checkpoint_config(config: dict, base_dir: str) -> dict:
@@ -172,6 +184,22 @@ def _load_yaml(path: str) -> dict:
             f"{path}: expected a YAML mapping, got {type(data).__name__}"
         )
     return data
+
+
+def _observer_factory(file: str, cfg: dict, graph, base_dir: str):
+    """Build a per-run GraphObserver factory from the workflow's YAML.
+
+    Returns ``None`` when the workflow has no ``observability:`` block, so
+    existing workflows are untouched.
+    """
+    from draf.observability import build_observer_factory
+
+    return build_observer_factory(
+        cfg.get("observability"),
+        base_dir=base_dir,
+        graph=graph,
+        name=cfg.get("name", "workflow"),
+    )
 
 
 @app.callback(invoke_without_command=True)
@@ -331,6 +359,7 @@ def daemon(
 
     try:
         graph, tools, initial_state, reducers = load_workflow(file)
+        cfg = _load_yaml(file)
     except Exception as e:
         typer.echo(f"error: failed to load workflow: {e}", err=True)
         raise typer.Exit(1)
@@ -340,6 +369,9 @@ def daemon(
         base_dir = os.path.dirname(os.path.abspath(file))
         cfg = _resolve_checkpoint_config(json.loads(checkpoint), base_dir)
         checkpointer = _checkpointer_from_config(cfg)
+
+    base_dir = os.path.dirname(os.path.abspath(file))
+    observer_factory = _observer_factory(file, cfg, graph, base_dir)
 
     try:
         asyncio.run(
@@ -356,6 +388,7 @@ def daemon(
                 node_timeout=node_timeout,
                 max_iterations=max_iterations,
                 trace=trace,
+                observer_factory=observer_factory,
             )
         )
     except Exception as e:
@@ -377,6 +410,7 @@ async def _daemon_loop(
     node_timeout,
     max_iterations,
     trace,
+    observer_factory=None,
 ) -> None:
     """Run *graph* once per tick, persisting state between ticks.
 
@@ -398,33 +432,39 @@ async def _daemon_loop(
     tick = 0
     while True:
         tick += 1
-        tracer = RunTracer() if trace else None
+        observer = observer_factory() if observer_factory else None
+        tracer = observer.tracer if observer else (RunTracer() if trace else None)
         try:
-            state = await graph.run(
-                state,
-                tools=tools,
-                reducers=reducers,
-                node_timeout=node_timeout,
-                max_iterations=max_iterations,
-                tracer=tracer,
-            )
-            if tracer is not None:
-                typer.echo(tracer.to_json(), err=True)
-            typer.echo(json.dumps(state, ensure_ascii=False, default=str))
-            if checkpointer is not None:
-                await checkpointer.save(
-                    checkpoint_id,
-                    Checkpoint(state=dict(state), next_node_id=None, iteration=0),
-                    owner=checkpoint_owner,
+            try:
+                state = await graph.run(
+                    state,
+                    tools=tools,
+                    reducers=reducers,
+                    node_timeout=node_timeout,
+                    max_iterations=max_iterations,
+                    tracer=tracer,
+                    on_llm_payload=observer.on_llm_payload if observer else None,
                 )
-        except GraphInterrupt as interrupt:
-            if tracer is not None:
-                typer.echo(tracer.to_json(), err=True)
-            typer.echo(
-                f"tick {tick}: paused at {interrupt.node_id!r} "
-                f"({interrupt.prompt or interrupt.key}) — skipped in daemon mode",
-                err=True,
-            )
+                if tracer is not None and observer is None:
+                    typer.echo(tracer.to_json(), err=True)
+                typer.echo(json.dumps(state, ensure_ascii=False, default=str))
+                if checkpointer is not None:
+                    await checkpointer.save(
+                        checkpoint_id,
+                        Checkpoint(state=dict(state), next_node_id=None, iteration=0),
+                        owner=checkpoint_owner,
+                    )
+            except GraphInterrupt as interrupt:
+                if tracer is not None and observer is None:
+                    typer.echo(tracer.to_json(), err=True)
+                typer.echo(
+                    f"tick {tick}: paused at {interrupt.node_id!r} "
+                    f"({interrupt.prompt or interrupt.key}) — skipped in daemon mode",
+                    err=True,
+                )
+        finally:
+            if observer is not None:
+                observer.export()
         if once:
             return
         await asyncio.sleep(interval)
@@ -596,6 +636,36 @@ def prune(
         typer.echo(f"error: {e}", err=True)
         raise typer.Exit(1)
     typer.echo(f"removed {removed} checkpoint(s)")
+
+
+@app.command()
+def obs_server(
+    db: str = typer.Option("traces.db", "--db", help="SQLite file holding the traces"),
+    host: str = typer.Option(
+        "127.0.0.1", "--host", help="Address to bind (use 0.0.0.0 to expose)"
+    ),
+    port: int = typer.Option(8001, "--port", help="Port to listen on"),
+    prefix: str = typer.Option(
+        "/obs", "--prefix", help="URL prefix for the dashboard and ingest"
+    ),
+) -> None:
+    """Serve the trace dashboard + ingest endpoint (standalone obs server).
+
+    Workflows with no API push their traces here via ``observability:``
+    (``type: webhook``), and this process serves the dashboard UI::
+
+        draf obs-server --db traces.db --host 0.0.0.0 --port 8001
+        # open http://localhost:8001/obs/ui
+    """
+    try:
+        from draf.observability.server import serve
+    except ImportError as e:
+        typer.echo(
+            f"error: 'draf[observability]' is required for obs-server: {e}",
+            err=True,
+        )
+        raise typer.Exit(1)
+    serve(db, host=host, port=port, prefix=prefix)
 
 
 @app.command()

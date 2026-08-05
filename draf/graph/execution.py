@@ -83,6 +83,7 @@ async def execute(
     providers: "dict | ProviderRegistry | None" = None,
     default_provider: str | None = None,
     default_model: str | None = None,
+    on_llm_payload: "Callable[..., Awaitable[None]] | None" = None,
 ) -> dict | State:
     """Run *graph* with run/session correlation ids in the log context."""
     run = new_run_id()
@@ -109,6 +110,7 @@ async def execute(
                 providers=providers,
                 default_provider=default_provider,
                 default_model=default_model,
+                on_llm_payload=on_llm_payload,
             )
         except GraphInterrupt:
             raise
@@ -138,6 +140,7 @@ async def _execute_impl(
     providers: "dict | ProviderRegistry | None" = None,
     default_provider: str | None = None,
     default_model: str | None = None,
+    on_llm_payload: "Callable[..., Awaitable[None]] | None" = None,
 ) -> dict | State:
     """Shared execution core for :meth:`Graph.run` and :meth:`Graph.stream`.
 
@@ -282,6 +285,7 @@ async def _execute_impl(
                 checkpointer=checkpointer,
                 checkpoint_id=cid,
                 owner=owner,
+                on_llm_payload=on_llm_payload,
             )
             start = time.monotonic()
 
