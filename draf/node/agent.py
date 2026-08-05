@@ -252,9 +252,7 @@ class ReActAgent(Node):
                 if parse_cfg is None:
                     parse_cfg = True
                 parsed = (
-                    parse_text_tool_call(content)
-                    if tool_defs and parse_cfg
-                    else None
+                    parse_text_tool_call(content) if tool_defs and parse_cfg else None
                 )
                 if parsed:
                     name, args = parsed

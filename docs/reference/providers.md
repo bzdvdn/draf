@@ -129,7 +129,9 @@ from draf.node import LLM
 
 reg = ProviderRegistry()  # register instances explicitly…
 reg.register(Provider(name="vllm", base_url="http://vllm:8000/v1"))
-reg.register(Provider(name="claude", type="anthropic_compatible", base_url="http://proxy"))
+reg.register(
+    Provider(name="claude", type="anthropic_compatible", base_url="http://proxy")
+)
 # …and reference entries by name anywhere:
 graph = Graph({"llm": LLM(model="m", provider="claude")}, [], "llm", providers=reg)
 result = await graph.run({})  # registry also accepted per-run: run({}, providers=reg)

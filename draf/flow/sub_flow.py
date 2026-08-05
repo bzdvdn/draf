@@ -103,7 +103,7 @@ class SubFlow(Node):
                 if isinstance(old, list) and isinstance(value, list):
                     prefix = value[: len(old)]
                     if prefix == old:
-                        nv = value[len(old):]
+                        nv = value[len(old) :]
                 if nv:
                     out[key] = nv
             elif old != value:

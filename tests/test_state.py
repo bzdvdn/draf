@@ -55,7 +55,9 @@ class TestTypedState:
         from draf.state import apply_reducers
 
         state = {"msgs": ["hello"]}
-        apply_reducers(state, {"msgs": {"role": "assistant", "content": "hi"}}, {"msgs": "append"})
+        apply_reducers(
+            state, {"msgs": {"role": "assistant", "content": "hi"}}, {"msgs": "append"}
+        )
         assert state["msgs"] == ["hello", {"role": "assistant", "content": "hi"}]
 
     def test_reducer_appends_classification(self):

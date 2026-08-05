@@ -51,7 +51,12 @@ async def test_flow(mock_llm):
     g = Graph(
         nodes={
             "a": LLM(
-                {"model": "gpt-4", "prompt": "calc", "output_key": "answer", "provider": "openai"}
+                {
+                    "model": "gpt-4",
+                    "prompt": "calc",
+                    "output_key": "answer",
+                    "provider": "openai",
+                }
             )
         },
         edges=[],

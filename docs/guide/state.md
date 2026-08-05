@@ -47,21 +47,19 @@ branch), or embedded `Flow` subgraphs. The node also works directly:
 branch count comes from the data, not the declaration:
 
 ```python
-flow = (
-    Flow(
-        "repair-plans",
-        providers=ProviderRegistry.from_presets("ollama"),
-        default_provider="ollama",
-        default_model="llama3.1:8b",
-    ).map(
-        LLM(
-            prompt="Составь план для ремонта {type} на сумму {summ} рублей.",
-            output_key="plan",
-        ),
-        input_keys=["type", "summ"],  # lists zipped per index
-        output_key="plans",  # list of per-item results
-        max_concurrency=2,
-    )
+flow = Flow(
+    "repair-plans",
+    providers=ProviderRegistry.from_presets("ollama"),
+    default_provider="ollama",
+    default_model="llama3.1:8b",
+).map(
+    LLM(
+        prompt="Составь план для ремонта {type} на сумму {summ} рублей.",
+        output_key="plan",
+    ),
+    input_keys=["type", "summ"],  # lists zipped per index
+    output_key="plans",  # list of per-item results
+    max_concurrency=2,
 )
 result = await flow.compile().run(
     state={

@@ -241,21 +241,19 @@ branch count is derived from the data, not declared up front. The processor
 reads the same keys the Map fans out, so no glue node is needed::
 
 ```python
-flow = (
-    Flow(
-        "repair-plans",
-        providers=ProviderRegistry.from_presets("ollama"),
-        default_provider="ollama",
-        default_model="llama3.1:8b",
-    ).map(
-        LLM(
-            prompt="Составь план для ремонта {type} на сумму {summ} рублей.",
-            output_key="plan",
-        ),
-        input_keys=["type", "summ"],  # lists zipped per index
-        output_key="plans",  # list of per-item results
-        max_concurrency=2,
-    )
+flow = Flow(
+    "repair-plans",
+    providers=ProviderRegistry.from_presets("ollama"),
+    default_provider="ollama",
+    default_model="llama3.1:8b",
+).map(
+    LLM(
+        prompt="Составь план для ремонта {type} на сумму {summ} рублей.",
+        output_key="plan",
+    ),
+    input_keys=["type", "summ"],  # lists zipped per index
+    output_key="plans",  # list of per-item results
+    max_concurrency=2,
 )
 result = await flow.compile().run(
     state={
@@ -478,9 +476,7 @@ flow = Flow(
     default_provider="ollama",
     default_model="llama3.1:8b",
 )
-flow.react(
-    system="Answer using tools.", input_key="query", output_key="answer"
-)
+flow.react(system="Answer using tools.", input_key="query", output_key="answer")
 flow.step(Transform(action="uppercase", input_key="answer", output_key="result"))
 
 graph = flow.compile()

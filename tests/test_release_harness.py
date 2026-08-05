@@ -256,7 +256,12 @@ class TestFromConfigNumbers:
         from draf.harness import Harness
 
         h = Harness.from_config(
-            {"model": "gpt-4", "provider": "openai", "api_key_env": "X", "max_retries": 0}
+            {
+                "model": "gpt-4",
+                "provider": "openai",
+                "api_key_env": "X",
+                "max_retries": 0,
+            }
         )
         assert h.max_retries == 0
 
@@ -264,14 +269,21 @@ class TestFromConfigNumbers:
         from draf.harness import Harness
 
         h = Harness.from_config(
-            {"model": "gpt-4", "provider": "openai", "api_key_env": "X", "max_tool_rounds": 0}
+            {
+                "model": "gpt-4",
+                "provider": "openai",
+                "api_key_env": "X",
+                "max_tool_rounds": 0,
+            }
         )
         assert h.max_rounds == 0
 
     def test_from_config_default_max_retries(self):
         from draf.harness import Harness
 
-        h = Harness.from_config({"model": "gpt-4", "provider": "openai", "api_key_env": "X"})
+        h = Harness.from_config(
+            {"model": "gpt-4", "provider": "openai", "api_key_env": "X"}
+        )
         assert h.max_retries == 2
 
     def test_stream_token_empty_choices(self):
