@@ -41,6 +41,59 @@ class _CtxHarness(_FakeHarness):
         self.on_llm_payload = None
 
 
+class _ToolCallHarness(_CtxHarness):
+    """Emulates an agent loop: tool call on the first call, answer after."""
+
+    def __init__(self):
+        super().__init__()
+        self.calls = 0
+
+    @classmethod
+    def from_config(cls, cfg, **kwargs):
+        return cls()
+
+    async def call(self, messages, tools=None, stream=False, **kwargs):
+        if getattr(self, "on_llm_payload", None) is not None:
+            await self.on_llm_payload(
+                "ollama",
+                "m",
+                messages,
+                "ok",
+                {"prompt": 5, "completion": 2},
+                1.5,
+                False,
+            )
+        # Once a tool result is in the history, answer for real.
+        if any(m.get("role") == "tool" for m in messages):
+            return ModelReply(
+                data={},
+                message={"role": "assistant", "content": "HI"},
+                content="HI",
+                usage={"prompt": 5, "completion": 2},
+                latency_ms=1.5,
+            )
+        return ModelReply(
+            data={},
+            message={
+                "role": "assistant",
+                "content": "",
+                "tool_calls": [
+                    {
+                        "id": "call_1",
+                        "type": "function",
+                        "function": {
+                            "name": "uppercase",
+                            "arguments": '{"text": "hi"}',
+                        },
+                    }
+                ],
+            },
+            content="",
+            usage={"prompt": 5, "completion": 2},
+            latency_ms=1.5,
+        )
+
+
 @pytest.fixture
 def fake_agent_harness(monkeypatch):
     from draf.node import agent as agent_mod
@@ -62,6 +115,243 @@ def test_run_model_to_dict():
     assert data["owner"] == "ana"
     assert data["llm_calls"] == []
     assert data["prompt_tokens"] == 0
+
+
+def test_tool_call_model_roundtrip():
+    from draf.observability import NodeSpan, SpanEvent, ToolCall
+
+    span = NodeSpan(
+        node_id="agent",
+        node_type="react_agent",
+        start_ms=0.0,
+        tool_calls=[
+            ToolCall(name="current_time", args='{"x": 1}', result="12:00", ok=True),
+            ToolCall(name="failing", args="{}", result="Error: boom", ok=False),
+        ],
+        events=[SpanEvent(kind="llm", index=0), SpanEvent(kind="tool", index=0)],
+    )
+    data = span.to_dict()
+    assert data["tool_calls"] == [
+        {"name": "current_time", "args": '{"x": 1}', "result": "12:00", "ok": True},
+        {"name": "failing", "args": "{}", "result": "Error: boom", "ok": False},
+    ]
+    assert data["events"] == [{"kind": "llm", "index": 0}, {"kind": "tool", "index": 0}]
+    restored = NodeSpan.from_dict(data)
+    assert restored.tool_calls[0].name == "current_time"
+    assert restored.tool_calls[1].ok is False
+    assert [(e.kind, e.index) for e in restored.events] == [("llm", 0), ("tool", 0)]
+
+
+async def _emit_payload(observer, messages, response="done"):
+    await observer.on_llm_payload(
+        "ollama", "m", messages, response, {"prompt": 5, "completion": 2}, 1.5, False
+    )
+
+
+def test_collector_captures_tool_calls():
+    import asyncio
+
+    from draf.observability import GraphObserver
+
+    observer = GraphObserver("t")
+    observer.tracer.node_start("agent", "react_agent")
+
+    asyncio.run(
+        _emit_payload(
+            observer,
+            [
+                {"role": "user", "content": "hi"},
+                {
+                    "role": "assistant",
+                    "content": "",
+                    "tool_calls": [
+                        {
+                            "id": "call_1",
+                            "type": "function",
+                            "function": {"name": "current_time", "arguments": "{}"},
+                        }
+                    ],
+                },
+                {"role": "tool", "tool_call_id": "call_1", "content": "12:00 UTC"},
+            ],
+        )
+    )
+
+    span = observer.build().nodes[0]
+    assert len(span.tool_calls) == 1
+    call = span.tool_calls[0]
+    assert call.name == "current_time"
+    assert call.args == "{}"
+    assert call.result == "12:00 UTC"
+    assert call.ok is True
+    # The tool ran before this call (it is part of the request history).
+    assert [(e.kind, e.index) for e in span.events] == [("tool", 0), ("llm", 0)]
+
+
+def test_collector_backfills_tool_result_without_duplication():
+    import asyncio
+
+    from draf.observability import GraphObserver
+
+    observer = GraphObserver("t")
+    observer.tracer.node_start("agent", "react_agent")
+
+    # Round 1: the model asks for a tool; its result is not here yet.
+    asyncio.run(
+        _emit_payload(
+            observer,
+            [
+                {"role": "user", "content": "hi"},
+                {
+                    "role": "assistant",
+                    "content": "",
+                    "tool_calls": [
+                        {
+                            "id": "call_1",
+                            "type": "function",
+                            "function": {"name": "search", "arguments": '{"q": "x"}'},
+                        }
+                    ],
+                },
+            ],
+        )
+    )
+    # Round 2: full history — the previous tool_call block repeats, now
+    # followed by its result and a fresh tool call.
+    asyncio.run(
+        _emit_payload(
+            observer,
+            [
+                {"role": "user", "content": "hi"},
+                {
+                    "role": "assistant",
+                    "content": "",
+                    "tool_calls": [
+                        {
+                            "id": "call_1",
+                            "type": "function",
+                            "function": {"name": "search", "arguments": '{"q": "x"}'},
+                        }
+                    ],
+                },
+                {"role": "tool", "tool_call_id": "call_1", "content": "three results"},
+                {
+                    "role": "assistant",
+                    "content": "",
+                    "tool_calls": [
+                        {
+                            "id": "call_2",
+                            "type": "function",
+                            "function": {"name": "search", "arguments": '{"q": "y"}'},
+                        }
+                    ],
+                },
+                {"role": "tool", "tool_call_id": "call_2", "content": "Error: timeout"},
+            ],
+        )
+    )
+
+    span = observer.build().nodes[0]
+    assert [c.name for c in span.tool_calls] == ["search", "search"]
+    assert span.tool_calls[0].result == "three results"  # backfilled
+    assert span.tool_calls[0].ok is True
+    assert span.tool_calls[1].result == "Error: timeout"
+    assert span.tool_calls[1].ok is False
+    # Chronology: llm round 1 (requested tool 1) -> tool 1 -> llm round 2
+    # (re-saw tool 1, requested tool 2) -> tool 2.  No duplicates.
+    assert [(e.kind, e.index) for e in span.events] == [
+        ("tool", 0),
+        ("llm", 0),
+        ("tool", 1),
+        ("llm", 1),
+    ]
+
+
+def test_collector_accepts_graph_signal_tool_shape():
+    import asyncio
+
+    from draf.observability import GraphObserver
+
+    observer = GraphObserver("t")
+    observer.tracer.node_start("agent", "react_agent")
+
+    asyncio.run(
+        _emit_payload(
+            observer,
+            [
+                {
+                    "role": "assistant",
+                    "content": "",
+                    "tool_calls": [
+                        {"id": "call_9", "name": "read_file", "args": {"p": "a.txt"}}
+                    ],
+                },
+                {"role": "tool", "tool_call_id": "call_9", "content": "file body"},
+            ],
+        )
+    )
+
+    call = observer.build().nodes[0].tool_calls[0]
+    assert call.name == "read_file"
+    assert call.args == '{"p": "a.txt"}'  # dict args are serialised
+    assert call.result == "file body"
+
+
+def test_full_loop_captures_tool_call(monkeypatch):
+    import asyncio
+
+    from draf.flow import Flow
+    from draf.node import agent as agent_mod
+    from draf.observability import GraphObserver
+    from draf.tool.tool import Tool
+
+    class Uppercase(Tool):
+        name = "uppercase"
+        description = "Convert a string to uppercase."
+
+        def run(self, **kwargs) -> str:
+            return kwargs["text"].upper()
+
+    monkeypatch.setattr(agent_mod, "Harness", _ToolCallHarness)
+
+    flow = Flow("t")
+    flow.react(
+        model="m",
+        system="s",
+        messages_key="messages",
+        use_tools=["uppercase"],
+        input_key="input",
+        output_key="output",
+    )
+    graph = flow.compile()
+
+    observer = GraphObserver("flow")
+
+    async def run():
+        return await graph.run(
+            {"input": "hello", "messages": []},
+            tools=[Uppercase()],
+            tracer=observer.tracer,
+            on_llm_payload=observer.on_llm_payload,
+            max_iterations=10,
+        )
+
+    state = asyncio.run(run())
+    assert state.get("output") == "HI"
+
+    agent_span = next(n for n in observer.build().nodes if n.node_type == "react_agent")
+    assert len(agent_span.tool_calls) == 1
+    call = agent_span.tool_calls[0]
+    assert call.name == "uppercase"
+    assert call.args == '{"text": "hi"}'
+    assert call.result == "HI"
+    assert call.ok is True
+    # Sequence across the agent's two LLM rounds: llm -> tool -> llm.
+    assert [(e.kind, e.index) for e in agent_span.events] == [
+        ("llm", 0),
+        ("tool", 0),
+        ("llm", 1),
+    ]
 
 
 def test_topology_from_graph():
@@ -108,14 +398,32 @@ async def _run_single_with(observer, graph):
     )
 
 
-def test_sqlite_exporter_roundtrip(tmp_path, fake_agent_harness):
+def test_sqlite_exporter_roundtrip(tmp_path, monkeypatch):
     import asyncio
 
     from draf.flow import Flow
+    from draf.node import agent as agent_mod
     from draf.observability import GraphObserver, SQLiteExporter, topology_from_graph
+    from draf.tool.tool import Tool
+
+    class Uppercase(Tool):
+        name = "uppercase"
+        description = "Convert a string to uppercase."
+
+        def run(self, **kwargs) -> str:
+            return kwargs["text"].upper()
+
+    monkeypatch.setattr(agent_mod, "Harness", _ToolCallHarness)
 
     flow = Flow("roundtrip")
-    flow.react(model="m", system="s", messages_key="messages")
+    flow.react(
+        model="m",
+        system="s",
+        messages_key="messages",
+        use_tools=["uppercase"],
+        input_key="input",
+        output_key="output",
+    )
     graph = flow.compile()
 
     db = tmp_path / "traces.db"
@@ -126,7 +434,15 @@ def test_sqlite_exporter_roundtrip(tmp_path, fake_agent_harness):
         owner="ana",
         checkpoint_id="c1",
     )
-    asyncio.run(_run_single_with(observer, graph))
+    asyncio.run(
+        graph.run(
+            {"input": "hello", "messages": []},
+            tools=[Uppercase()],
+            tracer=observer.tracer,
+            on_llm_payload=observer.on_llm_payload,
+            max_iterations=10,
+        )
+    )
     observer.export()
     observer.close()
 
@@ -149,11 +465,20 @@ def test_sqlite_exporter_roundtrip(tmp_path, fake_agent_harness):
         ]
         assert run["nodes"], "expected node spans"
         llm_calls = run["llm_calls"]
-        assert llm_calls and llm_calls[0]["messages"][0]["role"] == "user"
-        assert llm_calls[0]["response"] == "hello"
+        assert llm_calls
+        assert any(m["role"] == "user" for m in llm_calls[0]["messages"])
         assert run["prompt_tokens"] >= 5
         assert run["tags"] == []
         assert run["notes"] == ""
+        # Tool calls + the llm/tool sequence survive the SQLite round-trip.
+        agent = next(n for n in run["nodes"] if n["node_type"] == "react_agent")
+        assert [t["name"] for t in agent["tool_calls"]] == ["uppercase"]
+        assert agent["tool_calls"][0]["result"] == "HI"
+        assert agent["events"] == [
+            {"kind": "llm", "index": 0},
+            {"kind": "tool", "index": 0},
+            {"kind": "llm", "index": 1},
+        ]
     finally:
         exp.close()
 

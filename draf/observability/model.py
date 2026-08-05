@@ -74,8 +74,66 @@ class LLMCall:
 
 
 @dataclass
+class ToolCall:
+    """One tool invocation: what the model requested and what ran.
+
+    Tool calls are parsed out of the LLM message payloads (assistant
+    ``tool_calls`` blocks matched to the following ``role: tool`` results),
+    so a node's tool usage is a first-class citizen, not buried in the raw
+    messages.  ``ok`` is ``False`` when the tool returned an ``"Error: ..."``
+    result.
+    """
+
+    name: str
+    args: str = "{}"
+    result: str = ""
+    ok: bool = True
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "name": self.name,
+            "args": self.args,
+            "result": self.result,
+            "ok": self.ok,
+        }
+
+    @staticmethod
+    def from_dict(data: dict[str, Any]) -> "ToolCall":
+        return ToolCall(
+            name=str(data.get("name") or ""),
+            args=str(data.get("args") or "{}"),
+            result=str(data.get("result") or ""),
+            ok=bool(data.get("ok", True)),
+        )
+
+
+@dataclass
+class SpanEvent:
+    """One step of a node's execution, in chronological order.
+
+    ``kind`` is ``"llm"`` or ``"tool"`` and ``index`` points into the
+    span's ``llm_calls`` / ``tool_calls`` lists.  Together they let a UI
+    render the exact sequence a node followed — LLM call, tool call and
+    its result, next LLM call, and so on — instead of two separate piles.
+    """
+
+    kind: str
+    index: int
+
+    def to_dict(self) -> dict[str, Any]:
+        return {"kind": self.kind, "index": self.index}
+
+    @staticmethod
+    def from_dict(data: dict[str, Any]) -> "SpanEvent":
+        return SpanEvent(
+            kind=str(data.get("kind") or ""),
+            index=int(data.get("index") or 0),
+        )
+
+
+@dataclass
 class NodeSpan:
-    """One node execution: timing, outcome, and its LLM calls."""
+    """One node execution: timing, outcome, its LLM calls and tool calls."""
 
     node_id: str
     node_type: str
@@ -84,6 +142,8 @@ class NodeSpan:
     status: str = "ok"
     error: str | None = None
     llm_calls: list[LLMCall] = field(default_factory=list)
+    tool_calls: list[ToolCall] = field(default_factory=list)
+    events: list[SpanEvent] = field(default_factory=list)
 
     @property
     def duration_ms(self) -> float:
@@ -99,6 +159,8 @@ class NodeSpan:
             "status": self.status,
             "error": self.error,
             "llm_calls": [call.to_dict() for call in self.llm_calls],
+            "tool_calls": [call.to_dict() for call in self.tool_calls],
+            "events": [event.to_dict() for event in self.events],
         }
 
     @staticmethod
@@ -114,6 +176,10 @@ class NodeSpan:
             llm_calls=[
                 LLMCall.from_dict(call) for call in (data.get("llm_calls") or [])
             ],
+            tool_calls=[
+                ToolCall.from_dict(call) for call in (data.get("tool_calls") or [])
+            ],
+            events=[SpanEvent.from_dict(event) for event in (data.get("events") or [])],
         )
 
 

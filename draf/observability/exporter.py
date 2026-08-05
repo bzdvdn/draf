@@ -84,6 +84,8 @@ class SQLiteExporter(TraceExporter):
                 end_ms REAL,
                 status TEXT NOT NULL,
                 error TEXT,
+                tool_calls TEXT NOT NULL DEFAULT '[]',
+                events TEXT NOT NULL DEFAULT '[]',
                 UNIQUE(run_id, node_id)
             );
             CREATE TABLE IF NOT EXISTS llm_calls (
@@ -105,17 +107,28 @@ class SQLiteExporter(TraceExporter):
         self._migrate()
 
     def _migrate(self) -> None:
-        """Add ``tags`` / ``notes`` columns to databases created earlier."""
-        cols = {
+        """Add columns to databases created by older versions."""
+        run_cols = {
             row[1] for row in self._conn.execute("PRAGMA table_info(runs)").fetchall()
         }
-        if "tags" not in cols:
+        if "tags" not in run_cols:
             self._conn.execute(
                 "ALTER TABLE runs ADD COLUMN tags TEXT NOT NULL DEFAULT '[]'"
             )
-        if "notes" not in cols:
+        if "notes" not in run_cols:
             self._conn.execute(
                 "ALTER TABLE runs ADD COLUMN notes TEXT NOT NULL DEFAULT ''"
+            )
+        node_cols = {
+            row[1] for row in self._conn.execute("PRAGMA table_info(nodes)").fetchall()
+        }
+        if "tool_calls" not in node_cols:
+            self._conn.execute(
+                "ALTER TABLE nodes ADD COLUMN tool_calls TEXT NOT NULL DEFAULT '[]'"
+            )
+        if "events" not in node_cols:
+            self._conn.execute(
+                "ALTER TABLE nodes ADD COLUMN events TEXT NOT NULL DEFAULT '[]'"
             )
         self._conn.commit()
 
@@ -142,7 +155,7 @@ class SQLiteExporter(TraceExporter):
         for node in run.nodes:
             self._conn.execute(
                 "INSERT INTO nodes (run_id, node_id, node_type, start_ms, end_ms, "
-                "status, error) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                "status, error, tool_calls, events) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 (
                     run_id,
                     node.node_id,
@@ -151,6 +164,8 @@ class SQLiteExporter(TraceExporter):
                     node.end_ms,
                     node.status,
                     node.error,
+                    json.dumps([t.to_dict() for t in node.tool_calls]),
+                    json.dumps([e.to_dict() for e in node.events]),
                 ),
             )
         for call in run.llm_calls:
@@ -264,7 +279,8 @@ class SQLiteExporter(TraceExporter):
         run["topology"] = topology
 
         node_rows = self._conn.execute(
-            "SELECT node_id, node_type, start_ms, end_ms, status, error "
+            "SELECT node_id, node_type, start_ms, end_ms, status, error, "
+            "tool_calls, events "
             "FROM nodes WHERE run_id = ? ORDER BY start_ms",
             (run_id,),
         ).fetchall()
@@ -289,7 +305,7 @@ class SQLiteExporter(TraceExporter):
             calls.setdefault(call[0], []).append(payload)
 
         nodes = []
-        for nid, ntype, start, end, status, error in node_rows:
+        for nid, ntype, start, end, status, error, tool_calls, events in node_rows:
             nodes.append(
                 {
                     "node_id": nid,
@@ -300,6 +316,8 @@ class SQLiteExporter(TraceExporter):
                     "status": status,
                     "error": error,
                     "llm_calls": calls.get(nid, []),
+                    "tool_calls": json.loads(tool_calls),
+                    "events": json.loads(events),
                 }
             )
         run["nodes"] = nodes

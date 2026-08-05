@@ -4,24 +4,79 @@ Inspect what actually goes into every LLM call, across a whole graph run, in
 a local web UI — a self-hosted langfuse-style trace viewer built on the
 `draf.observability` package.
 
-`POST /api/run` executes a two-LLM graph inside a `GraphObserver`, which
-captures:
+`POST /api/run` executes a small **`llm -> tools -> llm`** graph inside a
+`GraphObserver`, which captures:
 
 - the **graph topology** (nodes + edges) for visualisation,
 - one **span per visited node** (timing, status, errors),
 - every **LLM call with its full request** — the exact `messages` sent to
-  the model — and the **response**, tokens, latency, cache hits.
+  the model — and the **response**, tokens, latency, cache hits,
+- every **tool call** (name, arguments, result, ok/error) as a first-class
+  entry, parsed out of the LLM message stream.
+
+The graph is a ReAct agent (the `assistant/agent` `react_agent` node ↔ the
+`assistant/tool` `tool_exec` node, looping until the model answers) equipped
+with two tools — `current_time` and `uppercase` — followed by a final
+`summarize` `llm_chat` node that condenses the draft. So the run detail page
+shows the whole chain: LLM call → tool call with its result → next LLM call.
+
+Each node span renders an **event timeline**: every LLM call and tool call
+gets a numbered step (LLM in indigo, tool in green), connected by a rail, so
+you can follow exactly the order the node executed — a ReAct agent with two
+tool rounds appears as `1 llm → 2 tool → 3 llm → 4 tool → 5 llm`, each step
+expandable to its full prompt/response and tool args/result.
 
 Everything lands in `traces.db` (SQLite). The dashboard at
 `GET /obs/ui` (mounted via `draf.observability.dashboard_router`) lists
 runs with filters and pagination; clicking a run opens a dedicated page
-(`GET /obs/runs/{id}`) with the node list, per-node LLM payloads, prompt
-and response side by side, plus editable tags and notes in a side panel.
+(`GET /obs/runs/{id}`) with the node list, per-node tool calls and LLM
+payloads, prompt and response side by side, plus editable tags and notes in
+a side panel.
+
+The same chain is declarative, too — this `workflow.yaml` snippet reproduces
+the tool loop with no code (run it with `draf run -f` and it self-traces via
+the `observability:` block):
+
+```yaml
+providers:
+  - name: ollama
+    type: ollama
+    base_url: http://localhost:11434
+    chat_path: /api/chat
+
+tools:
+  - type: current_time
+    config: { provider: ollama }
+  - type: calculator
+    config: { provider: ollama }
+
+steps:
+  - id: assistant
+    type: react_agent
+    config:
+      provider: ollama
+      model: qwen2.5:7b
+      system: Ты краткий ассистент по DevOps.
+      input_key: input
+      output_key: draft
+      use_tools: [current_time, calculator]
+  - id: summarize
+    type: llm_chat
+    config:
+      provider: ollama
+      model: qwen2.5:7b
+      system: Ты краткий ассистент по DevOps.
+      prompt: "Сжато, 1-2 предложения:\n{draft}"
+      output_key: answer
+
+observability:
+  db: ./traces.db
+```
 
 ## Requirements
 
 ```
-ollama pull llama3.1:8b
+ollama pull qwen2.5:7b
 uv sync --extra observability   # fastapi + uvicorn for the dashboard
 ```
 
@@ -36,8 +91,16 @@ Then, in another terminal:
 ```
 curl -X POST http://localhost:8000/api/run \
   -H 'Content-Type: application/json' \
-  -d '{"query": "расскажи про DevOps"}'
+  -d '{"query": "Назови текущее время и переведи слово devops в верхний регистр"}'
 ```
+
+This query actually needs the tools, so the agent calls `current_time` and
+`uppercase` and the timeline shows `1 llm → 2 tool → 3 tool → 4 llm`. A
+plain question (e.g. `"объясни что такое CI/CD"`) is answered directly and
+will show only `llm` steps — the model only calls a tool when the task needs
+it, which is the intended agent behaviour. `qwen2.5:7b` is used because it
+emits OpenAI-style tool calls reliably; `llama3.1:8b` often answers without
+them.
 
 Open http://localhost:8000/obs/ui and click a run to open its detail page
 with the full graph and the exact prompt/response of every model call.

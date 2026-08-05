@@ -12,7 +12,17 @@ A `GraphObserver` sits between `graph.run()` and an exporter. It captures:
 - the **graph topology** (nodes + edges) for visualisation,
 - one **span per visited node** (timing, status, errors),
 - every **LLM call with its full payload** — the exact `messages` sent to the
-  model, the response, tokens, latency, cache hits.
+  model, the response, tokens, latency, cache hits,
+- every **tool call** (name, arguments, result, ok/error) parsed out of the
+  LLM message stream, so a node's tool usage is a first-class entry rather
+  than a buried message.
+
+Inside a node span, LLM calls and tool calls are merged into a numbered
+**event timeline** — a ReAct agent with two tool rounds renders as
+`1 llm → 2 tool → 3 llm → 4 tool → 5 llm`, each step expandable to its full
+prompt/response and tool args/result. A node visited several times in one
+run (react loops, retries) accumulates into a single span in order, instead
+of keeping only the last visit.
 
 The captured run lands in **SQLite** (browseable in the browser), a JSONL
 file, or is **pushed** over HTTP to our collector or to
@@ -97,8 +107,9 @@ attach_ingest(app, exporter)  # POST /obs/ingest (accepts Run.to_dict())
 
 - `GET /obs/ui` — the dashboard: runs list with status/tag filters and
   pagination, dark theme by default.
-- `GET /obs/runs/{id}` — a dedicated page per run: the graph, node list,
-  prompt and response side by side, plus editable tags and notes.
+- `GET /obs/runs/{id}` — a dedicated page per run: the graph, node list with
+  per-node tool calls and LLM payloads (prompt and response side by side),
+  plus editable tags and notes.
 - `PATCH /obs/runs/{id}` — update a run's `tags` / `notes`.
 
 ![Trace dashboard — run detail](../assets/observability/run-detail-dark.png)

@@ -162,6 +162,45 @@
   .role.assistant { color: var(--accent); background: var(--accent-soft); border-color: transparent; }
   .role.user { color: var(--ok); background: var(--ok-soft); border-color: transparent; }
   .role.tool { color: var(--err); background: var(--err-soft); border-color: transparent; }
+  details.tool {
+    background: var(--panel); border: 1px solid var(--border); border-radius: 8px;
+    margin-bottom: 10px; overflow: hidden;
+  }
+  details.tool:last-child { margin-bottom: 0; }
+  details.tool summary {
+    cursor: pointer; padding: 9px 14px; font-family: var(--mono); font-size: 12.5px;
+    display: flex; align-items: center; gap: 9px; list-style: none; user-select: none;
+  }
+  details.tool summary::-webkit-details-marker { display: none; }
+  details.tool summary .caret { color: var(--muted); font-size: 10px; }
+  details.tool[open] summary .caret { transform: rotate(90deg); }
+  details.tool summary b { color: var(--text); }
+  details.tool summary .t-dot { width: 8px; height: 8px; border-radius: 50%; flex: none; }
+  details.tool summary .t-dot.ok { background: var(--ok); }
+  details.tool summary .t-dot.err { background: var(--err); }
+  details.tool summary .mi { color: var(--muted); margin-left: auto; white-space: nowrap; font-size: 11.5px; }
+  details.tool .tool-body { border-top: 1px solid var(--border); padding: 10px 14px; }
+  .tools-header {
+    font-size: 10.5px; font-weight: 650; letter-spacing: .7px; text-transform: uppercase;
+    color: var(--muted); margin: 0 0 8px;
+  }
+  .timeline { display: flex; flex-direction: column; }
+  .t-step { display: flex; gap: 12px; }
+  .t-rail { display: flex; flex-direction: column; align-items: center; width: 44px; flex: none; }
+  .t-badge {
+    width: 24px; height: 24px; border-radius: 50%; flex: none;
+    font-family: var(--mono); font-size: 11px; font-weight: 700;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .t-badge.llm { background: var(--accent-soft); color: var(--accent); border: 1px solid var(--accent); }
+  .t-badge.tool { background: var(--ok-soft); color: var(--ok); border: 1px solid var(--ok); }
+  .t-badge.tool.err { background: var(--err-soft); color: var(--err); border-color: var(--err); }
+  .t-kind {
+    font-size: 9px; text-transform: uppercase; letter-spacing: .6px; color: var(--muted);
+    margin-top: 3px; white-space: nowrap;
+  }
+  .t-line { flex: 1; width: 2px; background: var(--border); margin: 4px 0; min-height: 8px; }
+  .t-body { flex: 1; min-width: 0; }
   pre {
     white-space: pre-wrap; word-break: break-word; background: var(--pre-bg);
     border: 1px solid var(--pre-border); border-radius: 7px; padding: 10px 12px; margin: 0;
@@ -327,13 +366,68 @@ function spanHtml(n, open) {
       `<pre>${escapeHtml(n.error)}</pre>` +
       `<button class="copy-btn" title="copy to clipboard" onclick="copyFrom(this)">⧉ copy</button></div>`
     : '';
-  const calls = (n.llm_calls || []).map(llmHtml).join('');
+  const toolStat = (n.tool_calls || []).length
+    ? ` · <span class="err-tag">${n.tool_calls.length} tool${n.tool_calls.length > 1 ? 's' : ''}</span>`
+    : '';
+  const body = (n.events && n.events.length)
+    ? timelineHtml(n)
+    : legacySpanBody(n);
   return `<details class="node"${open ? ' open' : ''}>` +
       `<summary><span class="caret">▸</span><span class="s-dot ${ok ? 'ok' : 'err'}"></span>` +
       `<span class="nid">${escapeHtml(n.node_id)}</span>` +
       `<span class="ntype">${escapeHtml(n.node_type)}</span>` +
-      `<span class="stat">${n.duration_ms} ms${ok ? '' : ' · <span class="err-tag">failed</span>'}</span></summary>` +
-      `<div class="body">${errBlock}${calls || '<div class="empty">no LLM calls in this node</div>'}</div></details>`;
+      `<span class="stat">${n.duration_ms} ms${toolStat}${ok ? '' : ' · <span class="err-tag">failed</span>'}</span></summary>` +
+      `<div class="body">${errBlock}${body}</div></details>`;
+}
+
+function legacySpanBody(n) {
+  const tools = (n.tool_calls || []).map(toolHtml).join('');
+  const calls = (n.llm_calls || []).map(llmHtml).join('');
+  return tools
+    ? `<div class="tools-header">tool calls</div>${tools}${calls ? '<div class="tools-header" style="margin-top:12px">llm calls</div>' + calls : ''}`
+    : (calls || '<div class="empty">no LLM calls in this node</div>');
+}
+
+function timelineHtml(n) {
+  const steps = (n.events || []).map((e, i) => {
+    const tool = e.kind === 'tool' ? (n.tool_calls || [])[e.index] : null;
+    const body = e.kind === 'llm'
+      ? llmHtml((n.llm_calls || [])[e.index])
+      : toolHtml(tool);
+    const badge = e.kind === 'llm' ? 'llm'
+      : (tool && tool.ok ? 'tool' : 'tool err');
+    const line = i < (n.events.length - 1) ? '<div class="t-line"></div>' : '';
+    return `<div class="t-step">` +
+      `<div class="t-rail"><span class="t-badge ${badge}">${i + 1}</span>` +
+      `<span class="t-kind">${e.kind}</span>${line}</div>` +
+      `<div class="t-body">${body || '<div class="empty">missing event</div>'}</div>` +
+      `</div>`;
+  }).join('');
+  return `<div class="timeline">${steps}</div>`;
+}
+
+function toolHtml(t) {
+  const args = prettyJson(t.args);
+  const result = t.result
+    ? `<div class="msg"><span class="role tool">result</span>` +
+      `<pre>${escapeHtml(t.result)}</pre>` +
+      `<button class="copy-btn" title="copy to clipboard" onclick="copyFrom(this)">⧉ copy</button></div>`
+    : '';
+  return `<details class="tool"><summary>` +
+      `<span class="caret">▸</span><span class="t-dot ${t.ok ? 'ok' : 'err'}"></span>` +
+      `<b>${escapeHtml(t.name)}</b>` +
+      `<span class="mi">${t.ok ? 'ok' : 'error'}${t.result ? '' : ' · pending'}</span></summary>` +
+      `<div class="tool-body">` +
+      `<div class="msg"><span class="role tool">args</span>` +
+      `<pre>${args}</pre>` +
+      `<button class="copy-btn" title="copy to clipboard" onclick="copyFrom(this)">⧉ copy</button></div>` +
+      result +
+      `</div></details>`;
+}
+
+function prettyJson(v) {
+  try { return escapeHtml(JSON.stringify(JSON.parse(v), null, 2)); }
+  catch (_) { return escapeHtml(v); }
 }
 
 function llmHtml(c) {

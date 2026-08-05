@@ -36,6 +36,8 @@ from draf.observability.model import (
     LLMCall,
     NodeSpan,
     Run,
+    SpanEvent,
+    ToolCall,
 )
 from draf.observability.push import HttpExporter, LangfuseExporter, LangsmithExporter
 from draf.observability.topology import topology_from_graph
@@ -56,5 +58,7 @@ __all__ = [
     "LLMCall",
     "NodeSpan",
     "Run",
+    "SpanEvent",
+    "ToolCall",
     "topology_from_graph",
 ]

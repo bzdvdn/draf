@@ -796,9 +796,11 @@ The CLI exposes the same report: `draf -f workflow.yaml --trace`.
 
 ### Trace dashboard
 
-For the full picture — graph topology, per-node spans and the **complete
-request/response of every LLM call** — wrap the run in a `GraphObserver`
-and point it at a dashboard-backed exporter:
+For the full picture — graph topology, per-node spans, the **complete
+request/response of every LLM call** and every **tool call** (name, args,
+result, ok/error) as a first-class entry, merged into a numbered **event
+timeline** per node (1 llm → 2 tool → 3 llm → …) — wrap the run in a
+`GraphObserver` and point it at a dashboard-backed exporter:
 
 ![Trace dashboard](docs/assets/observability/runs-dark.png)
 

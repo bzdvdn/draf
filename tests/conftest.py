@@ -9,23 +9,19 @@ guard.
 """
 
 import importlib.metadata
+import sys
 
 
 def _draf_plugin_installed() -> bool:
     try:
-        eps = importlib.metadata.entry_points()
-        if hasattr(eps, "select"):
+        if sys.version_info >= (3, 10):
+            eps = importlib.metadata.entry_points()
             return any(
                 ep.name == "draf" and ep.value == "draf.testing"
                 for ep in eps.select(group="pytest11")
             )
-        return any(
-            getattr(ep, "group", None) == "pytest11"
-            and ep.name == "draf"
-            and ep.value == "draf.testing"
-            for ep in eps
-        )
-    except (ImportError, TypeError):
+        return False
+    except (ImportError, TypeError, AttributeError):
         return False
 
 

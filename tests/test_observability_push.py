@@ -34,7 +34,7 @@ class _FakeExporter(TraceExporter):
 
 
 class _Handler(BaseHTTPRequestHandler):
-    requests = []
+    requests: list[dict] = []
 
     def do_POST(self):
         length = int(self.headers.get("Content-Length") or 0)

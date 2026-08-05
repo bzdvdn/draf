@@ -23,12 +23,43 @@ per-node spans, and every model call with its messages.
 
 from __future__ import annotations
 
+import json
 import time
 from typing import Any
 
 from draf.observability.exporter import TraceExporter
-from draf.observability.model import GraphTopology, LLMCall, NodeSpan, Run
+from draf.observability.model import (
+    GraphTopology,
+    LLMCall,
+    NodeSpan,
+    Run,
+    SpanEvent,
+    ToolCall,
+)
 from draf.trace import RunTracer
+
+
+def _is_tool_error(result: str) -> bool:
+    """A tool result is an error when the harness reports one as text."""
+    return result.startswith("Error:")
+
+
+def _tool_call_parts(tc: dict[str, Any]) -> tuple[str, str, str]:
+    """Split a tool call into ``(name, raw_args, call_id)``.
+
+    Accepts both the OpenAI shape (``{"function": {...}}``) and the
+    graph-signal shape (``{"name", "args", "id"}``) — mirroring the harness.
+    """
+    if "function" in tc:
+        fn = tc.get("function") or {}
+        raw = fn.get("arguments", "{}")
+        if isinstance(raw, dict):
+            raw = json.dumps(raw)
+        return str(fn.get("name") or ""), str(raw), str(tc.get("id") or "")
+    raw = tc.get("args", "{}")
+    if isinstance(raw, dict):
+        raw = json.dumps(raw)
+    return str(tc.get("name") or ""), str(raw), str(tc.get("id") or "")
 
 
 class GraphObserver:
@@ -54,6 +85,7 @@ class GraphObserver:
         self._wall_start = time.time()
         self._spans: dict[str, NodeSpan] = {}
         self._active: list[NodeSpan] = []
+        self._tool_seen: dict[str, dict[str, ToolCall]] = {}
         self._status = "ok"
         self._error: str | None = None
         self._total_ms = 0.0
@@ -82,15 +114,70 @@ class GraphObserver:
             cached=cached,
         )
         if self._active:
-            self._active[-1].llm_calls.append(call)
+            span = self._active[-1]
+            # Tool calls are discovered in the *next* call's request payload
+            # (they ran after the previous reply), so capture them first to
+            # keep the event list in real chronological order.
+            self._capture_tool_calls(span, messages)
+            span.llm_calls.append(call)
+            span.events.append(SpanEvent(kind="llm", index=len(span.llm_calls) - 1))
+
+    def _capture_tool_calls(
+        self, span: NodeSpan, messages: list[dict[str, Any]]
+    ) -> None:
+        """Extract tool calls from an LLM payload into *span*.
+
+        An assistant ``tool_calls`` block and its matching ``role: tool``
+        result can arrive in *different* payloads (the result is appended
+        before the next model call), so already-seen calls are backfilled
+        with their result instead of duplicated.
+        """
+        results: dict[str, str] = {}
+        for msg in messages:
+            if msg.get("role") == "tool":
+                results[str(msg.get("tool_call_id") or "")] = str(
+                    msg.get("content") or ""
+                )
+
+        seen = self._tool_seen.setdefault(span.node_id, {})
+        for msg in messages:
+            if msg.get("role") != "assistant":
+                continue
+            for tc in msg.get("tool_calls") or []:
+                name, raw_args, call_id = _tool_call_parts(tc)
+                result = results.get(call_id)
+
+                existing = seen.get(call_id)
+                if existing is not None:
+                    if result is not None and not existing.result:
+                        existing.result = result
+                        existing.ok = not _is_tool_error(result)
+                    continue
+
+                call = ToolCall(
+                    name=name,
+                    args=raw_args,
+                    result=result or "",
+                    ok=not (result and _is_tool_error(result)),
+                )
+                seen[call_id] = call
+                span.tool_calls.append(call)
+                span.events.append(
+                    SpanEvent(kind="tool", index=len(span.tool_calls) - 1)
+                )
 
     def _start_node(self, node_id: str, node_type: str) -> None:
-        span = NodeSpan(
-            node_id=node_id,
-            node_type=node_type,
-            start_ms=(time.monotonic() - self._start) * 1000.0,
-        )
-        self._spans[node_id] = span
+        span = self._spans.get(node_id)
+        if span is None:
+            span = NodeSpan(
+                node_id=node_id,
+                node_type=node_type,
+                start_ms=(time.monotonic() - self._start) * 1000.0,
+            )
+            self._spans[node_id] = span
+        # A node can be visited many times in one run (react loops, retries);
+        # reuse the span so its LLM calls, tool calls and events accumulate
+        # in chronological order instead of keeping only the last visit.
         self._active.append(span)
 
     def _end_node(
