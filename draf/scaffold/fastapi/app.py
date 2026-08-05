@@ -14,10 +14,15 @@ runs at import time, and the LLM provider/model come from
 
 from __future__ import annotations
 
+from pathlib import Path
+
 from fastapi import FastAPI
 from src.api.router import api_router
 from src.config.config import Settings
 from src.core import build_container
+
+from draf.observability import SQLiteExporter, topology_from_graph
+from draf.observability.api import attach_dashboard
 
 
 def create_app(
@@ -45,4 +50,15 @@ def create_app(
     app.state.model = container.settings.model
     app.state.settings = container.settings
     app.include_router(api_router)
+
+    # Trace dashboard: every chat turn is captured by a GraphObserver into a
+    # local SQLite store and browsable at /obs/ui (prefix from settings).
+    traces_path = container.settings.traces_db or (
+        Path(__file__).resolve().parent / "data" / "traces.db"
+    )
+    traces_exporter = SQLiteExporter(str(traces_path))
+    app.state.traces_exporter = traces_exporter
+    app.state.trace_topology = topology_from_graph(container.assistant.graph)
+    attach_dashboard(app, traces_exporter, prefix=container.settings.traces_prefix)
+
     return app

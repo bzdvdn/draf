@@ -150,6 +150,8 @@ class TestNew:
         readme = (dest / "README.md").read_text()
         assert "My App" in readme
         assert "my_app" in readme
+        # the scaffold ships trace observability out of the box
+        assert "attach_dashboard" in (dest / "app.py").read_text()
 
     def test_new_cli_template(self, tmp_path):
         dest = tmp_path / "cli_app"

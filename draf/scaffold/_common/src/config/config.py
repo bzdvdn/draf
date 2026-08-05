@@ -47,6 +47,11 @@ class Settings(BaseSettings):
     #: Durable session storage path (None = project default ``data/checkpoints``).
     checkpoint_dir: str | None = None
 
+    #: Trace-dashboard persistence (None = ``data/traces.db`` next to the app).
+    #: The dashboard UI is mounted by ``app.py`` under ``traces_prefix``.
+    traces_db: str | None = None
+    traces_prefix: str = "/obs"
+
     #: SQLite persistence (shared file so API + workers read the same data).
     #: When set, ``checkpoint_db`` replaces the JSON-file checkpointer.
     checkpoint_db: str | None = None

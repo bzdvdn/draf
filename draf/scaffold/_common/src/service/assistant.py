@@ -41,6 +41,8 @@ class Assistant:
         *,
         owner: str = DEFAULT_OWNER,
         max_iterations: int | None = None,
+        tracer=None,
+        on_llm_payload=None,
     ) -> dict:
         """Run one turn and return the final state."""
         state, run_kwargs = await load_or_seed(
@@ -54,6 +56,8 @@ class Assistant:
             checkpoint_id=session_id,
             owner=owner,
             max_iterations=max_iterations or self.max_iterations,
+            tracer=tracer,
+            on_llm_payload=on_llm_payload,
             **run_kwargs,
         )
 
@@ -64,6 +68,8 @@ class Assistant:
         *,
         owner: str = DEFAULT_OWNER,
         max_iterations: int | None = None,
+        tracer=None,
+        on_llm_payload=None,
     ) -> AsyncIterator[StreamEvent]:
         """Stream the events of one turn (``run_start`` .. ``run_end``)."""
         state, run_kwargs = await load_or_seed(
@@ -77,6 +83,8 @@ class Assistant:
             checkpoint_id=session_id,
             owner=owner,
             max_iterations=max_iterations or self.max_iterations,
+            tracer=tracer,
+            on_llm_payload=on_llm_payload,
             **run_kwargs,
         ):
             yield event

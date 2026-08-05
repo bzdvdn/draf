@@ -110,6 +110,24 @@ curl -N -X POST http://localhost:8000/api/chat/stream \
 Sessions are durable: send the same `session_id` (or let the server assign
 one) to continue a conversation.
 
+## Trace dashboard
+
+Every chat turn is captured by a `GraphObserver` into `data/traces.db`
+(SQLite) and browsable out of the box:
+
+```
+open http://localhost:8000/obs/ui
+```
+
+The dashboard lists runs (filters + pagination), opens each run on its own
+page (full graph topology, per-node LLM prompt/response, copy buttons) and
+supports editable tags and notes.  Pointers:
+
+- `DRAF_TRACES_DB` — where the traces are stored (default `data/traces.db`)
+- `DRAF_TRACES_PREFIX` — URL prefix for the dashboard (default `/obs`)
+- mount it in your own app with
+  `draf.observability.attach_dashboard(app, exporter, prefix=...)`
+
 ## Template placeholders
 
 Rendered by `draf new`: `{{PROJECT_NAME}}`, `{{project_slug}}`,

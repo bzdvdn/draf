@@ -134,6 +134,18 @@ def test_chat_stream_emits_sse_events(client):
     assert "event: run_end" in body
 
 
+def test_trace_dashboard_served(client):
+    """The trace dashboard is mounted and records chat runs."""
+    ui = client.get("/obs/ui")
+    assert ui.status_code == 200
+    assert "draf traces" in ui.text
+
+    client.post("/api/chat", json={"message": "help me"})
+    page = client.get("/obs/runs").json()
+    assert page["total"] == 1
+    assert page["items"][0]["name"] == "chat"
+
+
 def test_runs_get_and_delete(client):
     created = client.post("/api/chat", json={"message": "help me"}).json()
     chat_id = created["session_id"]
