@@ -24,6 +24,12 @@ from draf.logging import (
     new_run_id,
     run_id,
 )
+from draf.memory import (
+    MemoryExtractor,
+    MemoryItem,
+    MemoryStore,
+    MemoryTool,
+)
 from draf.node import (
     LLM,
     ExecContext,
@@ -138,6 +144,14 @@ __all__ = [
     "RAGTool",
     "PDFTool",
     "ImageTool",
+    "MemoryStore",
+    "MemoryItem",
+    "MemoryTool",
+    "MemoryExtractor",
+    "MemoryConfig",
+    "memory_context",
+    "memory_context_from_config",
+    "last_user_text",
     "InMemoryVectorStore",
     "QdrantVectorStore",
     "ChromaVectorStore",

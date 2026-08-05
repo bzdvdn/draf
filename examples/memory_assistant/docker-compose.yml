@@ -1,0 +1,32 @@
+# Server-backed vector stores for the memory workflows.
+#
+#   docker compose up -d          # start qdrant + pgvector
+#   docker compose down           # stop, keep data
+#   docker compose down -v        # stop and wipe data
+#
+# PGVectorStore bootstraps its own schema on first use — no init.sql needed.
+
+services:
+  qdrant:
+    image: qdrant/qdrant:latest
+    container_name: draf-mem-qdrant
+    ports:
+      - "6333:6333"
+    volumes:
+      - qdrant_data:/qdrant/storage
+
+  pgvector:
+    image: pgvector/pgvector:pg16
+    container_name: draf-mem-pgvector
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: postgres
+    ports:
+      - "5433:5432"
+    volumes:
+      - pgvector_data:/var/lib/postgresql/data
+
+volumes:
+  qdrant_data:
+  pgvector_data:

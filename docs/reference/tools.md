@@ -52,6 +52,7 @@ print(default_tool_registry.list())  # all registered names
 | `redis` | `RedisTool` | `redis` | Redis get/set/hash/list ops |
 | `wait_for` | `WaitForTool` | — | Poll until a condition holds |
 | `rag` | `RAGTool` | `draf[stores-*]` | Retrieval over a vector store |
+| `memory` | `MemoryTool` | `draf[stores-*]` | Long-term memory (remember/recall/forget) |
 
 ## Configuring tools
 

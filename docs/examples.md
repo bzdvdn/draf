@@ -12,6 +12,7 @@ README for exact commands.
 | [map_repair_plans](https://github.com/bzdvdn/draf/tree/main/examples/map_repair_plans/) | Dynamic fan-out (`Map`) + `{key}` prompt templates + typed `State` |
 | [human_in_loop](https://github.com/bzdvdn/draf/tree/main/examples/human_in_loop/) | Approve/Edit LLM output via `Interrupt` + `loop()` + resume (Python and YAML) |
 | [react_agent](https://github.com/bzdvdn/draf/tree/main/examples/react_agent/) | ReAct agent loop with a calculator tool and live token streaming |
+| [memory_assistant](https://github.com/bzdvdn/draf/tree/main/examples/memory_assistant/) | Long-term memory: LLM fact extraction, `MemoryStore` + provider-aware embedder, context injection |
 | [harness_agent](https://github.com/bzdvdn/draf/tree/main/examples/harness_agent/) | `flow.harness()` — parallel tool calls in one round + `__error__` fallback |
 | [agent_approval](https://github.com/bzdvdn/draf/tree/main/examples/agent_approval/) | Tool approval (HITL) — every tool call pauses for human sign-off and resumes |
 | [agent_resilience](https://github.com/bzdvdn/draf/tree/main/examples/agent_resilience/) | Retries, model failover, context trimming and a token budget (mocked, no API key) |

@@ -182,6 +182,83 @@ class TestEmbedder:
         with pytest.raises(ValueError, match="API key"):
             Embedder(provider=provider)
 
+    def test_from_config_uses_explicit_values(self, monkeypatch):
+        from draf.rag.embedder import embedder_from_config
+
+        monkeypatch.delenv("OLLAMA_API_KEY", raising=False)
+        e = embedder_from_config(
+            {
+                "embedder": {
+                    "provider": "ollama",
+                    "model": "my-model",
+                    "base_url": "http://explicit:11434/v1",
+                }
+            }
+        )
+        assert e.model == "my-model"
+        assert e._base_url == "http://explicit:11434/v1"
+
+    def test_from_config_inherits_provider_base_url(self, monkeypatch):
+        from draf.provider import Provider, ProviderRegistry
+        from draf.rag.embedder import embedder_from_config
+
+        monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+        reg = ProviderRegistry()
+        reg.register(
+            Provider(
+                name="my-openai",
+                type="openai_compatible",
+                base_url="http://embed:8080/v1",
+            )
+        )
+        e = embedder_from_config({"embedder": {"provider": "my-openai"}}, providers=reg)
+        assert e._base_url == "http://embed:8080/v1"
+
+    def test_from_config_ollama_adds_v1(self, monkeypatch):
+        from draf.provider import ProviderRegistry
+        from draf.rag.embedder import embedder_from_config
+
+        monkeypatch.delenv("OLLAMA_API_KEY", raising=False)
+        reg = ProviderRegistry.from_presets("ollama")
+        e = embedder_from_config({"embedder": {"provider": "ollama"}}, providers=reg)
+        # ollama's provider base_url has no /v1; the embedder appends it.
+        assert e._base_url == "http://localhost:11434/v1"
+
+    def test_from_config_ollama_remote_host_inherited(self, monkeypatch):
+        from draf.provider import Provider, ProviderRegistry
+        from draf.rag.embedder import embedder_from_config
+
+        monkeypatch.delenv("OLLAMA_API_KEY", raising=False)
+        reg = ProviderRegistry()
+        reg.register(
+            Provider(
+                name="ollama-remote",
+                type="ollama",
+                base_url="http://ollama-host:11434",
+            )
+        )
+        e = embedder_from_config(
+            {"embedder": {"provider": "ollama-remote"}}, providers=reg
+        )
+        assert e._base_url == "http://ollama-host:11434/v1"
+
+    def test_from_config_explicit_base_url_wins(self, monkeypatch):
+        from draf.provider import ProviderRegistry
+        from draf.rag.embedder import embedder_from_config
+
+        monkeypatch.delenv("OLLAMA_API_KEY", raising=False)
+        reg = ProviderRegistry.from_presets("ollama")
+        e = embedder_from_config(
+            {
+                "embedder": {
+                    "provider": "ollama",
+                    "base_url": "http://explicit:11434/v1",
+                }
+            },
+            providers=reg,
+        )
+        assert e._base_url == "http://explicit:11434/v1"
+
     def test_rag_tool_config_resolves_default_model(self, monkeypatch):
         from draf.rag import RAGTool
 

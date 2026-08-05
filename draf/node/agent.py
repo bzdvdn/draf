@@ -11,6 +11,7 @@ from draf.harness import (
     resolve_approval,
     tool_to_schema,
 )
+from draf.memory.context import MemoryConfig
 from draf.node.interrupt import GraphInterrupt
 from draf.node.node import Node
 from draf.skill import resolve_skills, scope_tools, skills_instructions
@@ -61,6 +62,12 @@ class ReActAgent(Node):
             ``"deny"``, ``"interactive"`` (ask on stdin), or a callable
             ``(name, args) -> bool | str``.  ``"pause"`` decisions pause
             the run as a :class:`~draf.node.interrupt.GraphInterrupt`.
+        memory: Optional long-term memory injection — a
+            :class:`~draf.memory.context.MemoryConfig` or ``{store,
+            namespace, k, header}``.  ``store`` is a
+            :class:`~draf.memory.base.MemoryStore` or a config dict; on
+            every turn the top-*k* recalled memories for the last user
+            message are prepended to the conversation as a system message.
         stream: Stream the final assistant text (tokens forwarded to
             ``on_token`` and stream events).
         on_token: Callback ``(token: str) -> None`` for streaming.
@@ -100,6 +107,7 @@ class ReActAgent(Node):
         tool_approval: typing.Any = None,
         stream: bool = False,
         on_token: typing.Callable[[str], None] | None = None,
+        memory: MemoryConfig | dict | None = None,
         **kwargs,
     ):
         merged = {
@@ -131,6 +139,7 @@ class ReActAgent(Node):
             "tool_approval": tool_approval,
             "stream": stream,
             "on_token": on_token,
+            "memory": memory,
             **(config or {}),
             **kwargs,
         }
@@ -150,6 +159,11 @@ class ReActAgent(Node):
             system = f"{system}\n\n{skill_text}" if system else skill_text
 
         messages = list(state.get(messages_key, []))
+        from draf.memory.context import memory_context_from_config
+
+        block = await memory_context_from_config(cfg, state=state, ctx=ctx)
+        if block:
+            messages.insert(0, {"role": "system", "content": block})
         start = len(messages)
         if not messages:
             user_input = str(state.get(input_key, ""))

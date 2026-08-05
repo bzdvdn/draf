@@ -1,3 +1,4 @@
+from draf.memory.tool import MemoryTool
 from draf.tool.builtin.calculator import CalculatorTool
 from draf.tool.builtin.csv import CsvQueryTool
 from draf.tool.builtin.data import (
@@ -74,6 +75,7 @@ default_tool_registry.register(GitHubListOpenPRsTool)
 default_tool_registry.register(GitHubGetPRChangesTool)
 default_tool_registry.register(GitHubPostCommentTool)
 default_tool_registry.register(GitHubApproveTool)
+default_tool_registry.register(MemoryTool)
 
 __all__ = [
     "CalculatorTool",
@@ -115,4 +117,5 @@ __all__ = [
     "GitHubGetPRChangesTool",
     "GitHubPostCommentTool",
     "GitHubApproveTool",
+    "MemoryTool",
 ]

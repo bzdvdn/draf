@@ -16,6 +16,7 @@ from draf.harness import (
 from draf.harness import (
     parse_text_tool_call as _parse_text_tool_call,  # noqa: F401  (re-export for tests)
 )
+from draf.memory.context import MemoryConfig
 from draf.node.node import Node
 from draf.prompt import render_template
 from draf.schema import (
@@ -119,6 +120,12 @@ class LLM(Node):
         messages_key: State key for message history.
             If set, the conversation history is read/written from/to
             ``state[messages_key]`` instead of being built fresh each call.
+        memory: Optional long-term memory injection — a
+            :class:`~draf.memory.context.MemoryConfig` or ``{store,
+            namespace, k, header}`` (same as
+            :class:`~draf.node.agent.ReActAgent`). Recalled memories for
+            the most recent user message are prepended to the call as a
+            system message.
         response_path: Dot-separated path to extract content from response.
         skills: Skills to mount on this call — a :class:`~draf.skill.Skill`,
             a path to a skill folder/``SKILL.md``, or a name resolved
@@ -167,6 +174,7 @@ class LLM(Node):
         response_path: str = "",
         skills: list | None = None,
         skill_dir: str = "skills",
+        memory: MemoryConfig | dict | None = None,
         **kwargs: typing.Any,
     ):
         merged = {
@@ -200,6 +208,7 @@ class LLM(Node):
             "response_path": response_path,
             "skills": skills,
             "skill_dir": skill_dir,
+            "memory": memory,
             **(config or {}),
             **kwargs,
         }
@@ -233,6 +242,12 @@ class LLM(Node):
                 messages.append({"role": "system", "content": system})
             if user_message:
                 messages.append({"role": "user", "content": user_message})
+
+        from draf.memory.context import memory_context_from_config
+
+        memory_block = await memory_context_from_config(cfg, state=state, ctx=ctx)
+        if memory_block:
+            messages.insert(0, {"role": "system", "content": memory_block})
 
         tool_defs: list[dict] = list(cfg.get("tools", []))
         if cfg.get("use_tools", False):

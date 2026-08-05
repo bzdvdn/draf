@@ -8,7 +8,7 @@ from typing import Callable
 
 from draf.rag.base import VectorStore
 from draf.rag.chunker import Chunker
-from draf.rag.embedder import Embedder
+from draf.rag.embedder import Embedder, embedder_from_config
 from draf.tool.tool import Tool
 
 
@@ -227,13 +227,7 @@ class RAGTool(Tool):
     def _apply_config(self, config: dict) -> None:
         if config.get("name"):
             self.name = config["name"]
-        emb = config.get("embedder") or {}
-        provider = emb.get("provider", "ollama")
-        self.embedder = Embedder(
-            provider=provider,
-            model=emb.get("model") or "",
-            base_url=emb.get("base_url"),
-        )
+        self.embedder = embedder_from_config(config)
 
         store_cfg = config.get("store") or {}
         store_type = store_cfg.get("type", "in_memory")

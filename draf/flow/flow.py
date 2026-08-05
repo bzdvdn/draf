@@ -3,6 +3,7 @@
 from draf.flow.case import Case
 from draf.flow.sub_flow import SubFlow
 from draf.graph import Edge, Graph
+from draf.memory.context import MemoryConfig
 from draf.node.agent import ReActAgent
 from draf.node.llm import LLM
 from draf.node.map import Map
@@ -110,7 +111,14 @@ class Flow:
         self._last_added = nid
         return self
 
-    def llm(self, node: LLM | None = None, id: str | None = None, **config) -> "Flow":
+    def llm(
+        self,
+        node: LLM | None = None,
+        id: str | None = None,
+        *,
+        memory: MemoryConfig | dict | None = None,
+        **config,
+    ) -> "Flow":
         """Add an :class:`~draf.node.llm.LLM` chat node.
 
         Pass a pre-built ``LLM`` instance to reuse a shared node, or give
@@ -119,15 +127,16 @@ class Flow:
             flow.llm(model="gpt-4", system="You are helpful", output_key="answer")
             flow.llm(LLM(model="gpt-4", parse=True, output_key="data"))
 
-        Passing both an instance and config kwargs raises ``TypeError``.
-        *id* optionally names the node in the compiled graph.
+        *memory* enables long-term memory injection on this node.  Passing
+        both an instance and config kwargs raises ``TypeError``.  *id*
+        optionally names the node in the compiled graph.
 
         Returns ``self`` for chaining.
         """
         if node is None:
-            node = LLM(**config)
+            node = LLM(memory=memory, **config)
         else:
-            if config:
+            if config or memory:
                 raise TypeError(
                     "llm() accepts either an LLM instance or config kwargs, not both"
                 )
@@ -629,6 +638,7 @@ class Flow:
         input_key: str = "input",
         output_key: str = "output",
         messages_key: str = "messages",
+        memory: MemoryConfig | dict | None = None,
         max_tool_rounds: int = 10,
         tool_error_mode: str = "message",
         parse_text_tool_calls: bool = True,
@@ -678,6 +688,8 @@ class Flow:
             input_key: State key for user input (default ``"input"``).
             output_key: State key for final response (default ``"output"``).
             messages_key: State key for conversation (default ``"messages"``).
+            memory: Long-term memory injection — a
+                :class:`~draf.memory.context.MemoryConfig` or config dict.
             max_tool_rounds: Max model calls per graph visit.
             tool_error_mode: ``"message"`` (default) or ``"raise"`` — when
                 ``"raise"`` a tool failure routes to the graph's error path.
@@ -718,6 +730,7 @@ class Flow:
             "use_tools": use_tools,
             "skills": skills,
             "skill_dir": skill_dir,
+            "memory": memory,
             **config,
         }
         if agent is None:
@@ -785,6 +798,7 @@ class Flow:
         input_key: str = "input",
         output_key: str = "output",
         messages_key: str = "messages",
+        memory: MemoryConfig | dict | None = None,
         **config,
     ) -> "Flow":
         """Alias for :meth:`harness` (ReAct agent loop)."""
@@ -795,6 +809,7 @@ class Flow:
             input_key=input_key,
             output_key=output_key,
             messages_key=messages_key,
+            memory=memory,
             **config,
         )
 

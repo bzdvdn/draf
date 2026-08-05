@@ -1,0 +1,61 @@
+name: memory_assistant_qdrant
+description: >-
+  Same as workflow.yaml but with long-term memory backed by Qdrant.
+  Start Qdrant first: `docker compose up -d qdrant`.
+
+state:
+  schema:
+    messages:
+      reducer: append
+      type: list
+      extra_keys: true
+  initial:
+    messages: []
+    input: ""
+    output: ""
+
+providers:
+  - name: ollama
+    type: ollama
+    base_url: http://localhost:11434
+    chat_path: /api/chat
+
+tools:
+  - type: memory
+    config:
+      store: { type: qdrant, host: localhost, port: 6333, collection: memories }
+      embedder: { provider: ollama, model: nomic-embed-text }
+      namespace: ["users", "${USER_ID}"]
+      similarity_threshold: 0.6
+      default_k: 5
+
+steps:
+  - id: agent
+    type: react_agent
+    config:
+      model: llama3.1:8b
+      provider: ollama
+      system: |-
+        You are a personal assistant with long-term memory about the user.
+        A "Relevant memories:" block is prepended to each turn automatically
+        — use those facts.  Use the `memory` tool (action=remember) when
+        the user reveals something durable worth keeping.
+      input_key: input
+      output_key: output
+      messages_key: messages
+      use_tools: [memory]
+      memory:
+        store: { type: qdrant, host: localhost, port: 6333, collection: memories }
+        embedder: { provider: ollama, model: nomic-embed-text }
+        namespace: ["users", "${USER_ID}"]
+        k: 5
+
+  - id: exec
+    type: tool_exec
+
+edges:
+  - from: agent
+    to: exec
+    condition: _tool_call_name!=
+  - from: exec
+    to: agent
