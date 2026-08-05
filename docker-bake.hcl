@@ -1,6 +1,6 @@
 # Build matrix for the draf toolchain images.
 #
-#     docker buildx bake            # build all five locally
+#     docker buildx bake            # build all six locally
 #     docker buildx bake --push     # build + push (used by release.yml)
 #
 # Overridable variables (e.g. from CI):
@@ -19,7 +19,7 @@ variable "VERSION" {
 }
 
 group "default" {
-  targets = ["core", "fastapi", "worker", "rag", "all"]
+  targets = ["core", "fastapi", "worker", "obs", "rag", "all"]
 }
 
 # CLI runner: draf run/daemon/graph/validate/... on workflow.yaml + plugins.
@@ -58,6 +58,19 @@ target "worker" {
   tags = [
     "${REGISTRY}/${NAMESPACE}/draf-worker:${VERSION}",
     "${REGISTRY}/${NAMESPACE}/draf-worker:latest",
+  ]
+}
+
+# Standalone trace collector/dashboard: `draf obs-server` (ingest + UI).
+target "obs" {
+  context = "."
+  args = {
+    EXTRA   = "observability"
+    RUNMODE = "obs-server"
+  }
+  tags = [
+    "${REGISTRY}/${NAMESPACE}/draf-obs:${VERSION}",
+    "${REGISTRY}/${NAMESPACE}/draf-obs:latest",
   ]
 }
 

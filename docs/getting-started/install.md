@@ -58,6 +58,7 @@ mirror the extras above, so pick the variant that matches your deployment:
 | `bzdvdn/draf`           | core + `draf[tools]`            | the `draf` CLI — run/validate/inspect workflows |
 | `bzdvdn/draf-fastapi`   | core + `draf[fastapi]`          | `uvicorn` — a FastAPI server app                |
 | `bzdvdn/draf-worker`    | core + `draf[queue]`            | `celery` — background workers / beat            |
+| `bzdvdn/draf-obs`       | core + `draf[observability]`    | `draf obs-server` — trace dashboard + ingest    |
 | `bzdvdn/draf-rag`       | core + `draf[stores-qdrant,tools,rag-pdf]` | the `draf` CLI, slim RAG build          |
 | `bzdvdn/draf-all`       | every extra except `docs`       | the `draf` CLI with the full optional surface   |
 
@@ -67,6 +68,13 @@ folder) in one shot:
 ```bash
 docker run --rm -v "$PWD:/workflow" \
   bzdvdn/draf:latest run -f /workflow/workflow.yaml
+```
+
+Serve the trace dashboard (ingest + UI) with the collector image:
+
+```bash
+docker run -d -p 8001:8001 -v draf-traces:/data \
+  bzdvdn/draf-obs:latest --db /data/traces.db --host 0.0.0.0
 ```
 
 All CLI subcommands and flags work inside the container. Images run as a

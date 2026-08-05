@@ -5,6 +5,7 @@
 # draf (core)       tools                             draf
 # draf-fastapi      fastapi                           uvicorn
 # draf-worker       queue                             celery
+# draf-obs          observability                     obs-server
 # draf-rag          stores-qdrant,tools,rag-pdf       draf
 # draf-all          embedding,tools,rag-pdf,          draf
 #                   rag-excel,pg-checkpoint,fastapi,queue
@@ -59,10 +60,11 @@ VOLUME ["/data/checkpoints"]
 # Non-root user (65534 = nobody).
 USER 65534
 
-# The variant binary is selected at build time (draf | uvicorn | celery);
-# pass any remaining arguments on the command line, e.g.
+# The variant binary is selected at build time (draf | uvicorn | celery |
+# obs-server); pass any remaining arguments on the command line, e.g.
 #   docker run draf run -f /workflow/workflow.yaml
 #   docker run draf-fastapi main:app --host 0.0.0.0
 #   docker run draf-worker -A src.celery_app worker
-ENTRYPOINT ["/bin/sh", "-c", "exec \"$RUNMODE\" \"$@\"", "--"]
+#   docker run draf-obs --db /data/traces.db --host 0.0.0.0 --port 8001
+ENTRYPOINT ["/bin/sh", "-c", "case \"$RUNMODE\" in obs-server) exec draf obs-server \"$@\" ;; *) exec \"$RUNMODE\" \"$@\" ;; esac", "--"]
 CMD ["--help"]
