@@ -29,6 +29,10 @@ from the whole conversation.
   tool scoping → assistant append), each with a private scratch conversation
 - **`graph.run(emit=...)`** — stream `StreamEvent`s while still returning
   the final state (nested `run_start`/`run_end` are stripped)
+- **trace dashboard** — every chat turn is captured by a `GraphObserver`
+  into `data/traces.db` and browsable at **`/obs/ui`** (one click per run:
+  full graph, per-node LLM prompt/response, tags, notes); mounted via
+  `draf.observability.attach_dashboard`, prefix from `DRAF_TRACES_PREFIX`
 - production layout from `draf/scaffold`: `config/`, `src/`, `domain/`,
   `nodes/`, `tools/`, `rag/`, `graphs/`, `data/`
 

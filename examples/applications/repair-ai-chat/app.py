@@ -14,6 +14,8 @@ runs at import time, and the LLM provider/model come from
 
 from __future__ import annotations
 
+from pathlib import Path
+
 from fastapi import FastAPI
 from src.api.router import api_router
 from src.config.config import Settings, get_settings
@@ -21,6 +23,9 @@ from src.core.deps import build_deps
 from src.graphs.build import build_flow
 from src.service.assistant import Assistant
 from src.storage import build_checkpointer
+
+from draf.observability import SQLiteExporter, topology_from_graph
+from draf.observability.api import attach_dashboard
 
 
 def create_app(
@@ -47,8 +52,9 @@ def create_app(
         services=services,
         catalog=catalog,
     )
+    compiled = flow.compile()
     assistant = Assistant(
-        flow.compile(),
+        compiled,
         tools,
         build_checkpointer(
             settings.checkpoint_dir, checkpoint_db=settings.checkpoint_db
@@ -65,4 +71,15 @@ def create_app(
     app.state.model = settings.model
     app.state.settings = settings
     app.include_router(api_router)
+
+    # Trace dashboard: every chat turn is captured by a GraphObserver into a
+    # local SQLite store and browsable at /obs/ui (prefix from settings).
+    traces_path = settings.traces_db or (
+        Path(__file__).resolve().parent / "data" / "traces.db"
+    )
+    traces_exporter = SQLiteExporter(str(traces_path))
+    app.state.traces_exporter = traces_exporter
+    app.state.trace_topology = topology_from_graph(compiled)
+    attach_dashboard(app, traces_exporter, prefix=settings.traces_prefix)
+
     return app
