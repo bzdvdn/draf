@@ -2,6 +2,7 @@ from typing import TYPE_CHECKING
 
 from draf.node.agent import ReActAgent, ToolExec
 from draf.node.ask import Ask, Validate
+from draf.node.extract import Extract, Fallback
 
 if TYPE_CHECKING:
     from draf.provider import ProviderRegistry
@@ -30,6 +31,7 @@ if TYPE_CHECKING:
 default_registry.register("transform", lambda cfg: Transform(cfg))
 default_registry.register("gate", lambda cfg: Gate(cfg))
 default_registry.register("validate", lambda cfg: Validate(cfg))
+default_registry.register("fallback", lambda cfg: Fallback(cfg))
 default_registry.register("context_builder", lambda cfg: ContextBuilder(cfg))
 default_registry.register("append_assistant", lambda cfg: AppendAssistant(cfg))
 default_registry.register("llm_chat", lambda cfg: LLM(cfg))
@@ -183,4 +185,6 @@ __all__ = [
     "GraphInterrupt",
     "Ask",
     "Validate",
+    "Extract",
+    "Fallback",
 ]

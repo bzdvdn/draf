@@ -282,6 +282,53 @@ flow.interrupt_loop(
 [runnable example](../examples.md) `ask_strategies` for all three strategies
 in one checkout flow.
 
+## `Extract`
+
+`Ask`'s sibling: instead of deciding pass/fail on an interrupt answer it
+extracts a structured object from the conversation. `Extract` is not a node —
+it's a declarative recipe that builds `[LLM extractor, *Fallback nodes]`
+(`Extract.nodes()`) ready to drop into a `done`/`finish` chain. Use the
+classmethod constructors:
+
+```python
+from draf.flow import Flow
+from draf.node import Extract
+
+extractor = Extract.model(
+    system="Ты извлекаешь данные проекта из переписки...",
+    schema=PROJECT_INFO_SCHEMA,
+    model="llama3.1:8b", provider="ollama",
+    messages_key="messages",          # conversation history to scan
+    output_key="project_info",        # parsed object lands here
+    fallbacks=[
+        Extract.fallback("room_type", room_from_first_user),
+    ],
+)
+
+flow.interrupt_loop(key="approved", ..., done=extractor.nodes())
+```
+
+`Extract.model` is equivalent to a plain `LLM(json_schema=...)` — core `LLM`
+prepends the system prompt to the `messages_key` history, so the extraction
+sees the whole conversation. `Extract.fallback(field, fn)` declares a
+deterministic fill: when the model leaves `field` empty (a common failure
+mode of small local models), `fn(state)` runs and its return value is merged
+into the extracted object; `fn` returns `None` to skip. Any extra kwargs are
+threaded through to the `LLM` (e.g. `max_retries`).
+
+## `fallback`
+
+A standalone node that fills a field a model left empty. Reads a dict from
+`input_key`; when `field` in it is empty/`None`, calls `fn(state)` and merges
+the result under `field`. No-op when the field is already set or `fn` returns
+`None`.
+
+| Key | Type | Default | Description |
+| --- | ---- | ------- | ----------- |
+| `input_key` | str | `"output"` | State key holding the extracted dict. |
+| `field` | str | `""` | Dict field to fill when empty. |
+| `fn` | callable | — | `fn(state) -> value \| None`. |
+
 ## Registering custom types
 
 Use decorators or subclasses — see [Plugins](../guide/plugins.md). The

@@ -555,27 +555,111 @@ async def test_search_retries_without_category_filter(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_extractor_falls_back_when_model_drops_room_type(monkeypatch):
-    """llama3.1:8b often omits room_type; the node must fill it from the
-    first user message so downstream agents see the room."""
-    from src.nodes.extractor import Extractor
+    """llama3.1:8b often omits room_type; the Extract.fallback must fill it
+    from the first user message so downstream agents see the room."""
+    from src.nodes.extractor import room_from_first_user
 
-    from draf.node import LLM
+    from draf.node import ExecContext, Fallback
 
-    async def fake_llm_execute(self, ctx, state):
-        return {"project_info": {"area": 5.0}}
-
-    monkeypatch.setattr(LLM, "execute", fake_llm_execute)
-    result = await Extractor().execute(
-        None,
+    node = Fallback(
+        input_key="project_info",
+        field="room_type",
+        fn=room_from_first_user,
+    )
+    result = await node.execute(
+        ExecContext(state={}, tools={}),
         {
             "messages": [
                 {"role": "user", "content": "Помоги спланировать ремонт ванной 5 м²."},
                 {"role": "assistant", "content": "План готов."},
-            ]
+            ],
+            "project_info": {"area": 5.0},
         },
     )
     assert result["project_info"]["room_type"] == "bathroom"
     assert result["project_info"]["area"] == 5.0
+
+
+@pytest.mark.asyncio
+async def test_room_type_fallback_preserves_model_room(monkeypatch):
+    """When the model already filled room_type the fallback is a no-op."""
+    from src.nodes.extractor import room_from_first_user
+
+    from draf.node import ExecContext, Fallback
+
+    node = Fallback(
+        input_key="project_info",
+        field="room_type",
+        fn=room_from_first_user,
+    )
+    result = await node.execute(
+        ExecContext(state={}, tools={}),
+        {
+            "messages": [
+                {"role": "user", "content": "Помоги спланировать ремонт кухни 5 м²."},
+            ],
+            "project_info": {"room_type": "kitchen", "area": 5.0},
+        },
+    )
+    assert result == {}
+
+
+@pytest.mark.asyncio
+async def test_llm_with_messages_key_prepends_system_prompt(monkeypatch):
+    """core LLM injects the system prompt into a messages_key history, so a
+    plain LLM node replaces the old Extractor subclass."""
+    from draf.node import LLM, ExecContext
+
+    captured = {}
+
+    async def mock_post(*a, **kw):
+        captured["body"] = kw.get("json")
+
+        class MockResponse:
+            def raise_for_status(self):
+                pass
+
+            def json(self):
+                return {
+                    "choices": [{"message": {"content": '{"room_type": "bathroom"}'}}]
+                }
+
+        return MockResponse()
+
+    import httpx
+
+    monkeypatch.setattr(httpx.AsyncClient, "post", mock_post)
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
+
+    node = LLM(
+        {
+            "model": "gpt-4",
+            "system": "Ты извлекаешь JSON.",
+            "messages_key": "messages",
+            "output_key": "project_info",
+            "json_schema": {
+                "type": "object",
+                "properties": {"room_type": {"type": "string"}},
+            },
+            "provider": "openai",
+        }
+    )
+    ctx = ExecContext(state={}, tools={})
+    await node.execute(
+        ctx,
+        {
+            "messages": [
+                {"role": "user", "content": "Помоги спланировать ремонт ванной."},
+                {"role": "assistant", "content": "План готов."},
+            ]
+        },
+    )
+
+    messages = captured["body"]["messages"]
+    assert messages[0]["role"] == "system"
+    assert messages[0]["content"] == "Ты извлекаешь JSON."
+    assert messages[1]["role"] == "user"
+    assert messages[2]["role"] == "assistant"
 
 
 @pytest.mark.asyncio
@@ -608,10 +692,12 @@ async def test_route_wiring_in_example(transport):
     assert ("plan-approval-classifier", "plan-approval-validate", None) in edges
     # the plan validate decider routes on the *normalized* decision key
     assert any(
-        src == "plan-approval-validate" and cond == "plan_ok=да" for src, _, cond in edges
+        src == "plan-approval-validate" and cond == "plan_ok=да"
+        for src, _, cond in edges
     )
     assert any(
-        src == "plan-approval-validate" and cond == "plan_ok!=да" for src, _, cond in edges
+        src == "plan-approval-validate" and cond == "plan_ok!=да"
+        for src, _, cond in edges
     )
     # approving the plan collects project info via the extractor
     assert any(
@@ -620,7 +706,8 @@ async def test_route_wiring_in_example(transport):
     )
     # the "нет" branch re-plans (loop body copy) and loops back to the decider
     assert any(
-        target == "plan-approval-validate" and cond is None for src, target, cond in edges
+        target == "plan-approval-validate" and cond is None
+        for src, target, cond in edges
     )
     # once the plan is approved: extractor -> estimator -> materials -> qa -> estimate loop
     assert any(
@@ -636,15 +723,18 @@ async def test_route_wiring_in_example(transport):
         src == "est-approval-validate" and cond == "est_ok=да" for src, _, cond in edges
     )
     assert any(
-        src == "est-approval-validate" and cond == "est_ok!=да" for src, _, cond in edges
+        src == "est-approval-validate" and cond == "est_ok!=да"
+        for src, _, cond in edges
     )
     # a "нет" on the estimate re-runs estimator/materials/QA and loops back
     assert any(
-        target == "est-approval-validate" and cond is None for src, target, cond in edges
+        target == "est-approval-validate" and cond is None
+        for src, target, cond in edges
     )
     # node types are present across the whole staged graph
     node_types = {n.type for nid, n in graph.nodes.items()}
-    assert "extractor" in node_types
+    assert "llm_chat" in node_types
+    assert "fallback" in node_types
 
 
 @pytest.mark.asyncio

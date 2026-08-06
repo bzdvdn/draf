@@ -1,14 +1,18 @@
-"""Extractor node — structured pull of project info from the conversation."""
+"""Room-type detection for the repair workflow.
+
+The extractor itself is a plain ``LLM`` node (``messages_key`` + system
+prompt + ``json_schema``) — since core ``LLM`` prepends the system prompt to
+the message history when ``messages_key`` is set, no custom subclass is
+needed.  This module keeps only the *deterministic* part, which is domain
+logic: local models frequently drop the room even when the user named it
+explicitly, so :func:`room_from_first_user` (an ``Extract.fallback``) fills
+``room_type`` from the first user message when the extraction leaves it
+empty.
+"""
 
 from __future__ import annotations
 
-from draf.node.llm import LLM
-from src.graphs.prompts import EXTRACTOR_SYSTEM_PROMPT
-from src.graphs.schemas import PROJECT_INFO_SCHEMA
-
-#: Russian room keywords → canonical ``room_type`` value.  Local models are
-#: unreliable at this task, so when the LLM leaves ``room_type`` empty the
-#: node falls back to scanning the first user message for these.
+#: Russian room keywords → canonical ``room_type`` value.
 ROOM_KEYWORDS: tuple[tuple[tuple[str, ...], str], ...] = (
     (("ванн", "санузел", "с/у", "сануз"), "bathroom"),
     (("кухн",), "kitchen"),
@@ -28,61 +32,13 @@ def detect_room_type(first_user_message: str) -> str | None:
     return None
 
 
-class Extractor(LLM):
-    """Extract project details from the whole conversation as JSON.
+def room_from_first_user(state: dict) -> str | None:
+    """Fallback fn: detect the room from the first user message.
 
-    Subclasses :class:`~draf.node.llm.LLM` so it inherits the structured
-    output loop (schema validation with re-asking) and streaming support.
-    The full message history is fed to the model together with the
-    extractor system prompt; the parsed object lands on ``project_info``.
-
-    If the model returns an empty ``room_type`` the node falls back to the
-    deterministic keyword map (:func:`detect_room_type`) over the first
-    user message — a small model frequently drops the room even when the
-    user named it explicitly.
+    Runs only when the extractor ``LLM`` left ``project_info.room_type``
+    empty.  Returns the detected room, or ``None`` to skip.
     """
-
-    type = "extractor"
-
-    def __init__(
-        self,
-        config: dict | None = None,
-        *,
-        system: str = EXTRACTOR_SYSTEM_PROMPT,
-        messages_key: str = "messages",
-        output_key: str = "project_info",
-        json_schema: dict | None = PROJECT_INFO_SCHEMA,
-        **kwargs,
-    ):
-        merged = {
-            "system": system,
-            "messages_key": messages_key,
-            "output_key": output_key,
-            "json_schema": json_schema,
-            **(config or {}),
-            **kwargs,
-        }
-        super().__init__(**merged)
-
-    async def execute(self, ctx, state: dict) -> dict:
-        cfg = self.config
-        messages_key = cfg.get("messages_key", "messages")
-        system = cfg.get("system", "")
-
-        history = list(state.get(messages_key, []))
-        work = dict(state)
-        work[messages_key] = [{"role": "system", "content": system}, *history]
-        result = await super().execute(ctx, work)
-
-        info = result.get(cfg.get("output_key", "project_info"))
-        if isinstance(info, dict) and not info.get("room_type"):
-            for message in history:
-                if message.get("role") == "user" and message.get("content"):
-                    room = detect_room_type(str(message["content"]))
-                    if room:
-                        result[cfg.get("output_key", "project_info")] = {
-                            **info,
-                            "room_type": room,
-                        }
-                    break
-        return result
+    for message in state.get("messages", []):
+        if message.get("role") == "user" and message.get("content"):
+            return detect_room_type(str(message["content"]))
+    return None

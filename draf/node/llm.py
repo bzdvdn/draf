@@ -225,6 +225,13 @@ class LLM(Node):
         has_messages_key = cfg.get("messages_key") and state.get(cfg["messages_key"])
         if has_messages_key:
             messages = list(state[cfg["messages_key"]])
+            system = render_template(cfg.get("system", ""), state)
+            if skill_text:
+                system = f"{system}\n\n{skill_text}" if system else skill_text
+            # a conversation node injects its system prompt on every turn,
+            # but must not duplicate one already persisted in history
+            if system and not any(m.get("role") == "system" for m in messages):
+                messages.insert(0, {"role": "system", "content": system})
         else:
             prompt = cfg.get("prompt")
             input_key = cfg.get("input_key")

@@ -31,7 +31,7 @@ so ``last_reply`` returns it.
 from __future__ import annotations
 
 from draf.flow import Case, Flow, SubFlow, agent_step
-from draf.node import LLM, AppendAssistant, Ask, Gate, Transform
+from draf.node import LLM, AppendAssistant, Ask, Extract, Gate, Transform
 from draf.provider import ProviderRegistry
 from src.core.deps import build_deps
 from src.graphs.prompts import (
@@ -40,6 +40,7 @@ from src.graphs.prompts import (
     ESTIMATE_VERDICT_SYSTEM,
     ESTIMATE_VERDICT_USER,
     ESTIMATOR_PROMPT,
+    EXTRACTOR_SYSTEM_PROMPT,
     MATERIALS_PROMPT,
     PLAN_APPROVAL_PROMPT,
     PLAN_VERDICT_SYSTEM,
@@ -52,9 +53,10 @@ from src.graphs.prompts import (
 from src.graphs.schemas import (
     ESTIMATE_VERDICT_SCHEMA,
     PLAN_VERDICT_SCHEMA,
+    PROJECT_INFO_SCHEMA,
     QA_VERDICT_SCHEMA,
 )
-from src.nodes.extractor import Extractor
+from src.nodes.extractor import room_from_first_user
 from src.tools import build_tools
 
 MODEL_DEFAULT = "llama3.1:8b"
@@ -83,6 +85,7 @@ _MATERIAL_TOOLS = [
 ]
 _BUDGET_TOOLS = ["estimate_material_cost", "estimate_total"]
 _RAG_TOOLS = ["search_materials", "find_similar_material"]
+
 
 def build_flow(
     model: str = MODEL_DEFAULT,
@@ -230,7 +233,17 @@ def build_flow(
         ),
         id="plan-approval",
         body=planner,
-        done=[Extractor(model=model, provider=provider, id="extractor")],
+        done=[
+            *Extract.model(
+                system=EXTRACTOR_SYSTEM_PROMPT,
+                schema=PROJECT_INFO_SCHEMA,
+                model=model,
+                provider=provider,
+                messages_key="messages",
+                output_key="project_info",
+                fallbacks=[Extract.fallback("room_type", room_from_first_user)],
+            ).nodes(),
+        ],
     )
     # Once the plan is approved: estimate -> materials -> QA (fix loop).
     flow.step(estimator, id="estimator")
