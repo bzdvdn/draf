@@ -1224,6 +1224,7 @@ looks through common keys first), `--max-examples` caps the run.
 | [parallel](examples/parallel/)                          | Concurrent branches + typed `State` reducers                                                                                                   |
 | [map_repair_plans](examples/map_repair_plans/)          | Dynamic fan-out (`Map`) + `{key}` prompt templates + typed `State`                                                                             |
 | [human_in_loop](examples/human_in_loop/)                | Approve/Edit LLM output via `Interrupt` + `loop()` + resume (Python and YAML)                                                                  |
+| [ask_strategies](examples/ask_strategies/)              | Validate interrupt answers with `Ask` — regex (capture a promo code), `equals`, and an LLM `model` classifier (offline, no API key)             |
 | [react_agent](examples/react_agent/)                    | ReAct agent loop with a calculator tool and live token streaming                                                                               |
 | [harness_agent](examples/harness_agent/)                | `flow.harness()` — parallel tool calls in one round + `__error__` fallback                                                                     |
 | [agent_approval](examples/agent_approval/)              | Tool approval (HITL) — every tool call pauses for human sign-off and resumes                                                                   |

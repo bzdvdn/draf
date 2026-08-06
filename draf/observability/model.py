@@ -9,6 +9,7 @@ is JSON-serialisable, so exporters and the web UI share one shape.
 
 from __future__ import annotations
 
+import uuid
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -190,6 +191,7 @@ class Run:
     name: str
     status: str
     total_ms: float
+    run_id: str = field(default_factory=lambda: str(uuid.uuid4()))
     owner: str | None = None
     checkpoint_id: str | None = None
     tags: list[str] = field(default_factory=list)
@@ -215,6 +217,7 @@ class Run:
 
     def to_dict(self) -> dict[str, Any]:
         return {
+            "run_id": self.run_id,
             "name": self.name,
             "status": self.status,
             "total_ms": round(self.total_ms, 3),
@@ -237,6 +240,7 @@ class Run:
             name=str(data["name"]),
             status=str(data.get("status") or "ok"),
             total_ms=float(data.get("total_ms") or 0.0),
+            run_id=str(data.get("run_id") or uuid.uuid4()),
             owner=data.get("owner"),
             checkpoint_id=data.get("checkpoint_id"),
             tags=list(data.get("tags") or []),

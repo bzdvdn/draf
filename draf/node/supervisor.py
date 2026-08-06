@@ -15,7 +15,17 @@ even when the model never says ``finish``:
   slot already has content would just overwrite finished work, so the pick
   is ignored and the loop finishes instead;
 * **fallback_agent** — ``finish`` before anything was produced routes to
-  *fallback_agent* so the user still gets a real answer.
+  *fallback_agent* so the user still gets a real answer;
+* **fill_order** — a ``[(agent, slot), ...]`` pipeline.  The model picks the
+  entry agent once, then the chain runs in order (each missing slot → its
+  agent) and finishes when every slot is full; a mid-chain agent picked
+  directly runs once and finishes.  No subclass needed for the common
+  "run the agents in order, then finish" pattern.
+
+The finish token is configurable via ``finish`` (default ``"finish"``) — for
+prompts that spell out their own terminator such as ``<end>``.  The parser
+normalizes enclosing punctuation and ``<>`` on both sides, so a model replying
+``<finish>`` still matches the default token.
 
 The decider's user message carries the accumulated progress (``sections``),
 the current round and the latest user message, so the model can see what
@@ -43,6 +53,20 @@ class Supervisor(Node):
     route to ``output_key``.  When the round counter reached ``max_rounds``
     or the ``done_keys`` are already filled, the conversation is finished
     without another model call.
+
+    ``fill_order`` turns the supervisor into a deterministic pipeline
+    without a subclass: the model picks only the *entry* agent, then every
+    mid-pipeline round runs the chain in order (``planner`` → ``estimator``
+    → ... → ``finish``) with no further model calls.  A mid-chain agent
+    picked directly (a targeted question) runs once and finishes.  See
+    ``examples/applications/repair-ai-chat`` for a chat that routes a
+    ``direct`` branch through ``done_keys`` while chaining the repair
+    agents through ``fill_order``.
+
+    ``finish`` renames the terminator token the model answers with (default
+    ``"finish"``); the same value is written to ``output_key`` for the
+    ``finish`` route branch.  Set it to whatever your system prompt tells
+    the model to reply, e.g. ``finish="<end>"``.
     """
 
     type = "supervisor"
@@ -64,6 +88,8 @@ class Supervisor(Node):
         done_keys: set[str] | None = None,
         done_mode: str = "all",
         fallback_agent: str = "",
+        finish: str = "finish",
+        fill_order: list[tuple[str, str]] | None = None,
         **kwargs,
     ):
         merged = {
@@ -80,6 +106,8 @@ class Supervisor(Node):
             "done_keys": set(done_keys or ()),
             "done_mode": done_mode,
             "fallback_agent": fallback_agent,
+            "finish": finish,
+            "fill_order": [(agent, slot) for agent, slot in (fill_order or [])],
             **(config or {}),
             **kwargs,
         }
@@ -91,18 +119,36 @@ class Supervisor(Node):
         if agents:
             return set(agents)
         route_keys = self.config.get("route_keys") or {}
+        chain = [agent for agent, _ in (self.config.get("fill_order") or [])]
         fallback = self.config.get("fallback_agent") or ""
-        return set(route_keys) | {"finish"} | ({fallback} if fallback else set())
+        return (
+            set(route_keys)
+            | set(chain)
+            | {self._finish()}
+            | ({fallback} if fallback else set())
+        )
+
+    def _finish(self) -> str:
+        """The token that ends the conversation (``finish`` by default)."""
+        return self.config.get("finish") or "finish"
 
     def _parse_agent(self, text: str) -> str:
-        """Return the last word of *text* that is in the agent vocabulary."""
-        agents = self._agents()
+        """Return the last word of *text* that matches the agent vocabulary.
+
+        Both sides are normalized by stripping enclosing punctuation and
+        ``<>``, so a model that wraps its reply as ``<finish>`` matches the
+        configured ``finish`` token and vice versa.  The canonical spelling
+        from the vocabulary is returned.
+        """
+        canonical = {}
+        for agent in self._agents():
+            canonical[agent.strip(" .*\"'»«-<>").lower()] = agent
         for word in reversed(
             text.strip().lower().replace(",", " ").replace(":", " ").split()
         ):
-            w = word.strip(" .*\"'»«-")
-            if w in agents:
-                return w
+            w = word.strip(" .*\"'»«-<>")
+            if w in canonical:
+                return canonical[w]
         return ""
 
     def _progress_text(self, state: dict) -> str:
@@ -114,6 +160,43 @@ class Supervisor(Node):
                 parts.append(f"{label}:\n{value}")
         return "\n\n".join(parts)
 
+    def _done(self, state: dict) -> bool:
+        """Whether the ``done_keys`` guard is satisfied (no model needed).
+
+        ``done_mode="all"`` requires every key non-empty, ``"any"`` requires
+        at least one.
+        """
+        done_keys = set(self.config.get("done_keys") or ())
+        if not done_keys:
+            return False
+        filled = [k for k in done_keys if state.get(k)]
+        if self.config.get("done_mode", "all") == "any":
+            return bool(filled)
+        return len(filled) == len(done_keys)
+
+    def _chain_route(self, state: dict) -> str:
+        """The deterministic route a configured ``fill_order`` prescribes.
+
+        Returns ``""`` when the model must still pick the entry agent.
+        Once the entry slot is filled the pipeline runs the rest of the
+        chain in order and finishes when every slot is full.  A mid-chain
+        agent picked directly (a targeted question) runs once and finishes
+        without dragging the whole pipeline in.
+        """
+        order = self.config.get("fill_order") or []
+        if not order:
+            return ""
+        entry_slot = order[0][1]
+        if state.get(entry_slot):
+            for agent, slot in order:
+                if not state.get(slot):
+                    return agent
+            return self._finish()
+        for agent, slot in order[1:]:
+            if state.get(slot):
+                return self._finish()
+        return ""
+
     def _needs_model(self, state: dict) -> bool:
         """Whether the model must be consulted this round.
 
@@ -121,17 +204,14 @@ class Supervisor(Node):
         message to route and no ``done_keys`` are already filled.  Set
         ``messages_key=""`` to always consult the model, or override this in
         a subclass whose :meth:`decide` resolves some states deterministically.
+        With a ``fill_order`` the model is needed only for the entry decision;
+        every mid-pipeline round is resolved deterministically.
         """
         cfg = self.config
-        done_keys = set(cfg.get("done_keys") or ())
-        if done_keys:
-            filled = [k for k in done_keys if state.get(k)]
-            if cfg.get("done_mode", "all") == "any":
-                done = bool(filled)
-            else:
-                done = len(filled) == len(done_keys)
-            if done:
-                return False
+        if self._done(state):
+            return False
+        if cfg.get("fill_order"):
+            return not self._chain_route(state)
         messages_key = cfg.get("messages_key")
         if not messages_key:
             return True
@@ -143,31 +223,34 @@ class Supervisor(Node):
         Default implements the chat guards on top of the model's single word:
         a filled ``done_keys`` set short-circuits to ``finish``, a premature
         ``finish`` falls back to *fallback_agent*, and a ``route_keys`` agent
-        whose slot is already filled is not re-routed.  Subclasses override
+        whose slot is already filled is not re-routed.  With a ``fill_order``
+        the mid-pipeline route is deterministic (see :meth:`_chain_route`);
+        only the entry decision comes from the model.  Subclasses override
         this for a deterministic policy; *proposal* is ``""`` when the model
         was not consulted.
         """
-        proposal = proposal or "finish"
+        proposal = proposal or self._finish()
         cfg = self.config
-        done_keys = set(cfg.get("done_keys") or ())
-        if done_keys:
-            filled = [k for k in done_keys if state.get(k)]
-            if cfg.get("done_mode", "all") == "any":
-                done = bool(filled)
-            else:
-                done = len(filled) == len(done_keys)
-            if done:
-                return "finish"
+        finish = self._finish()
+        if self._done(state):
+            return finish
         fallback = cfg.get("fallback_agent") or ""
+        if cfg.get("fill_order"):
+            route = self._chain_route(state)
+            if route:
+                return route
+            if proposal in self._agents() and proposal != finish:
+                return proposal
+            return fallback or cfg["fill_order"][0][0]
         if (
-            proposal == "finish"
+            proposal == finish
             and fallback
-            and not any(state.get(k) for k in done_keys)
+            and not any(state.get(k) for k in cfg.get("done_keys") or ())
         ):
             return fallback
         route_keys = cfg.get("route_keys") or {}
         if proposal in route_keys and state.get(route_keys[proposal]):
-            return "finish"
+            return finish
         return proposal
 
     async def _ask_model(
@@ -225,7 +308,7 @@ class Supervisor(Node):
 
         # Bounded loop: a model that never says "finish" cannot hang.
         if rounds >= max_rounds:
-            return {output_key: "finish", rounds_key: rounds}
+            return {output_key: self._finish(), rounds_key: rounds}
 
         if not self._needs_model(state):
             return {output_key: self.decide(state, ""), rounds_key: rounds}

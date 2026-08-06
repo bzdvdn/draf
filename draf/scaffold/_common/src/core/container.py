@@ -21,10 +21,11 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
+from draf import Assistant
 from src.config.config import Settings, get_settings
 from src.graphs.build import build_flow
-from src.service.assistant import Assistant
-from src.storage import build_checkpointer
+from src.graphs.state import STATE_REDUCERS, initial_state
+from src.storage import TRANSIENT_KEYS, build_checkpointer
 
 
 @dataclass
@@ -38,7 +39,7 @@ class Container:
         checkpointer: The durable session backend.
         catalog: The document catalog when the ``rag`` variant is present,
             else ``None``.
-        assistant: The :class:`~src.service.assistant.Assistant` service.
+        assistant: The :class:`~draf.assistant.Assistant` service.
     """
 
     settings: Settings
@@ -49,7 +50,14 @@ class Container:
     assistant: Assistant = field(init=False)
 
     def __post_init__(self) -> None:
-        self.assistant = Assistant(self.graph, self.tools, self.checkpointer)
+        self.assistant = Assistant(
+            self.graph,
+            self.tools,
+            self.checkpointer,
+            reducers=STATE_REDUCERS,
+            initial_state=initial_state,
+            transient_keys=TRANSIENT_KEYS,
+        )
 
 
 def _build_catalog(settings: Settings):

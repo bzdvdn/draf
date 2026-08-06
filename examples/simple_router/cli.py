@@ -20,8 +20,10 @@ if str(ROOT) not in sys.path:
 
 from src.config.config import get_settings  # noqa: E402
 from src.graphs.build import build_flow  # noqa: E402
-from src.service.assistant import Assistant  # noqa: E402
-from src.storage import build_checkpointer  # noqa: E402
+from src.graphs.state import STATE_REDUCERS, initial_state  # noqa: E402
+from src.storage import TRANSIENT_KEYS, build_checkpointer  # noqa: E402
+
+from draf import Assistant  # noqa: E402
 
 app = typer.Typer(name="simple_router", help="Minimal draf route() example.")
 
@@ -30,7 +32,14 @@ def _build_assistant():
     settings = get_settings()
     flow = build_flow(model=settings.model, provider=settings.provider)
     return (
-        Assistant(flow.compile(), build_checkpointer(settings.checkpoint_dir)),
+        Assistant(
+            flow.compile(),
+            [],
+            build_checkpointer(settings.checkpoint_dir),
+            reducers=STATE_REDUCERS,
+            initial_state=initial_state,
+            transient_keys=TRANSIENT_KEYS,
+        ),
         settings,
     )
 

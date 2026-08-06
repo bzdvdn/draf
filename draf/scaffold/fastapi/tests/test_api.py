@@ -121,7 +121,10 @@ def test_chat_runs_agent_and_returns_state(client):
     assert resp.status_code == 200
     data = resp.json()
     assert data["session_id"]
-    assert "1. Research." in data["result"]["plan"]
+    assert isinstance(data["reply"], str)
+    assert data["reply"]
+    assert isinstance(data["run_id"], str)
+    assert data["run_id"]
 
 
 def test_chat_stream_emits_sse_events(client):
@@ -132,6 +135,8 @@ def test_chat_stream_emits_sse_events(client):
     assert "event: run_start" in body
     assert "event: node_start" in body
     assert "event: run_end" in body
+    assert "event: message" in body
+    assert '"reply"' in body
 
 
 def test_trace_dashboard_served(client):

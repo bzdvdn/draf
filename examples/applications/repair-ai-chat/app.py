@@ -21,9 +21,10 @@ from src.api.router import api_router
 from src.config.config import Settings, get_settings
 from src.core.deps import build_deps
 from src.graphs.build import build_flow
-from src.service.assistant import Assistant
-from src.storage import build_checkpointer
+from src.graphs.state import STATE_REDUCERS, initial_state
+from src.storage import TRANSIENT_KEYS, build_checkpointer
 
+from draf import Assistant
 from draf.observability import SQLiteExporter, topology_from_graph
 from draf.observability.api import attach_dashboard
 
@@ -59,6 +60,9 @@ def create_app(
         build_checkpointer(
             settings.checkpoint_dir, checkpoint_db=settings.checkpoint_db
         ),
+        reducers=STATE_REDUCERS,
+        initial_state=initial_state,
+        transient_keys=TRANSIENT_KEYS,
     )
 
     app = FastAPI(

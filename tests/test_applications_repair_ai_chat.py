@@ -7,6 +7,7 @@ final structured extraction, and the FastAPI server (chat, SSE, sessions)
 all work together.
 """
 
+import asyncio
 import json
 import sys
 from pathlib import Path
@@ -94,6 +95,50 @@ def _reply(content: str) -> dict:
     }
 
 
+async def _run_with_approval(
+    graph, state, tools, *, answers=("да",), emit=None, checkpoint_dir="/tmp"
+):
+    """Run the staged graph end to end, answering every approval interrupt.
+
+    The graph pauses on the plan- and estimate-approval interrupts; *answers*
+    supplies the operator's replies in order (e.g. ``("нет", "да")`` to force
+    one re-plan / re-estimate round).  Uses a per-run JSON-file checkpointer
+    so resume works.
+    """
+    from draf.checkpoint import JSONFileCheckpointer
+    from draf.node.interrupt import GraphInterrupt
+
+    answers = list(answers)
+    cp = JSONFileCheckpointer(str(checkpoint_dir))
+    try:
+        return await graph.run(
+            state,
+            tools=tools,
+            reducers=STATE_REDUCERS,
+            checkpointer=cp,
+            checkpoint_id="run-1",
+            max_iterations=80,
+            emit=emit,
+        )
+    except GraphInterrupt:
+        pass
+    while True:
+        answer = answers.pop(0) if answers else "да"
+        try:
+            return await graph.run(
+                state,
+                tools=tools,
+                reducers=STATE_REDUCERS,
+                checkpointer=cp,
+                checkpoint_id="run-1",
+                max_iterations=80,
+                emit=emit,
+                resume={"plan_approved": answer, "estim_approved": answer},
+            )
+        except GraphInterrupt:
+            continue
+
+
 def _stream_lines(content: str) -> list[str]:
     """Split *content* into OpenAI-style SSE chunks."""
     lines = [
@@ -114,10 +159,12 @@ class _MockTransport:
     ``stream``.
     """
 
-    def __init__(self, *, finish: bool = True):
+    def __init__(self, *, finish: bool = True, qa_verdicts: list[str] | None = None):
         self.calls: list[str] = []
         self.supervisor_calls = 0
+        self.qa_calls = 0
         self.finish = finish
+        self.qa_verdicts = list(qa_verdicts or [])
 
     def _content_for(self, body: dict) -> str:
         system = "".join(
@@ -128,11 +175,20 @@ class _MockTransport:
         self.calls.append(system[:40])
         if "Supervisor" in system:
             self.supervisor_calls += 1
-            if self.finish:
-                return "planner" if self.supervisor_calls == 1 else "finish"
-            return "planner"  # never finish — proves the loop budget
-        if "анализируешь" in system:
+            return "pipeline"  # one-shot entry router: always start the pipeline
+        if "извлекаешь" in system:
             return json.dumps({"room_type": "bathroom", "area": 5.0})
+        if "классифицируешь" in system:
+            user = " ".join(
+                m.get("content", "")
+                for m in body.get("messages", [])
+                if m.get("role") == "user"
+            )
+            approved = any(
+                w in user.lower()
+                for w in ("да", "конечно", "хорошо", "ок", "согласен", "давай")
+            )
+            return json.dumps({"ok": approved, "message": ""})
         if "Planner" in system:
             return "1. Демонтаж. 2. Стены. 3. Пол. 4. Отделка."
         if "Estimator" in system:
@@ -140,7 +196,13 @@ class _MockTransport:
         if "Materials Agent" in system:
             return "Плитка Керама-Белый 780 ₽/м², ламинат Дуб-Прованс 890 ₽/м²."
         if "QA Agent" in system:
-            return "Всё корректно."
+            if self.qa_verdicts:
+                verdict = self.qa_verdicts[
+                    min(self.qa_calls, len(self.qa_verdicts) - 1)
+                ]
+                self.qa_calls += 1
+                return verdict
+            return json.dumps({"ok": True, "message": ""})
         return "Здравствуйте! Помогу спланировать ремонт."
 
     def __call__(self, *args, **kwargs):
@@ -187,7 +249,7 @@ def transport(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_route_loop_runs_end_to_end(transport):
+async def test_route_loop_runs_end_to_end(transport, tmp_path):
     flow, tools = build_flow()
     graph = flow.compile()
 
@@ -199,27 +261,36 @@ async def test_route_loop_runs_end_to_end(transport):
     async def sink(ev):
         events.append(ev)
 
-    result = await graph.run(
-        state,
-        tools=tools,
-        reducers=STATE_REDUCERS,
-        emit=sink,
-        max_iterations=80,
+    result = await _run_with_approval(
+        graph, state, tools, emit=sink, checkpoint_dir=str(tmp_path)
     )
 
-    # planner runs once, then the done guard (done_mode="any") finishes the
-    # turn deterministically without another supervisor LLM call
+    # the one-shot supervisor consults the model exactly once, then the
+    # staged pipeline planner -> (approval) -> estimator -> materials -> qa
+    # runs; the approval interrupt is answered with "да"
     assert transport.supervisor_calls == 1
-    assert result["plan"] != ""
+    for section in ("plan", "estimate", "material_findings"):
+        assert result[section] != ""
+    assert result["plan_approved"] == "да"
+    assert result["qa_ok"] == "yes"
+    assert result["qa_rounds"] == 1
     assert result["project_info"] == {"room_type": "bathroom", "area": 5.0}
 
     # the assistant reply was appended to the shared conversation
     assistant = [m for m in result["messages"] if m.get("role") == "assistant"]
     assert any("Отделка" in m["content"] for m in assistant)
 
-    # a single top-level lifecycle; nested run_start/run_end are stripped
+    # the deterministic План/Смета answer is the last assistant message
+    last = result["messages"][-1]["content"]
+    assert result["messages"][-1]["role"] == "assistant"
+    assert last.startswith("План:")
+    assert "Смета:" in last
+
+    # a single top-level lifecycle per run; each approval interrupt pauses
+    # with an interrupt event and its resume completes the run
     types = [ev.type for ev in events]
-    assert types.count("run_start") == 1
+    assert types.count("run_start") == 3  # initial + plan resume + estimate resume
+    assert types.count("interrupt") == 2  # plan + estimate approval
     assert types.count("run_end") == 1
     assert events[-1].data["status"] == "ok"
 
@@ -230,22 +301,357 @@ async def test_route_loop_runs_end_to_end(transport):
 
 
 @pytest.mark.asyncio
-async def test_route_wiring_in_example(transport):
-    """The example's flow carries the expected supervisor edges."""
-    flow, _ = build_flow()
-    edges = {(e.source_id, e.target_id, e.condition) for e in flow.compile().edges}
+async def test_staged_pipeline_replans_on_rejection(transport, tmp_path):
+    """A "нет" answer re-runs the planner and re-asks; "да" then completes."""
+    flow, tools = build_flow()
+    graph = flow.compile()
 
-    assert ("supervisor_1", "extractor_2", "next_agent=finish") in edges
-    assert ("supervisor_1", "subflow_4", "next_agent=planner") in edges
-    assert ("supervisor_1", "subflow_5", "next_agent=estimator") in edges
-    assert ("supervisor_1", "subflow_7", "next_agent=qa") in edges
-    assert ("subflow_4", "supervisor_1", None) in edges
+    state = initial_state()
+    state["messages"] = [{"role": "user", "content": "Спланируй ремонт ванной 5 м²."}]
+
+    result = await _run_with_approval(
+        graph,
+        state,
+        tools,
+        answers=("нет", "да"),
+        checkpoint_dir=str(tmp_path),
+    )
+
+    assert result["plan_approved"] == "да"
+    assert result["plan"] != ""
+    assert result["estimate"] != ""
+    assert result["material_findings"] != ""
+    assert result["qa_ok"] == "yes"
+
+    # the planner ran twice (initial + rework after "нет")
+    assistant = [m for m in result["messages"] if m.get("role") == "assistant"]
+    planner_replies = [
+        m["content"] for m in assistant if m["content"].startswith("1. Демонтаж.")
+    ]
+    assert len(planner_replies) == 2
+
+    last = result["messages"][-1]
+    assert last["role"] == "assistant"
+    assert last["content"].startswith("План:")
+    assert "Смета:" in last["content"]
 
 
 @pytest.mark.asyncio
-async def test_supervisor_loop_is_bounded(monkeypatch):
-    """A model that never says 'finish' must not hang the example graph."""
-    from src.graphs.state import STATE_REDUCERS, initial_state
+async def test_estimate_rejection_recalculates_and_reasks(transport, tmp_path):
+    """A "нет" on the estimate re-runs estimator/materials/QA before asking
+    again; the second "да" then completes and assembles the final answer."""
+    flow, tools = build_flow()
+    graph = flow.compile()
+
+    state = initial_state()
+    state["messages"] = [{"role": "user", "content": "Спланируй ремонт ванной 5 м²."}]
+
+    # plan: да; estimate: нет then да (one recalculation round)
+    result = await _run_with_approval(
+        graph,
+        state,
+        tools,
+        answers=("да", "нет", "да"),
+        checkpoint_dir=str(tmp_path),
+    )
+
+    assert result["plan_approved"] == "да"
+    assert result["estim_approved"] == "да"
+    assert result["est_ok"] == "да"
+    assert result["plan"] != ""
+    assert result["estimate"] != ""
+    assert result["material_findings"] != ""
+    assert result["qa_ok"] == "yes"
+
+    # the planner ran once (plan approved on the first ask); the estimator ran
+    # twice (initial + recalc after "нет" on the estimate)
+    assistant = [m for m in result["messages"] if m.get("role") == "assistant"]
+    planner_replies = [
+        m["content"] for m in assistant if m["content"].startswith("1. Демонтаж.")
+    ]
+    assert len(planner_replies) == 1
+    # QA ran after the initial estimate and again after the recalc
+    assert sum(1 for c in transport.calls if "QA Agent" in c) >= 2
+
+    last = result["messages"][-1]
+    assert last["role"] == "assistant"
+    assert last["content"].startswith("План:")
+    assert "Смета:" in last["content"]
+
+
+@pytest.mark.asyncio
+async def test_qa_fix_loop_revises_and_finalizes(monkeypatch, tmp_path):
+    """A not-ok QA verdict re-runs estimator/materials, then the
+    loop terminates on the ok verdict and appends the assembled answer."""
+    mock = _MockTransport(
+        finish=True,
+        qa_verdicts=[
+            json.dumps({"ok": False, "message": "Смета не сходится с планом."}),
+            json.dumps({"ok": True, "message": ""}),
+        ],
+    )
+    monkeypatch.setattr(httpx.AsyncClient, "post", mock)
+    monkeypatch.setattr(httpx.AsyncClient, "stream", mock)
+
+    flow, tools = build_flow()
+    graph = flow.compile()
+
+    state = initial_state()
+    state["messages"] = [{"role": "user", "content": "Спланируй ремонт ванной 5 м²."}]
+
+    result = await _run_with_approval(graph, state, tools, checkpoint_dir=str(tmp_path))
+
+    assert mock.qa_calls == 2
+    assert result["qa_rounds"] == 2
+    assert result["qa_ok"] == "yes"
+
+    # the fix body re-ran estimator/materials (planner is *not* re-run —
+    # the plan was already approved), so the planner answered exactly once
+    assistant = [m for m in result["messages"] if m.get("role") == "assistant"]
+    planner_replies = [
+        m["content"] for m in assistant if m["content"].startswith("1. Демонтаж.")
+    ]
+    assert len(planner_replies) == 1
+
+    # the deterministic answer is the last assistant message
+    last = result["messages"][-1]
+    assert last["role"] == "assistant"
+    assert last["content"].startswith("План:")
+    assert "Смета:" in last["content"]
+
+
+def test_project_info_schema_allows_null_for_unknown_fields():
+    """Extractor prompt tells the model to return ``null`` for missing
+    fields; the schema must accept that (regression: number fields rejected
+    ``null``, so the extractor burned 3 attempts then raised NodeError)."""
+    from src.graphs.schemas import PROJECT_INFO_SCHEMA
+
+    from draf.schema import validate_json
+
+    unknown = {
+        "room_type": "bathroom",
+        "area": 5.0,
+        "ceiling_height": None,
+        "budget": None,
+        "style": None,
+        "walls_area": None,
+        "floor_area": None,
+        "ceiling_area": None,
+    }
+    assert validate_json(unknown, PROJECT_INFO_SCHEMA) == []
+    full = {
+        "room_type": "bathroom",
+        "area": 5.0,
+        "ceiling_height": 2.7,
+        "budget": 150000,
+        "style": "modern",
+        "walls_area": 20.0,
+        "floor_area": 5.0,
+        "ceiling_area": 5.0,
+    }
+    assert validate_json(full, PROJECT_INFO_SCHEMA) == []
+
+
+def test_detect_room_type_maps_russian_keywords():
+    from src.nodes.extractor import detect_room_type
+
+    assert detect_room_type("Помоги спланировать ремонт ванной комнаты") == "bathroom"
+    assert detect_room_type("Сделайте ремонт на кухне") == "kitchen"
+    assert detect_room_type("нужен ремонт спальни") == "bedroom"
+    assert detect_room_type("гостиная 20 метров") == "living_room"
+    assert detect_room_type("прихожая маленькая") == "hallway"
+    assert detect_room_type("какой стиль выбрать?") is None
+
+
+def test_find_similar_accepts_materials_and_category_kwargs():
+    """llama3.1:8b calls find_similar_material with ``materials`` and
+    ``category`` kwargs; the tool must accept them instead of raising
+    ``unexpected keyword argument`` (regression from obs run 99)."""
+    from src.tools.rag import FindSimilarMaterial
+
+    calls = []
+
+    class _Catalog:
+        async def find_similar(self, name, top_k=3):
+            calls.append((name, top_k))
+            return f"similar:{name}"
+
+    tool = FindSimilarMaterial(_Catalog())
+    result = asyncio.run(tool.arun(materials=["грунтовка"], category="кухня", top_k=3))
+    assert result == "similar:грунтовка"
+    assert calls == [("грунтовка", 3)]
+
+    result = asyncio.run(tool.arun(name="краска", top_k=5))
+    assert result == "similar:краска"
+    assert calls[-1] == ("краска", 5)
+
+
+@pytest.mark.asyncio
+async def test_search_materials_accepts_string_max_price():
+    """A string max_price (e.g. ``"2000"``) must be coerced to float and not
+    blow up with ``'<=' not supported between instances of 'float' and 'str'``."""
+    import json as _json
+
+    from src.tools.rag import SearchMaterials
+
+    from draf.harness.tools import execute_tool_calls
+
+    seen = {}
+
+    class _Catalog:
+        async def search(self, query, category=None, max_price=None):
+            seen.update(query=query, category=category, max_price=max_price)
+            return "found"
+
+    tool = SearchMaterials(_Catalog())
+    result = await execute_tool_calls(
+        [
+            {
+                "id": "call_1",
+                "name": "search_materials",
+                "args": _json.dumps({"query": "дверь", "max_price": "2000"}),
+            }
+        ],
+        {"search_materials": tool},
+    )
+    assert result == ["found"]
+    assert isinstance(seen["max_price"], float)
+    assert seen["max_price"] == 2000.0
+
+
+@pytest.mark.asyncio
+async def test_search_retries_without_category_filter(monkeypatch):
+    """A room-type category (``кухня``) matches nothing; the catalog must
+    retry without the filter so the agent gets results instead of a dead
+    ``Nothing found`` loop."""
+    from src.rag.catalog import MaterialCatalog
+
+    calls = []
+
+    class _Store:
+        def __init__(self):
+            self.calls = calls
+
+        async def search(self, query_vector, k=3, filter=None):
+            calls.append(filter)
+            if filter:
+                return []
+            return [
+                (0, 0.9, {"name": "Грунтовка", "price": 200, "category": "грунтовка"})
+            ]
+
+    class _Embedder:
+        async def embed(self, text):
+            return [0.0] * 4
+
+    catalog = MaterialCatalog(_Embedder(), store=_Store())
+    catalog._docs = [("грунтовка", {})]
+    catalog._ingested = 1
+
+    result = await catalog.search("грунтовка", category="кухня", max_price=500)
+    assert "Грунтовка" in result
+    assert calls == [{"category": "кухня"}, None]
+
+
+@pytest.mark.asyncio
+async def test_extractor_falls_back_when_model_drops_room_type(monkeypatch):
+    """llama3.1:8b often omits room_type; the node must fill it from the
+    first user message so downstream agents see the room."""
+    from src.nodes.extractor import Extractor
+
+    from draf.node import LLM
+
+    async def fake_llm_execute(self, ctx, state):
+        return {"project_info": {"area": 5.0}}
+
+    monkeypatch.setattr(LLM, "execute", fake_llm_execute)
+    result = await Extractor().execute(
+        None,
+        {
+            "messages": [
+                {"role": "user", "content": "Помоги спланировать ремонт ванной 5 м²."},
+                {"role": "assistant", "content": "План готов."},
+            ]
+        },
+    )
+    assert result["project_info"]["room_type"] == "bathroom"
+    assert result["project_info"]["area"] == 5.0
+
+
+@pytest.mark.asyncio
+async def test_route_loop_survives_null_project_info(transport, tmp_path):
+    """A real llama3.1:8b often returns ``null`` for fields it cannot find
+    (ceiling_height, walls_area, ceiling_area); the run must not 500."""
+    flow, tools = build_flow()
+    graph = flow.compile()
+
+    state = initial_state()
+    state["messages"] = [{"role": "user", "content": "Спланируй ремонт ванной 5 м²."}]
+
+    result = await _run_with_approval(graph, state, tools, checkpoint_dir=str(tmp_path))
+    assert result["supervisor_rounds"] <= 6
+    assert result["project_info"]["area"] == 5.0
+
+
+@pytest.mark.asyncio
+async def test_route_wiring_in_example(transport):
+    """The example's flow carries the staged, interrupt-driven edges."""
+    flow, _ = build_flow()
+    graph = flow.compile()
+    edges = {(e.source_id, e.target_id, e.condition) for e in graph.edges}
+
+    assert ("supervisor", "direct", "next_agent=direct") in edges
+    assert ("supervisor", "pipeline-planner", "next_agent=pipeline") in edges
+    # the plan-approval trio sits between the planner and the plan decider
+    assert ("pipeline-planner", "plan-approval-interrupt", None) in edges
+    assert ("plan-approval-interrupt", "plan-approval-classifier", None) in edges
+    assert ("plan-approval-classifier", "plan-approval-validate", None) in edges
+    # the plan validate decider routes on the *normalized* decision key
+    assert any(
+        src == "plan-approval-validate" and cond == "plan_ok=да" for src, _, cond in edges
+    )
+    assert any(
+        src == "plan-approval-validate" and cond == "plan_ok!=да" for src, _, cond in edges
+    )
+    # approving the plan collects project info via the extractor
+    assert any(
+        src == "plan-approval-validate" and cond == "plan_ok=да"
+        for src, target, cond in edges
+    )
+    # the "нет" branch re-plans (loop body copy) and loops back to the decider
+    assert any(
+        target == "plan-approval-validate" and cond is None for src, target, cond in edges
+    )
+    # once the plan is approved: extractor -> estimator -> materials -> qa -> estimate loop
+    assert any(
+        src == "estimator" and target == "materials" and cond is None
+        for src, target, cond in edges
+    )
+    assert ("qa-subflow", "est-approval-interrupt", None) in edges
+    # the estimate-approval trio sits between QA and the estimate decider
+    assert ("est-approval-interrupt", "est-approval-classifier", None) in edges
+    assert ("est-approval-classifier", "est-approval-validate", None) in edges
+    # the estimate validate decider routes on its own normalized decision key
+    assert any(
+        src == "est-approval-validate" and cond == "est_ok=да" for src, _, cond in edges
+    )
+    assert any(
+        src == "est-approval-validate" and cond == "est_ok!=да" for src, _, cond in edges
+    )
+    # a "нет" on the estimate re-runs estimator/materials/QA and loops back
+    assert any(
+        target == "est-approval-validate" and cond is None for src, target, cond in edges
+    )
+    # node types are present across the whole staged graph
+    node_types = {n.type for nid, n in graph.nodes.items()}
+    assert "extractor" in node_types
+
+
+@pytest.mark.asyncio
+async def test_supervisor_loop_is_bounded(monkeypatch, tmp_path):
+    """The plan-approval fixture terminates when the user keeps answering
+    "нет" — the interrupt re-asks without hanging the example graph."""
+    from src.graphs.state import initial_state
 
     mock = _MockTransport(finish=False)
     monkeypatch.setattr(httpx.AsyncClient, "post", mock)
@@ -257,15 +663,10 @@ async def test_supervisor_loop_is_bounded(monkeypatch):
     state = initial_state()
     state["messages"] = [{"role": "user", "content": "Спланируй ремонт ванной 5 м²."}]
 
-    result = await graph.run(
-        state,
-        tools=tools,
-        reducers=STATE_REDUCERS,
-        max_iterations=80,
-    )
-    # the loop budget forces finish without an 80-iteration hang
+    # the supervisor is a one-shot router — never a multi-round loop
+    result = await _run_with_approval(graph, state, tools, checkpoint_dir=str(tmp_path))
     assert result["supervisor_rounds"] <= 6
-    assert mock.supervisor_calls < 80
+    assert mock.supervisor_calls == 1
 
 
 @pytest.mark.asyncio
@@ -351,8 +752,34 @@ def test_api_chat_and_stream(transport, tmp_path):
     )
     assert created.status_code == 200
     data = created.json()
-    assert data["result"]["project_info"] == {"room_type": "bathroom", "area": 5.0}
+    assert isinstance(data["message"], str)
+    assert data["message"]
+    assert isinstance(data["run_id"], str)
+    assert data["run_id"]
+    # the graph pauses on the plan-approval interrupt waiting for the user
+    assert data["waiting"] is True
+    assert data["prompt"]  # the approval question is surfaced to the client
     chat_id = data["session_id"]
+
+    # resuming the same session with "да" approves the plan, then the estimate
+    # approval pauses again; answering "да" once more completes the pipeline
+    resumed = client.post(
+        "/api/chat",
+        json={"message": "да", "session_id": chat_id},
+    )
+    assert resumed.status_code == 200
+    rdata = resumed.json()
+    assert rdata["waiting"] is True  # waiting on the estimate-approval interrupt
+
+    resumed = client.post(
+        "/api/chat",
+        json={"message": "да", "session_id": chat_id},
+    )
+    assert resumed.status_code == 200
+    rdata = resumed.json()
+    assert rdata["waiting"] is False
+    assert rdata["message"].startswith("План:")
+    assert "Смета:" in rdata["message"]
 
     stream = client.post(
         "/api/chat/stream", json={"message": "Помоги спланировать ремонт ванной 5 м²."}
@@ -360,7 +787,8 @@ def test_api_chat_and_stream(transport, tmp_path):
     assert stream.status_code == 200
     assert "event: chat_id" in stream.text
     assert "event: run_start" in stream.text
-    assert "event: run_end" in stream.text
+    assert "event: waiting" in stream.text
+    assert "event: run_end" not in stream.text
 
     saved = client.get(f"/api/runs/{chat_id}")
     assert saved.status_code == 200

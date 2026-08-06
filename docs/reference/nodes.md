@@ -19,6 +19,8 @@ Every node is a `steps:` entry in YAML (`type: <name>`) and a class in the
 | `context_builder` | `ContextBuilder` | Compose a scratch prompt from state + conversation |
 | `append_assistant` | `AppendAssistant` | Append the result as an assistant message |
 | `supervisor` | `Supervisor` | Ask a model "which agent next" + deterministic guards |
+| `gate` | `Gate` | Turn a verdict object into a loop decider + retry budget |
+| `validate` | `Validate` | Decode an interrupt answer (raw or verdict) into a loop decider; capture a value |
 
 ## Wrapper nodes
 
@@ -46,7 +48,9 @@ Retries are recorded on the tracer (`tracer.retry(...)`) and surfaced in
 ## `transform`
 
 String transforms. Actions: `uppercase`, `lowercase`, `trim`, `count_lines`,
-`value` (set a literal), `json_get` (extract a field from a dict).
+`value` (set a literal), `render` (render a `{key}` template into a scalar),
+`json_get` (extract a field from a dict), `append` (render a template and
+accumulate into a list).
 
 | Key | Type | Default | Description |
 | --- | ---- | ------- | ----------- |
@@ -55,6 +59,8 @@ String transforms. Actions: `uppercase`, `lowercase`, `trim`, `count_lines`,
 | `output_key` | str | `""` | State key to write to |
 | `value` | str | `None` | Literal value (`action: value`, or `json_get` input) |
 | `field` | str | `None` | Field to extract with `action: json_get` |
+| `template` | str | `None` | `{key}` template for `action: render` / `action: append` |
+| `raw` | bool | `False` | Keep `json_get` values without stringifying |
 
 ## `llm_chat`
 
@@ -125,6 +131,10 @@ Pauses raise `GraphInterrupt`; resume with the same `checkpoint_id` plus
 `resume={key: answer}`. Requires a checkpointer. See
 [Durable execution](../guide/durable.md).
 
+To validate the answer (instead of comparing it verbatim) and capture a
+value, pair the interrupt with an `Ask` strategy — see
+[`validate`](#validate) and [`Ask`](#ask) below.
+
 ## `parallel` / `map`
 
 - `parallel` — config `branches`: list of branch chains (each a node or list
@@ -165,6 +175,112 @@ for a one-word route, then apply deterministic guards. Wired with
 
 See [Supervisors — a ready-made decider](../guide/supervisors.md#a-ready-made-decider-supervisor)
 for the guards and the `_needs_model` / `decide` override hooks.
+
+## `gate`
+
+Turn a verdict object (typically structured JSON from an `LLM`) into the
+discriminator value a `flow.loop` / `flow.branch` switches on — the
+"approve or fix" loop behind QA and review cycles. Each evaluation
+increments `rounds_key`; once it reaches `max_rounds` the gate is forced to
+`pass_value` so the loop terminates instead of raising a `max_iterations`
+error.
+
+| Key | Type | Default | Description |
+| --- | ---- | ------- | ----------- |
+| `input_key` | str | `"verdict"` | State key holding the verdict object (`LLM(json_schema=...)` output). |
+| `ok_field` | str | `"ok"` | Field of the verdict treated as the pass flag. |
+| `output_key` | str | `"decision"` | State key receiving `pass_value` / `fail_value`. |
+| `pass_value` | str | `"yes"` | Written on pass (the value `loop` compares *until* against). |
+| `fail_value` | str | `"fix"` | Written when the verdict fails. |
+| `rounds_key` | str | `"rounds"` | Evaluation counter, incremented each run. |
+| `max_rounds` | int | `3` | After this many evaluations the gate is forced to `pass_value`. |
+| `message_field` | str | `"message"` | Field of the verdict with the remarks. |
+| `message_key` | str | `""` | State key receiving the remarks (cleared on a pass); empty disables. |
+| `missing_is_ok` | bool | `True` | A missing / non-dict verdict counts as a pass. |
+
+```python
+from draf.node import Gate, LLM
+
+flow.step(qa_llm)          # LLM(json_schema=QaVerdict) -> state["qa_verdict"]
+flow.step(Gate(input_key="qa_verdict", output_key="qa_ok", rounds_key="qa_rounds"))
+flow.loop(
+    key="qa_ok", until="yes",
+    done=finalize,
+    body=[planner, estimator, qa_llm],
+)
+```
+
+## `validate`
+
+Like `gate`, but built for interrupt answers: it turns the raw answer (or a
+classifier verdict) into the discriminator value a `flow.loop` /
+`flow.branch` switches on, and can **capture an arbitrary value** (a
+discount code, a date, …) into `value_key`. Each evaluation increments
+`rounds_key`; once it reaches `max_rounds` the node is forced to
+`pass_value` so the loop terminates instead of raising a `max_iterations`
+error.
+
+| Key | Type | Default | Description |
+| --- | ---- | ------- | ----------- |
+| `input_key` | str | `"answer"` | State key holding the raw answer, or the verdict object for a `model` Ask. |
+| `strategy` | str | `""` | `"equals"` / `"any_of"` / `"regex"` / `"check"` for raw answers; `"model"` when `input_key` holds a verdict. |
+| `equals` / `any_of` / `regex` / `check` | — | — | Raw-answer matching: exact (normalized) value, a set of values, a regex, or a callable `fn(value) -> bool` / `(bool, extracted)`. |
+| `verdict_key` / `ok_field` | str | `"verdict"` / `"ok"` | Where a `model` classifier's verdict object lives and its pass flag. |
+| `output_key` | str | `"decision"` | State key receiving `pass_value` / `fail_value`. |
+| `pass_value` | str | `"да"` | Written on pass (the value `loop` compares *until* against). |
+| `fail_value` | str | `"нет"` | Written when the answer fails. |
+| `value_key` | str | `""` | State key receiving the captured value (cleared on a fail); empty disables. |
+| `value_field` | str | `""` | Verdict field (for `model`) captured into `value_key`. |
+| `rounds_key` | str | `"rounds"` | Evaluation counter, incremented each run. |
+| `max_rounds` | int | `100` | After this many evaluations the node is forced to `pass_value`. |
+| `missing_is_ok` | bool | `False` | A missing / empty answer counts as a pass. |
+
+## `Ask`
+
+`Ask` is not a node — it's the declarative strategy an interrupt uses to
+decide pass/fail and capture a value. `flow.interrupt(key, prompt,
+accept=Ask(...))` validates a single answer; `flow.interrupt_loop(key,
+accept=Ask(...), body=..., done=...)` re-asks until it passes. Use the
+classmethod constructors:
+
+```python
+from draf.flow import Flow
+from draf.node import Ask, LLM, Transform
+
+# exact (normalized) match
+Ask.equals("да", decision_key="plan_ok")
+
+# any of several values
+Ask.any_of("да", "ок", "конечно", decision_key="plan_ok")
+
+# regex + capture the value into state["discount_code"]
+Ask.regex(r"^[A-Z]{2}-[0-9]{4}$", decision_key="code_ok", value_key="discount_code")
+
+# callable: fn(value) -> bool, or (bool, extracted)
+Ask.check(lambda v: len(v) >= 8, value_key="password")
+
+# LLM classifier normalizes free-form answers into {ok: bool, ...}
+Ask.model(
+    system="Ты классифицируешь ответ пользователя...",
+    user="Ответ пользователя:\n{approved}\n\nОдобрил?",
+    schema={"type": "object", "properties": {"ok": {"type": "boolean"}}},
+    model="llama3.1:8b", provider="ollama",
+    verdict_key="verdict", decision_key="approved_ok",
+)
+
+flow.interrupt_loop(
+    key="code",
+    prompt="Введите промокод (формат XX-1234):",
+    accept=Ask.regex(r"^[A-Z]{2}-[0-9]{4}$", decision_key="code_ok", value_key="discount_code"),
+    body=Transform(action="value", value="неверный код", output_key="total"),
+    done=Transform(action="value", value="скидка применена", output_key="total"),
+)
+```
+
+`Ask` is auto-detected from the constructor kwargs, so
+`Ask(equals="да")` and `Ask(regex=..., value_key="code")` work too. See the
+[runnable example](../examples.md) `ask_strategies` for all three strategies
+in one checkout flow.
 
 ## Registering custom types
 

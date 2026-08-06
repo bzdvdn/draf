@@ -240,7 +240,41 @@ function initTheme() {
 document.getElementById('theme').addEventListener('click', () =>
   applyTheme(!document.body.classList.contains('dark')));
 
+function readStateFromUrl() {
+  const p = new URLSearchParams(window.location.search);
+  if (p.has('status') && ['', 'ok', 'err'].includes(p.get('status'))) state.status = p.get('status');
+  if (p.has('name')) state.name = p.get('name');
+  if (p.has('owner')) state.owner = p.get('owner');
+  if (p.has('tag')) state.tag = p.get('tag');
+  const lim = Number(p.get('limit'));
+  if (p.has('limit') && [10, 25, 50, 100].includes(lim)) state.limit = lim;
+  const off = Number(p.get('offset'));
+  if (p.has('offset') && Number.isFinite(off) && off >= 0) state.offset = off;
+}
+
+function syncUrl() {
+  const p = new URLSearchParams();
+  if (state.status) p.set('status', state.status);
+  if (state.name) p.set('name', state.name);
+  if (state.owner) p.set('owner', state.owner);
+  if (state.tag) p.set('tag', state.tag);
+  if (state.limit !== 25) p.set('limit', String(state.limit));
+  if (state.offset > 0) p.set('offset', String(state.offset));
+  const q = p.toString();
+  history.replaceState(null, '', window.location.pathname + (q ? '?' + q : ''));
+}
+
+function applyStateToControls() {
+  document.querySelectorAll('#status-pills .pill').forEach(p =>
+    p.classList.toggle('active', p.dataset.v === state.status));
+  document.getElementById('f-name').value = state.name;
+  document.getElementById('f-owner').value = state.owner;
+  document.getElementById('f-tag').value = state.tag;
+  document.getElementById('f-limit').value = String(state.limit);
+}
+
 async function loadRuns() {
+  syncUrl();
   const qs = new URLSearchParams({ limit: state.limit, offset: state.offset });
   if (state.status) qs.set('status', state.status);
   if (state.name) qs.set('name', state.name);
@@ -269,14 +303,16 @@ function render() {
     const cls = r.status === 'ok' ? 'ok' : 'err';
     const tags = (r.tags || []).map(t =>
       `<button class="chip" onclick="event.stopPropagation();filterTag('${escapeHtml(t)}')">${escapeHtml(t)}</button>`).join('');
-    html += `<tr class="row" onclick="openRun(${r.run_id})">` +
+    const rid = String(r.run_id || '');
+    const rowClick = rid ? ` onclick="openRun('${rid}')"` : '';
+    html += `<tr class="row"${rowClick}>` +
         `<td><span class="status ${cls}"><span class="dot ${cls}"></span>${escapeHtml(r.status)}</span></td>` +
-        `<td class="mono run-id">#${r.run_id}</td>` +
+        `<td class="mono run-id" title="${escapeHtml(rid)}">#${rid.slice(0, 8)}</td>` +
         `<td class="name">${escapeHtml(r.name)}</td>` +
         `<td>${r.owner ? escapeHtml(r.owner) : '<span class="muted">—</span>'}</td>` +
         `<td class="tags">${tags || '<span class="muted">—</span>'}</td>` +
         `<td class="num" style="text-align:right">${Number(r.total_ms).toFixed(0)} ms</td>` +
-        `<td class="num" style="text-align:right">${r.prompt_tokens + r.completion_tokens}</td>` +
+        `<td class="num" style="text-align:right">${(Number(r.prompt_tokens) || 0) + (Number(r.completion_tokens) || 0)}</td>` +
         `<td class="num" style="text-align:right">${fmtTime(r.created_at)}</td></tr>`;
   }
   el.innerHTML = html + '</tbody></table>';
@@ -348,6 +384,8 @@ document.getElementById('reset').addEventListener('click', () => {
 });
 
 initTheme();
+readStateFromUrl();
+applyStateToControls();
 refreshTagFilter();
 loadRuns();
 </script>

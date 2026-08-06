@@ -1,13 +1,24 @@
 """Chat endpoints — single-shot reply and an SSE token stream.
 
-Handlers are thin: they read the :class:`~src.service.assistant.Assistant`
-off ``request.app.state`` and delegate one turn to it.  Sessions are scoped
+Handlers are thin: they read the :class:`~draf.assistant.Assistant` off
+``request.app.state`` and delegate one turn to it.  Sessions are scoped
 to a user id (``X-User-Id`` header) and durable across requests and process
 restarts.
 
 Endpoints:
     POST   /api/chat         single-shot reply (runs the flow once)
     POST   /api/chat/stream  SSE event stream over ``graph.stream()``
+
+Human-in-the-loop: pause handling lives in the framework's
+:class:`~draf.assistant.Assistant`.  Its ``turn``/``stream`` methods detect a
+paused interrupt from the durable checkpoint and resume the run with the next
+message — so this endpoint never sees a ``GraphInterrupt`` or a ``pending``
+map.  It surfaces ``waiting``/``prompt`` to the client and the operator's
+answer resumes the run in the same session.
+
+The stream ends with a ``message`` event carrying the full assistant reply
+(``{"session_id", "reply"}``), so clients never have to concatenate ``token``
+events themselves — tool-using agents may not stream tokens at all.
 """
 
 from __future__ import annotations
@@ -55,15 +66,24 @@ def _observer(request: Request, owner: str, session_id: str) -> GraphObserver | 
     )
 
 
-def _finish(observer: GraphObserver | None) -> None:
+def _finish(observer: GraphObserver | None) -> str | None:
     """Persist the captured run when an observer was active.
 
     The exporter itself is owned by the app (``app.state.traces_exporter``)
     and shared across requests, so only the run is written here — never
-    closed.
+    closed.  Returns the persisted run id (``None`` when tracing is off).
     """
-    if observer is not None:
-        observer.export()
+    if observer is None:
+        return None
+    return observer.export()
+
+
+def _tracer_kwargs(observer: GraphObserver | None) -> dict:
+    """The tracer/on_llm_payload kwargs for one turn."""
+    return {
+        "tracer": observer.tracer if observer else None,
+        "on_llm_payload": observer.on_llm_payload if observer else None,
+    }
 
 
 @router.post("")
@@ -75,19 +95,24 @@ async def chat(
     assistant, owner, session_id = _session(req, request, x_user_id)
     observer = _observer(request, owner, session_id)
     try:
-        result = await assistant.run_turn(
+        result = await assistant.turn(
             session_id,
             req.message,
             owner=owner,
             max_iterations=req.max_iterations,
-            tracer=observer.tracer if observer else None,
-            on_llm_payload=observer.on_llm_payload if observer else None,
+            **_tracer_kwargs(observer),
         )
     except Exception as exc:
         raise HTTPException(status_code=500, detail=str(exc))
     finally:
-        _finish(observer)
-    return {"session_id": session_id, "result": result}
+        run_id = _finish(observer)
+    return {
+        "session_id": session_id,
+        "message": result.reply,
+        "run_id": run_id,
+        "waiting": result.waiting,
+        "prompt": result.prompt if result.waiting else None,
+    }
 
 
 @router.post("/stream")
@@ -102,14 +127,24 @@ async def chat_stream(
         yield {"event": "chat_id", "data": json.dumps({"session_id": session_id})}
         observer = _observer(request, owner, session_id)
         try:
-            async for event in assistant.stream_turn(
+            async for event in assistant.stream(
                 session_id,
                 req.message,
                 owner=owner,
                 max_iterations=req.max_iterations,
-                tracer=observer.tracer if observer else None,
-                on_llm_payload=observer.on_llm_payload if observer else None,
+                **_tracer_kwargs(observer),
             ):
+                if event.type == "interrupt":
+                    yield {
+                        "event": "waiting",
+                        "data": json.dumps(
+                            {
+                                "session_id": session_id,
+                                "prompt": event.data.get("prompt", ""),
+                            }
+                        ),
+                    }
+                    return
                 data = {"session_id": session_id}
                 if event.node_id is not None:
                     data["node_id"] = event.node_id
@@ -118,6 +153,18 @@ async def chat_stream(
                 data.update(event.data)
                 yield {"event": event.type, "data": json.dumps(data)}
         finally:
-            _finish(observer)
+            run_id = _finish(observer)
+        reply = await assistant.last_reply(session_id, owner=owner)
+        yield {
+            "event": "message",
+            "data": json.dumps(
+                {
+                    "session_id": session_id,
+                    "reply": reply,
+                    "run_id": run_id,
+                    "waiting": False,
+                }
+            ),
+        }
 
     return EventSourceResponse(events())

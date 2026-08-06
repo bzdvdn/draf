@@ -490,7 +490,14 @@ def test_sqlite_filters_and_pagination(tmp_path):
     exp = SQLiteExporter(str(db))
     try:
         runs = [
-            Run(name="alpha", status="ok", total_ms=1.0, owner="ana", tags=["perf"]),
+            Run(
+                name="alpha",
+                status="ok",
+                total_ms=1.0,
+                owner="ana",
+                tags=["perf"],
+                created_at=4.0,
+            ),
             Run(
                 name="alpha",
                 status="err",
@@ -498,17 +505,32 @@ def test_sqlite_filters_and_pagination(tmp_path):
                 owner="bob",
                 tags=["perf", "debug"],
                 notes="flaky",
+                created_at=3.0,
             ),
-            Run(name="beta", status="ok", total_ms=3.0, owner="ana", tags=["prod"]),
-            Run(name="gamma", status="ok", total_ms=4.0, owner="carol", tags=[]),
+            Run(
+                name="beta",
+                status="ok",
+                total_ms=3.0,
+                owner="ana",
+                tags=["prod"],
+                created_at=2.0,
+            ),
+            Run(
+                name="gamma",
+                status="ok",
+                total_ms=4.0,
+                owner="carol",
+                tags=[],
+                created_at=1.0,
+            ),
         ]
         for run in runs:
             exp.export(run)
 
         page = exp.list_runs()
         assert page["total"] == 4
-        assert [r["run_id"] for r in page["items"]] == [4, 3, 2, 1]
-
+        # Newest first (sorted by created_at DESC).
+        assert [r["name"] for r in page["items"]] == ["alpha", "alpha", "beta", "gamma"]
         page = exp.list_runs(status="ok")
         assert page["total"] == 3
 
@@ -555,7 +577,9 @@ def test_sqlite_update_run(tmp_path):
         assert run["notes"] == "hello world"
 
         # unknown run / no fields to update
-        assert exp.update_run(999, tags=["x"]) is False
+        assert (
+            exp.update_run("00000000-0000-0000-0000-000000000000", tags=["x"]) is False
+        )
         assert exp.update_run(run_id) is False
     finally:
         exp.close()

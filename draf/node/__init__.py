@@ -1,6 +1,7 @@
 from typing import TYPE_CHECKING
 
 from draf.node.agent import ReActAgent, ToolExec
+from draf.node.ask import Ask, Validate
 
 if TYPE_CHECKING:
     from draf.provider import ProviderRegistry
@@ -10,6 +11,7 @@ from draf.node.context import (
     ExecContext,
     last_user_message,
 )
+from draf.node.gate import Gate
 from draf.node.interrupt import GraphInterrupt, Interrupt
 from draf.node.llm import LLM, StructuredOutputError
 from draf.node.map import Map
@@ -26,6 +28,8 @@ if TYPE_CHECKING:
     from draf.graph import Graph
 
 default_registry.register("transform", lambda cfg: Transform(cfg))
+default_registry.register("gate", lambda cfg: Gate(cfg))
+default_registry.register("validate", lambda cfg: Validate(cfg))
 default_registry.register("context_builder", lambda cfg: ContextBuilder(cfg))
 default_registry.register("append_assistant", lambda cfg: AppendAssistant(cfg))
 default_registry.register("llm_chat", lambda cfg: LLM(cfg))
@@ -177,4 +181,6 @@ __all__ = [
     "Supervisor",
     "Interrupt",
     "GraphInterrupt",
+    "Ask",
+    "Validate",
 ]

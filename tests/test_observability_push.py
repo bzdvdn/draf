@@ -320,7 +320,8 @@ def test_ingest_router_persists_run(tmp_path):
     assert resp.status_code == 200
     assert resp.json() == {"status": "ok"}
     assert exp.list_runs()["total"] == 1
-    assert exp.get_run(1)["name"] == "test-flow"
+    run_id = exp.list_runs()["items"][0]["run_id"]
+    assert exp.get_run(run_id)["name"] == "test-flow"
 
 
 def test_obs_server_app(tmp_path):
@@ -374,7 +375,8 @@ def test_cli_run_persists_trace(tmp_path):
     exp = SQLiteExporter(str(tmp_path / "data" / "traces.db"))
     try:
         assert exp.list_runs()["total"] == 1
-        run = exp.get_run(1)
+        run_id = exp.list_runs()["items"][0]["run_id"]
+        run = exp.get_run(run_id)
         assert run["name"] == "traced-workflow"
         assert run["nodes"][0]["node_id"] == "trim"
     finally:

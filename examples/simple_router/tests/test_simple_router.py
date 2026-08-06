@@ -162,11 +162,20 @@ async def test_bounded_loop_terminates_when_never_finish(monkeypatch):
 @pytest.mark.asyncio
 async def test_assistant_turn_is_durable(transport, tmp_path):
     """run_turn persists the conversation across a second turn."""
-    from src.service.assistant import Assistant
-    from src.storage import build_checkpointer
+    from src.graphs.state import STATE_REDUCERS, initial_state
+    from src.storage import TRANSIENT_KEYS, build_checkpointer
+
+    from draf import Assistant
 
     flow = build_flow()
-    assistant = Assistant(flow.compile(), build_checkpointer(tmp_path))
+    assistant = Assistant(
+        flow.compile(),
+        [],
+        build_checkpointer(tmp_path),
+        reducers=STATE_REDUCERS,
+        initial_state=initial_state,
+        transient_keys=TRANSIENT_KEYS,
+    )
 
     first = await assistant.run_turn("sess-1", "list files with python")
     assert first["code"] == "import os\nprint(os.listdir())"

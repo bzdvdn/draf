@@ -1,5 +1,7 @@
 """Fluid flow builder for constructing graphs."""
 
+from typing import TYPE_CHECKING
+
 from draf.flow.case import Case
 from draf.flow.sub_flow import SubFlow
 from draf.graph import Edge, Graph
@@ -12,6 +14,9 @@ from draf.node.parallel import Parallel
 from draf.node.supervisor import Supervisor
 from draf.node.transform import Transform
 from draf.provider import ProviderRegistry
+
+if TYPE_CHECKING:
+    from draf.node.ask import Ask
 
 
 class Flow:
@@ -404,7 +409,14 @@ class Flow:
         self._branch_ends = []
         return self
 
-    def interrupt(self, key: str, prompt: str = "", id: str | None = None) -> "Flow":
+    def interrupt(
+        self,
+        key: str,
+        prompt: str = "",
+        *,
+        accept: "Ask | None" = None,
+        id: str | None = None,
+    ) -> "Flow":
         """Pause the flow for human input at this point.
 
         Appends an :class:`~draf.node.interrupt.Interrupt` node.  When
@@ -423,16 +435,50 @@ class Flow:
                     checkpoint_id="run-1", resume={key: answer},
                 )
 
+        With *accept* (an :class:`~draf.node.ask.Ask` strategy) the raw
+        answer is not enough: an optional classifier
+        (:class:`~draf.node.LLM`) normalizes free-form answers into a
+        structured verdict, and a :class:`~draf.node.ask.Validate` node
+        decodes it into ``<accept.decision_key>`` (and captures an
+        arbitrary value into ``accept.value_key``), so "конечно", "ок",
+        "хорошо" all count as *accept.pass_value*.  See
+        :meth:`interrupt_loop` for re-asking.
+
         Args:
             key: State key that receives the resume value.
             prompt: Human-readable question shown to the operator.
+            accept: Optional :class:`~draf.node.ask.Ask` validation
+                strategy.  When given, the interrupt is followed by an
+                optional classifier and a ``Validate`` node.
 
         Returns:
             ``self`` for chaining.
         """
         from draf.node.interrupt import Interrupt
 
-        return self.step(Interrupt(key=key, prompt=prompt), id=id)
+        if accept is None:
+            return self.step(Interrupt(key=key, prompt=prompt), id=id)
+
+        self.step(Interrupt(key=key, prompt=prompt), id=id)
+        return self._wire_ask(key, accept, id)
+
+    def _wire_ask(self, key: str, accept: "Ask", id: str | None) -> "Flow":
+        """Append the classifier + validate nodes for an *accept* strategy.
+
+        ``_last_added`` ends on the ``Validate`` node so a following
+        :meth:`loop` can decide on ``accept.decision_key``.
+        """
+        prefix = f"{id}-" if id else ""
+        input_key = key
+        if accept.needs_classifier():
+            if not accept.model_name or not accept.provider:
+                raise ValueError(
+                    "interrupt with a 'model' Ask strategy requires model and provider"
+                )
+            self.step(accept.classifier(), id=f"{prefix}classifier")
+            input_key = accept.verdict_key
+        self.step(accept.validate_node(input_key=input_key), id=f"{prefix}validate")
+        return self
 
     def loop(
         self,
@@ -513,6 +559,82 @@ class Flow:
 
         self._last_added = done_last
         return self
+
+    def interrupt_loop(
+        self,
+        key: str,
+        *,
+        accept: "Ask",
+        body: Node | list[Node],
+        done: Node | list[Node],
+        prompt: str = "",
+        id: str | None = None,
+    ) -> "Flow":
+        """Ask the human through an interrupt and re-ask until the answer passes.
+
+        Composes an interrupt plus an :class:`~draf.node.ask.Ask` validation
+        strategy into one re-askable unit:
+
+        * An :class:`~draf.node.Interrupt` pauses the run and surfaces
+          *prompt*; the operator's resume value lands in *key*.
+        * If the strategy is ``model``, an :class:`~draf.node.LLM` normalizes
+          the free-form answer into a structured verdict object and a
+          :class:`~draf.node.ask.Validate` node decodes it into
+          ``accept.decision_key`` (capturing an arbitrary value into
+          ``accept.value_key`` when set) — so "конечно", "хорошо", "ок"
+          all count as *accept.pass_value*.
+        * Otherwise the raw answer in *key* is matched by the strategy
+          (``equals`` / ``any_of`` / ``regex`` / ``check``).
+
+        Wires::
+
+            decision --<decision_key>=<pass_value>--> done (continue)
+            decision --<decision_key>!=<pass_value>--> body -> interrupt -> decision  (re-ask)
+
+        *body* typically re-runs whatever produced *key* (e.g. a planner)
+        plus the ask nodes, so a "no" answer regenerates and re-asks; *done*
+        runs once the answer passes.
+
+        Args:
+            key: State key receiving the interrupt resume value.
+            accept: :class:`~draf.node.ask.Ask` validation strategy.  Its
+                *decision_key* / *pass_value* drive the surrounding loop.
+            prompt: Question shown to the operator.
+            body: Chain re-run while the loop continues (fail branch).
+            done: Chain run when the loop terminates.
+            id: Prefix for the interrupt/classifier/validate node ids.
+
+        Returns:
+            ``self`` for chaining.
+        """
+        from draf.node.interrupt import Interrupt
+
+        prefix = f"{id}-" if id else ""
+
+        self.step(Interrupt(key=key, prompt=prompt), id=f"{prefix}interrupt")
+
+        ask_nodes: list[Node] = [self._nodes[-1]]
+        input_key = key
+        if accept.needs_classifier():
+            if not accept.model_name or not accept.provider:
+                raise ValueError(
+                    "interrupt_loop with a 'model' Ask strategy requires model and provider"
+                )
+            classifier = accept.classifier()
+            self.step(classifier, id=f"{prefix}classifier")
+            ask_nodes.append(classifier)
+            input_key = accept.verdict_key
+        validate = accept.validate_node(input_key=input_key)
+        self.step(validate, id=f"{prefix}validate")
+        ask_nodes.append(validate)
+
+        body_chain = self._as_chain(body)
+        return self.loop(
+            key=accept.decision_key,
+            until=accept.pass_value,
+            done=done,
+            body=[*body_chain, *ask_nodes],
+        )
 
     def route(
         self,

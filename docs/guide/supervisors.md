@@ -102,13 +102,37 @@ Guards provided, on top of the plain "reply a single word":
 | `route_keys` | `{}` | Map agent → output slot; an agent whose slot already has content is never re-run (no overwrite of finished work). |
 | `done_keys` / `done_mode` | — / `"all"` | When these output slots are filled, return `finish` without another model call. `done_mode="any"` requires just one. |
 | `fallback_agent` | `""` | Route to this agent when the model says `finish` (or fails to parse) before anything has been produced, so the user still gets an answer. |
+| `finish` | `"finish"` | The terminator token the model answers with and that lands in `output_key` for the `finish` branch — set it to whatever your system prompt spells out (e.g. `"<end>"`). The parser normalizes `<>` and enclosing punctuation, so `<finish>` still matches the default. |
+| `fill_order` | `[]` | A deterministic pipeline `[(agent, slot), ...]`. The model picks the *entry* agent once; then the chain runs in order (each missing slot → its agent) and finishes when every slot is full. A mid-chain agent picked directly runs once and finishes. No subclass needed. |
 | `rounds_key` / `max_rounds` | `"supervisor_rounds"` / `6` | Bound the loop: `finish` is forced once the counter reaches `max_rounds`, so a model that never says `finish` can't hang. |
 
 Other knobs: `output_key` (default `"next_agent"`), `messages_key` (default
 `"messages"`; set `""` to always consult the model), `sections` (rendered into
 the prompt alongside `Round: n/max` and the latest user message), and `agents`
-(override the reply vocabulary; by default it is `route_keys ∪ {"finish"} ∪
-{fallback_agent}`).
+(override the reply vocabulary; by default it is `route_keys ∪ fill_order ∪
+{"finish"} ∪ {fallback_agent}`).
+
+`fill_order` covers the common "run the agents in order, then finish" pipeline
+without subclassing:
+
+```python
+flow.supervisor(
+    model="llama3.1:8b",
+    sections={"plan": "План", "estimate": "Смета"},
+    fill_order=[
+        ("planner", "plan"),
+        ("estimator", "estimate"),
+    ],
+    done_keys={"direct_reply"},  # a direct answer finishes the turn
+    done_mode="any",
+    fallback_agent="direct",
+)
+flow.route("next_agent", finish=..., direct=..., planner=..., estimator=...)
+```
+
+See `examples/applications/repair-ai-chat` for the full five-agent chat that
+chains `planner → estimator → materials → qa` via `fill_order` while routing
+small talk to `direct` via `done_keys`.
 
 Two override hooks cover deterministic policies:
 

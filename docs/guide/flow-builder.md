@@ -165,11 +165,34 @@ key is collected.
 
 ## Human input
 
-### `interrupt(key, prompt="")`
+### `interrupt(key, prompt="", accept=None)`
 
 Pause for a human. `graph.run()` raises `GraphInterrupt`; resume with the same
 `checkpoint_id` and `resume={key: answer}`. Requires a checkpointer. See
 [Durable execution](durable.md).
+
+With `accept` (an [`Ask`](../reference/nodes.md#ask) strategy) the raw answer
+is validated instead of compared verbatim — and an arbitrary value can be
+captured. `flow.interrupt(key, prompt, accept=Ask.regex(...))` validates a
+single answer; `flow.interrupt_loop(key, accept=Ask(...), body=..., done=...)`
+re-asks until it passes:
+
+```python
+from draf.node import Ask
+
+flow.interrupt_loop(
+    key="code",
+    prompt="Введите промокод (формат XX-1234):",
+    accept=Ask.regex(r"^[A-Z]{2}-[0-9]{4}$", decision_key="code_ok", value_key="discount_code"),
+    body=Transform(action="value", value="неверный код", output_key="total"),
+    done=Transform(action="value", value="скидка применена", output_key="total"),
+)
+```
+
+`Ask.model(...)` inserts an LLM classifier so free-form answers ("конечно",
+"ок", "хорошо") all count as approval. See the
+[`ask_strategies` example](../examples.md) and the
+[`validate` reference](../reference/nodes.md#validate).
 
 ## Agents
 
@@ -232,7 +255,8 @@ The result validates with `draf validate` and round-trips through
 | `route(key, **agents)` | supervisor loop | [Supervisors](supervisors.md) |
 | `parallel(*branches)` | concurrent branches | [State](state.md) |
 | `map(processor, ...)` | dynamic fan-out | [State](state.md) |
-| `interrupt(key, prompt)` | human-in-the-loop | [Durable](durable.md) |
+| `interrupt(key, prompt, accept=...)` | human-in-the-loop | [Durable](durable.md) |
+| `interrupt_loop(key, accept, body, done)` | re-ask until the answer passes | [Durable](durable.md) |
 | `react(...)` / `harness(...)` | ReAct agent loop | [Agents](agents.md) |
 | `compile()` | runnable `Graph` | — |
 | `to_yaml(...)` | deployable workflow | [YAML workflows](yaml-workflows.md) |

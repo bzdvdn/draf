@@ -237,10 +237,15 @@ class GraphObserver:
             nodes=list(self._spans.values()),
         )
 
-    def export(self) -> None:
-        """Persist the collected :class:`Run` (no-op without an exporter)."""
-        if self.exporter is not None:
-            self.exporter.export(self.build())
+    def export(self) -> str | None:
+        """Persist the collected :class:`Run` and return its backend run id.
+
+        Returns ``None`` when no exporter is attached (tracing disabled) or
+        the backend does not expose ids.
+        """
+        if self.exporter is None:
+            return None
+        return self.exporter.export(self.build())
 
     def close(self) -> None:
         if self.exporter is not None:

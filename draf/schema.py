@@ -11,7 +11,10 @@ The subset covers the practical shapes an LLM is asked to produce:
 - ``{"type": "array", "items": {...}, "minItems"/"maxItems"}``
 - primitives with ``enum``, ``minimum``/``maximum``,
   ``minLength``/``maxLength``/``pattern``
-- ``oneOf`` for unions / nullable fields
+- ``oneOf`` / ``anyOf`` for unions and nullable fields (both are treated as
+  alternative branches, so schemas produced by Pydantic's
+  ``model_json_schema()`` — which emits ``anyOf`` for ``Optional`` — validate
+  as expected)
 """
 
 from __future__ import annotations
@@ -197,17 +200,28 @@ def _type_name(value: Any) -> str:
     return type(value).__name__
 
 
+def _validate_alternatives(
+    path: str, value: Any, alternatives: list, errors: list[str]
+) -> None:
+    """Validate *value* against a ``oneOf``/``anyOf`` branch list."""
+    for sub in alternatives:
+        sub_errors: list[str] = []
+        _validate(path, value, sub if isinstance(sub, dict) else {}, sub_errors)
+        if not sub_errors:
+            return
+    errors.append(f"{path}: does not match any branch")
+
+
 def _validate(path: str, value: Any, schema: dict, errors: list[str]) -> None:
     if not isinstance(schema, dict) or not schema:
         return
     one_of = schema.get("oneOf")
     if isinstance(one_of, list):
-        for sub in one_of:
-            sub_errors: list[str] = []
-            _validate(path, value, sub if isinstance(sub, dict) else {}, sub_errors)
-            if not sub_errors:
-                return
-        errors.append(f"{path}: does not match any oneOf branch")
+        _validate_alternatives(path, value, one_of, errors)
+        return
+    any_of = schema.get("anyOf")
+    if isinstance(any_of, list):
+        _validate_alternatives(path, value, any_of, errors)
         return
     enum = schema.get("enum")
     if isinstance(enum, list):

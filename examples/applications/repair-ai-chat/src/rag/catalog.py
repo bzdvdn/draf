@@ -185,13 +185,20 @@ class MaterialCatalog:
         max_price: float | None = None,
         top_k: int | None = None,
     ) -> str:
-        """Search the catalog, optionally filtered by category / max price."""
+        """Search the catalog, optionally filtered by category / max price.
+
+        When a category filter matches nothing (e.g. an LLM passed a room
+        type like ``"кухня"`` instead of a catalog category), the search is
+        retried without the filter so a useful answer is still returned.
+        """
         await self._ensure_seeded()
         query_vector = await self.embedder.embed(query)
         filter_dict = {"category": category} if category else None
         results = await self.store.search(
             query_vector, k=top_k or self.top_k, filter=filter_dict
         )
+        if not results and filter_dict:
+            results = await self.store.search(query_vector, k=top_k or self.top_k)
         if max_price is not None:
             filtered = []
             for doc_id, score, meta in results:

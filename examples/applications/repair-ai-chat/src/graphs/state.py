@@ -25,10 +25,22 @@ class RepairState(TypedDict):
     project_info: Annotated[dict, merge_project_info]
 
     next_agent: str
+    plan_approved: str
+    plan_ok: str
+    plan_verdict: dict
+    plan_rounds: int
     plan: str
     estimate: str
     material_findings: str
     qa_feedback: str
+    qa_verdict: dict
+    qa_ok: str
+    qa_rounds: int
+    estim_approved: str
+    est_ok: str
+    est_verdict: dict
+    est_rounds: int
+    final_answer: str
     input: str
     supervisor_rounds: int
 
@@ -42,10 +54,22 @@ def initial_state() -> RepairState:
         "messages": [],
         "project_info": {},
         "next_agent": "",
+        "plan_approved": "",
+        "plan_ok": "",
+        "plan_verdict": {},
+        "plan_rounds": 0,
         "plan": "",
         "estimate": "",
         "material_findings": "",
         "qa_feedback": "",
+        "qa_verdict": {},
+        "qa_ok": "",
+        "qa_rounds": 0,
+        "estim_approved": "",
+        "est_ok": "",
+        "est_verdict": {},
+        "est_rounds": 0,
+        "final_answer": "",
         "input": "",
         "supervisor_rounds": 0,
     }

@@ -80,6 +80,61 @@ class TestCoerceArgs:
         args = coerce_args(t, {"n": 7})
         assert args == {"n": 7}
 
+    def test_coerces_optional_float(self):
+        from draf.tool import Tool
+        from draf.tool.tool import coerce_args
+
+        class MyTool(Tool):
+            name = "optfloat"
+            description = "optfloat"
+
+            async def arun(  # type: ignore[override]
+                self, query: str = "", max_price: float | None = None
+            ) -> str:
+                return f"{query}:{max_price}"
+
+        t = MyTool()
+        args = coerce_args(t, {"query": "дверь", "max_price": "2000"})
+        assert args == {"query": "дверь", "max_price": 2000.0}
+        assert isinstance(args["max_price"], float)
+
+    def test_leaves_optional_none_untouched(self):
+        from draf.tool import Tool
+        from draf.tool.tool import coerce_args
+
+        class MyTool(Tool):
+            name = "optnone"
+            description = "optnone"
+
+            async def arun(  # type: ignore[override]
+                self, max_price: float | None = None
+            ) -> str:
+                return str(max_price)
+
+        t = MyTool()
+        args = coerce_args(t, {"max_price": None})
+        assert args == {"max_price": None}
+
+    def test_unwraps_typing_optional(self):
+        import typing
+
+        from draf.tool import Tool
+        from draf.tool.tool import coerce_args
+
+        class MyTool(Tool):
+            name = "typingopt"
+            description = "typingopt"
+
+            async def arun(  # type: ignore[override]
+                self,
+                count: typing.Optional[int] = None,  # noqa: UP045
+            ) -> str:
+                return str(count)
+
+        t = MyTool()
+        args = coerce_args(t, {"count": "7"})
+        assert args == {"count": 7}
+
 
 class TestToolDecorator:
     def test_registers_and_creates(self):

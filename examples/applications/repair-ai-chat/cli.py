@@ -27,9 +27,10 @@ if str(ROOT) not in sys.path:
 
 from src.config.config import get_settings  # noqa: E402
 from src.graphs.build import build_flow  # noqa: E402
-from src.service.assistant import Assistant  # noqa: E402
-from src.storage import build_checkpointer  # noqa: E402
+from src.graphs.state import STATE_REDUCERS, initial_state  # noqa: E402
+from src.storage import TRANSIENT_KEYS, build_checkpointer  # noqa: E402
 
+from draf import Assistant  # noqa: E402
 from draf.checkpoint import DEFAULT_OWNER  # noqa: E402
 
 #: State keys that add noise to the debug ledger — always hidden.
@@ -56,34 +57,50 @@ def _state_delta(prev: dict, cur: dict) -> list[str]:
 
 
 async def _stream_turn(assistant: Assistant, session: str, message: str) -> None:
-    """Run one turn, streaming the assistant's tokens plus debug ledger."""
+    """Run one turn, streaming the assistant's tokens plus debug ledger.
+
+    Pause handling is delegated to :meth:`Assistant.stream`: on the plan- or
+    estimate-approval interrupt it emits an ``interrupt`` event and ends;
+    the operator's answer is fed back as the next message so the pipeline
+    continues in the same session — no manual resume plumbing here.
+    """
     prev: dict = {}
     streamed = False
-    async for event in assistant.stream_turn(session, message):
-        etype = event.type
-        if etype == "node_start":
-            print(f"\n—— {event.node_id} [{event.node_type}]")
-        elif etype == "edge":
-            print(f"    → {event.data.get('target_id')}")
-        elif etype == "tool_call":
-            args = event.data.get("args", "{}")
-            try:
-                args = json.loads(args) if args else {}
-            except (json.JSONDecodeError, TypeError):
-                pass
-            print(f"    [tool] {event.data.get('name')}({_short(args, 160)})")
-        elif etype == "token":
-            streamed = True
-            print(event.data["token"], end="", flush=True)
-        elif etype == "node_error":
-            print(f"\n    !! {event.data['error']}")
-        elif etype == "node_end":
-            saved = await assistant.checkpointer.load(session, owner=DEFAULT_OWNER)
-            cur = saved.state if saved is not None else {}
-            delta = _state_delta(prev, cur)
-            if delta:
-                print("    · state: " + "; ".join(delta))
-            prev = cur
+    while True:
+        async for event in assistant.stream(session, message):
+            etype = event.type
+            if etype == "node_start":
+                print(f"\n—— {event.node_id} [{event.node_type}]")
+            elif etype == "edge":
+                print(f"    → {event.data.get('target_id')}")
+            elif etype == "tool_call":
+                args = event.data.get("args", "{}")
+                try:
+                    args = json.loads(args) if args else {}
+                except (json.JSONDecodeError, TypeError):
+                    pass
+                print(f"    [tool] {event.data.get('name')}({_short(args, 160)})")
+            elif etype == "token":
+                streamed = True
+                print(event.data["token"], end="", flush=True)
+            elif etype == "node_error":
+                print(f"\n    !! {event.data['error']}")
+            elif etype == "node_end":
+                saved = await assistant.checkpointer.load(session, owner=DEFAULT_OWNER)
+                cur = saved.state if saved is not None else {}
+                delta = _state_delta(prev, cur)
+                if delta:
+                    print("    · state: " + "; ".join(delta))
+                prev = cur
+            elif etype == "interrupt":
+                print()
+                prompt = event.data.get("prompt", "")
+                if prompt:
+                    print(f"\n{prompt}")
+                message = input("\n> ").strip()
+                break
+        else:
+            break
     print()
     if not streamed:
         # Nothing streamed (e.g. the turn ended on extract-only) — show the
@@ -164,7 +181,12 @@ async def main() -> None:
 
     flow, tools = build_flow(model=args.model, provider=settings.provider)
     assistant = Assistant(
-        flow.compile(), tools, build_checkpointer(settings.checkpoint_dir)
+        flow.compile(),
+        tools,
+        build_checkpointer(settings.checkpoint_dir),
+        reducers=STATE_REDUCERS,
+        initial_state=initial_state,
+        transient_keys=TRANSIENT_KEYS,
     )
 
     print(

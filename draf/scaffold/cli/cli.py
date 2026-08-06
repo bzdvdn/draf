@@ -2,7 +2,7 @@
 
 The production interface here is the terminal (no server): the same
 supervisor ``Flow`` from :mod:`src.graphs.build` runs through the same
-:class:`~src.service.assistant.Assistant`, so sessions are durable and
+:class:`~draf.assistant.Assistant`, so sessions are durable and
 tokens stream live.
 
 Usage::
@@ -26,7 +26,8 @@ if str(ROOT) not in sys.path:
 
 from src.config.config import get_settings  # noqa: E402
 from src.core import build_container  # noqa: E402
-from src.service.assistant import Assistant  # noqa: E402
+
+from draf import Assistant  # noqa: E402
 
 app = typer.Typer(
     name="{{project_slug}}",

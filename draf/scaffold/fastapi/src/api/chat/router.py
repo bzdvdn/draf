@@ -1,13 +1,17 @@
 """Chat endpoints — single-shot reply and an SSE token stream.
 
-Handlers are thin: they read the :class:`~src.service.assistant.Assistant`
-off ``request.app.state`` and delegate one turn to it.  Sessions are scoped
+Handlers are thin: they read the :class:`~draf.assistant.Assistant` off
+``request.app.state`` and delegate one turn to it.  Sessions are scoped
 to a user id (``X-User-Id`` header) and durable across requests and process
 restarts.
 
 Endpoints:
     POST   /api/chat         single-shot reply (runs the flow once)
     POST   /api/chat/stream  SSE event stream over ``graph.stream()``
+
+The stream ends with a ``message`` event carrying the full assistant reply
+(``{"session_id", "reply"}``), so clients never have to concatenate ``token``
+events themselves — tool-using agents may not stream tokens at all.
 """
 
 from __future__ import annotations
@@ -55,15 +59,16 @@ def _observer(request: Request, owner: str, session_id: str) -> GraphObserver | 
     )
 
 
-def _finish(observer: GraphObserver | None) -> None:
+def _finish(observer: GraphObserver | None) -> str | None:
     """Persist the captured run when an observer was active.
 
     The exporter itself is owned by the app (``app.state.traces_exporter``)
     and shared across requests, so only the run is written here — never
-    closed.
+    closed.  Returns the persisted run id (``None`` when tracing is off).
     """
-    if observer is not None:
-        observer.export()
+    if observer is None:
+        return None
+    return observer.export()
 
 
 @router.post("")
@@ -75,7 +80,7 @@ async def chat(
     assistant, owner, session_id = _session(req, request, x_user_id)
     observer = _observer(request, owner, session_id)
     try:
-        result = await assistant.run_turn(
+        await assistant.run_turn(
             session_id,
             req.message,
             owner=owner,
@@ -86,8 +91,12 @@ async def chat(
     except Exception as exc:
         raise HTTPException(status_code=500, detail=str(exc))
     finally:
-        _finish(observer)
-    return {"session_id": session_id, "result": result}
+        run_id = _finish(observer)
+    return {
+        "session_id": session_id,
+        "message": await assistant.last_reply(session_id, owner=owner),
+        "run_id": run_id,
+    }
 
 
 @router.post("/stream")
@@ -118,6 +127,13 @@ async def chat_stream(
                 data.update(event.data)
                 yield {"event": event.type, "data": json.dumps(data)}
         finally:
-            _finish(observer)
+            run_id = _finish(observer)
+        reply = await assistant.last_reply(session_id, owner=owner)
+        yield {
+            "event": "message",
+            "data": json.dumps(
+                {"session_id": session_id, "message": reply, "run_id": run_id}
+            ),
+        }
 
     return EventSourceResponse(events())

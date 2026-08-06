@@ -2,13 +2,27 @@
 
 import asyncio
 import typing
+from types import UnionType
+
+
+def _unwrap_optional(tp: typing.Any) -> typing.Any:
+    """Unwrap ``Optional[T]`` / ``T | None`` to ``T`` (``None`` if all-None)."""
+    origin = typing.get_origin(tp)
+    if origin is typing.Union or origin is UnionType:
+        args = [a for a in typing.get_args(tp) if a is not type(None)]
+        if len(args) == 1:
+            return args[0]
+        if args:
+            return typing.Union[tuple(args)]
+    return tp
 
 
 def coerce_args(tool: "Tool", kwargs: dict) -> dict:
     """Coerce tool-call arguments to match the tool's type hints.
 
     LLMs often pass values as strings (e.g. ``k="1"`` instead of ``1``);
-    coerce them so tools receive properly typed arguments.
+    coerce them so tools receive properly typed arguments.  Optional hints
+    (``float | None``, ``Optional[int]``) are unwrapped before matching.
     """
     method = tool.arun if type(tool).run is Tool.run else tool.run
     try:
@@ -16,7 +30,9 @@ def coerce_args(tool: "Tool", kwargs: dict) -> dict:
     except Exception:
         hints = {}
     for key, value in kwargs.items():
-        tp = hints.get(key)
+        if value is None:
+            continue
+        tp = _unwrap_optional(hints.get(key))
         if tp is int and not isinstance(value, int):
             kwargs[key] = int(value)
         elif tp is float and not isinstance(value, float):

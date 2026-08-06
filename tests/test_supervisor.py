@@ -109,6 +109,120 @@ class TestNeedsModel:
         assert s._needs_model({"plan": "", "review": ""}) is True
 
 
+class TestFillOrder:
+    def _chain_supervisor(self, **kw):
+        from draf.node import Supervisor
+
+        base = dict(
+            model="test-model",
+            provider="fake",
+            sections={"plan": "План", "estimate": "Смета"},
+            fill_order=[("planner", "plan"), ("estimator", "estimate")],
+            done_keys={"direct_reply"},
+            done_mode="any",
+            fallback_agent="direct",
+            messages_key="messages",
+        )
+        base.update(kw)
+        return Supervisor(**base)
+
+    def test_agents_include_chain_and_finish_and_fallback(self):
+        s = self._chain_supervisor()
+        assert s._agents() == {"planner", "estimator", "finish", "direct"}
+
+    def test_entry_decision_uses_model_proposal(self):
+        s = self._chain_supervisor()
+        state = {"plan": "", "estimate": "", "direct_reply": "", "messages": []}
+        assert s._needs_model(state) is True
+        assert s.decide(state, "planner") == "planner"
+        assert s.decide(state, "direct") == "direct"
+
+    def test_chain_runs_in_order_after_entry(self):
+        s = self._chain_supervisor()
+        state = {"plan": "x", "estimate": "", "direct_reply": "", "messages": []}
+        assert s._needs_model(state) is False
+        assert s.decide(state, "") == "estimator"
+
+    def test_chain_finishes_when_all_slots_full(self):
+        s = self._chain_supervisor()
+        state = {"plan": "x", "estimate": "y", "direct_reply": "", "messages": []}
+        assert s._needs_model(state) is False
+        assert s.decide(state, "") == "finish"
+
+    def test_direct_pick_of_mid_chain_agent_runs_once(self):
+        s = self._chain_supervisor()
+        state = {"plan": "", "estimate": "y", "direct_reply": "", "messages": []}
+        assert s._needs_model(state) is False
+        assert s.decide(state, "") == "finish"
+
+    def test_done_key_finishes_direct_answer(self):
+        s = self._chain_supervisor()
+        state = {"plan": "", "estimate": "", "direct_reply": "привет!", "messages": []}
+        assert s._needs_model(state) is False
+        assert s.decide(state, "") == "finish"
+
+    def test_premature_finish_falls_back(self):
+        s = self._chain_supervisor()
+        state = {"plan": "", "estimate": "", "direct_reply": "", "messages": []}
+        assert s.decide(state, "finish") == "direct"
+
+    def test_execute_skips_model_mid_chain(self):
+        s = self._chain_supervisor()
+        state = {
+            "plan": "x",
+            "estimate": "",
+            "direct_reply": "",
+            "supervisor_rounds": 1,
+        }
+        result = _run(s.execute(None, dict(state)))
+        assert result["next_agent"] == "estimator"
+        assert result["supervisor_rounds"] == 2
+
+
+class TestFinish:
+    def test_default_finish(self):
+        s = _supervisor()
+        assert s._finish() == "finish"
+        assert "finish" in s._agents()
+
+    def test_custom_finish_token(self):
+        s = _supervisor(finish="<end>")
+        assert s._finish() == "<end>"
+        assert "<end>" in s._agents()
+        assert "finish" not in s._agents()
+
+    def test_parse_normalizes_angle_brackets(self):
+        s = _supervisor()
+        assert s._parse_agent("<finish>") == "finish"
+        assert s._parse_agent("planner") == "planner"
+
+    def test_custom_finish_parses_with_and_without_brackets(self):
+        s = _supervisor(finish="<end>")
+        assert s._parse_agent("<end>") == "<end>"
+        assert s._parse_agent("end") == "<end>"
+        assert s._parse_agent("finish") == ""
+
+    def test_decide_uses_custom_finish(self):
+        s = _supervisor(finish="<end>")
+        state = {"plan": "", "review": "", "messages": []}
+        assert s.decide(state, "<end>") == "<end>"
+
+    def test_execute_bounded_loop_uses_custom_finish(self):
+        s = _supervisor(finish="<end>")
+        state = {"messages": [], "supervisor_rounds": 5}
+        result = _run(s.execute(None, dict(state)))
+        assert result["next_agent"] == "<end>"
+
+    def test_chain_finishes_with_custom_token(self):
+        s = _supervisor(
+            fill_order=[("planner", "plan"), ("estimator", "estimate")],
+            done_keys=set(),
+            finish="<end>",
+        )
+        state = {"plan": "x", "estimate": "y", "messages": []}
+        assert s.decide(state, "") == "<end>"
+
+
 class TestExecute:
     def test_bounded_loop_forces_finish(self):
         s = _supervisor()

@@ -16,10 +16,22 @@ supervisor ─ next_agent=direct ──► ContextBuilder → ReAct(direct) ─�
 supervisor ─ next_agent=finish ──► Extractor (structured project_info)
 ```
 
-The `Supervisor` LLM node writes `next_agent`; `route()` sends each value to
-the matching agent chain and loops back to the supervisor. On `finish` the
-route exits through the `Extractor`, which pulls structured project info
-from the whole conversation.
+The core `Supervisor` node writes `next_agent`; `route()` sends each value
+to the matching agent chain and loops back to the supervisor.  Routing is
+deterministic after the first decision — no subclass needed:
+
+* **first round** the model picks the entry agent (`direct` / `planner` /
+  `estimator` / `materials` / `qa`) from the user message;
+* a `direct` answer fills `direct_reply` and, via `done_keys`, finishes the
+  turn;
+* any other pick enters the **`fill_order` pipeline**: `planner` → `estimator`
+  → `materials` → `qa` run in order, one per supervisor round, and the turn
+  finishes only after the QA review ran;
+* a mid-chain agent picked directly (a targeted question) runs once and
+  finishes without dragging the whole pipeline in.
+
+On `finish` the route exits through the `Extractor`, which pulls structured
+project info from the whole conversation.
 
 ## Highlights
 

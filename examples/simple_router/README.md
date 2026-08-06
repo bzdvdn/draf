@@ -28,7 +28,7 @@ The supervisor loop is **bounded**: every call increments
 supervisor forces `finish` without another LLM call.  A model that never
 picks `finish` therefore cannot loop forever — the graph always
 terminates.  The counter resets on each new user message (it lives in
-`_TRANSIENT_KEYS` in `src/storage/__init__.py`).
+`TRANSIENT_KEYS` in `src/storage/transient.py`).
 
 It also stops early instead of burning that budget.  The `build.py` wiring
 passes `done_keys={"code", "talk"}` with `done_mode="any"`, so once the

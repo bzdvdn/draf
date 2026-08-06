@@ -2,7 +2,7 @@
 
 A long-running worker with no HTTP surface: it polls ``data/queue/`` for
 pending jobs, runs each as one durable conversation turn via the same
-:class:`~src.service.assistant.Assistant` as the other templates, writes the
+:class:`~draf.assistant.Assistant` as the other templates, writes the
 result to ``data/results/`` and removes the job file.
 
 Usage::
@@ -25,7 +25,8 @@ if str(ROOT) not in sys.path:
 from src.config.config import get_settings  # noqa: E402
 from src.core import build_container  # noqa: E402
 from src.queue import complete, load_job, pending  # noqa: E402
-from src.service.assistant import Assistant  # noqa: E402
+
+from draf import Assistant  # noqa: E402
 
 
 def _build_assistant():

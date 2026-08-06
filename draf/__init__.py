@@ -5,6 +5,7 @@ graph-based pipelines with built-in tools and RAG support.
 """
 
 from draf._version import __version__
+from draf.assistant import Assistant, TurnResult
 from draf.errors import (
     ConfigError,
     DrafError,
@@ -25,10 +26,14 @@ from draf.logging import (
     run_id,
 )
 from draf.memory import (
+    MemoryConfig,
     MemoryExtractor,
     MemoryItem,
     MemoryStore,
     MemoryTool,
+    last_user_text,
+    memory_context,
+    memory_context_from_config,
 )
 from draf.node import (
     LLM,
@@ -94,6 +99,8 @@ from draf.yaml_schema import validate_workflow, validate_workflow_file
 
 __all__ = [
     "__version__",
+    "Assistant",
+    "TurnResult",
     "configure_logging",
     "get_logger",
     "run_id",

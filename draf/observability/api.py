@@ -20,12 +20,13 @@ Endpoints:
 - ``PATCH /obs/runs/{run_id}`` — update ``tags`` / ``notes`` on a run
   (body: ``{"tags": [...], "notes": "..."}``).
 
-Run ids are the SQLite autoincrement values returned by
-:meth:`SQLiteExporter.list_runs`.
+Run ids are the stable ``Run.run_id`` uuid4 values assigned when a run is
+collected and shared across all exporters.
 """
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from typing import Any
 
@@ -44,10 +45,10 @@ def _ui_html(base: str) -> str:
     return _UI_PATH.read_text(encoding="utf-8").replace("__BASE_PATH__", base)
 
 
-def _ui_run_html(run_id: int, base: str) -> str:
+def _ui_run_html(run_id: str, base: str) -> str:
     return (
         _UI_RUN_PATH.read_text(encoding="utf-8")
-        .replace("__RUN_ID__", str(run_id))
+        .replace("__RUN_ID__", json.dumps(run_id))
         .replace("__BASE_PATH__", base)
     )
 
@@ -96,7 +97,7 @@ def dashboard_router(exporter: SQLiteExporter, *, prefix: str = "/obs") -> APIRo
         )
 
     @router.get("/runs/{run_id}")
-    async def run_detail(run_id: int, request: Request) -> Any:
+    async def run_detail(run_id: str, request: Request) -> Any:
         run = exporter.get_run(run_id)
         if run is None:
             raise HTTPException(status_code=404, detail="run not found")
@@ -106,7 +107,7 @@ def dashboard_router(exporter: SQLiteExporter, *, prefix: str = "/obs") -> APIRo
         return run
 
     @router.patch("/runs/{run_id}")
-    async def run_patch(run_id: int, patch: RunPatch) -> JSONResponse:
+    async def run_patch(run_id: str, patch: RunPatch) -> JSONResponse:
         ok = exporter.update_run(run_id, tags=patch.tags, notes=patch.notes)
         if not ok:
             raise HTTPException(status_code=404, detail="run not found")

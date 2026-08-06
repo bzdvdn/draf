@@ -24,8 +24,11 @@ class TraceExporter(ABC):
     """Persist a completed :class:`Run` to some backend."""
 
     @abstractmethod
-    def export(self, run: Run) -> None:
-        """Persist *run* (idempotent when the store uses run ids)."""
+    def export(self, run: Run) -> str | None:
+        """Persist *run* and return its backend run id (``None`` if unknown).
+
+        Idempotent when the store uses run ids.
+        """
 
     @abstractmethod
     def close(self) -> None:
@@ -60,10 +63,14 @@ class SQLiteExporter(TraceExporter):
         path.parent.mkdir(parents=True, exist_ok=True)
         self.path = str(path)
         self._conn = sqlite3.connect(self.path, check_same_thread=False)
+        self._create_schema()
+        self._migrate()
+
+    def _create_schema(self) -> None:
         self._conn.executescript(
             """
             CREATE TABLE IF NOT EXISTS runs (
-                run_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                run_id TEXT PRIMARY KEY,
                 name TEXT NOT NULL,
                 status TEXT NOT NULL,
                 total_ms REAL NOT NULL,
@@ -77,7 +84,7 @@ class SQLiteExporter(TraceExporter):
                 created_at REAL NOT NULL
             );
             CREATE TABLE IF NOT EXISTS nodes (
-                run_id INTEGER NOT NULL REFERENCES runs(run_id),
+                run_id TEXT NOT NULL REFERENCES runs(run_id),
                 node_id TEXT NOT NULL,
                 node_type TEXT NOT NULL,
                 start_ms REAL NOT NULL,
@@ -90,7 +97,7 @@ class SQLiteExporter(TraceExporter):
             );
             CREATE TABLE IF NOT EXISTS llm_calls (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
-                run_id INTEGER NOT NULL REFERENCES runs(run_id),
+                run_id TEXT NOT NULL REFERENCES runs(run_id),
                 node_id TEXT,
                 provider TEXT NOT NULL,
                 model TEXT NOT NULL,
@@ -104,13 +111,28 @@ class SQLiteExporter(TraceExporter):
             """
         )
         self._conn.commit()
-        self._migrate()
 
     def _migrate(self) -> None:
-        """Add columns to databases created by older versions."""
+        """Upgrade databases created by older versions.
+
+        Runs from the pre-uuid era used an ``INTEGER PRIMARY KEY
+        AUTOINCREMENT``; the id column is now a uuid text key, which cannot
+        be altered in place, so the trace tables are rebuilt empty (a
+        ``runs`` table of the wrong type means the whole layout is old).
+        """
         run_cols = {
-            row[1] for row in self._conn.execute("PRAGMA table_info(runs)").fetchall()
+            row[1]: row[2]
+            for row in self._conn.execute("PRAGMA table_info(runs)").fetchall()
         }
+        if run_cols.get("run_id", "").upper() != "TEXT":
+            self._conn.executescript("DROP TABLE IF EXISTS llm_calls;")
+            self._conn.executescript("DROP TABLE IF EXISTS nodes;")
+            self._conn.executescript("DROP TABLE IF EXISTS runs;")
+            self._create_schema()
+            run_cols = {
+                row[1]: row[2]
+                for row in self._conn.execute("PRAGMA table_info(runs)").fetchall()
+            }
         if "tags" not in run_cols:
             self._conn.execute(
                 "ALTER TABLE runs ADD COLUMN tags TEXT NOT NULL DEFAULT '[]'"
@@ -132,12 +154,13 @@ class SQLiteExporter(TraceExporter):
             )
         self._conn.commit()
 
-    def export(self, run: Run) -> None:
-        cur = self._conn.execute(
-            "INSERT INTO runs (name, status, total_ms, owner, checkpoint_id, "
+    def export(self, run: Run) -> str:
+        self._conn.execute(
+            "INSERT INTO runs (run_id, name, status, total_ms, owner, checkpoint_id, "
             "prompt_tokens, completion_tokens, topology, tags, notes, created_at) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (
+                run.run_id,
                 run.name,
                 run.status,
                 run.total_ms,
@@ -151,7 +174,7 @@ class SQLiteExporter(TraceExporter):
                 run.created_at or time.time(),
             ),
         )
-        run_id = cur.lastrowid
+        run_id = run.run_id
         for node in run.nodes:
             self._conn.execute(
                 "INSERT INTO nodes (run_id, node_id, node_type, start_ms, end_ms, "
@@ -187,6 +210,7 @@ class SQLiteExporter(TraceExporter):
                 ),
             )
         self._conn.commit()
+        return run_id
 
     def list_runs(
         self,
@@ -229,7 +253,7 @@ class SQLiteExporter(TraceExporter):
         rows = self._conn.execute(
             f"SELECT run_id, name, status, total_ms, owner, checkpoint_id, "
             f"prompt_tokens, completion_tokens, tags, notes, created_at FROM runs"
-            f"{where_sql} ORDER BY run_id DESC LIMIT ? OFFSET ?",
+            f"{where_sql} ORDER BY created_at DESC LIMIT ? OFFSET ?",
             (*args, limit, offset),
         ).fetchall()
         cols = [
@@ -252,7 +276,7 @@ class SQLiteExporter(TraceExporter):
             items.append(item)
         return {"items": items, "total": total}
 
-    def get_run(self, run_id: int) -> dict[str, Any] | None:
+    def get_run(self, run_id: str) -> dict[str, Any] | None:
         """Full run payload: metadata, topology, node spans, LLM calls."""
         row = self._conn.execute(
             "SELECT name, status, total_ms, owner, checkpoint_id, prompt_tokens, "
@@ -326,7 +350,7 @@ class SQLiteExporter(TraceExporter):
 
     def update_run(
         self,
-        run_id: int,
+        run_id: str,
         *,
         tags: list[str] | None = None,
         notes: str | None = None,
@@ -363,14 +387,19 @@ class CompositeExporter(TraceExporter):
     def __init__(self, exporters: list[TraceExporter]):
         self.exporters = list(exporters)
 
-    def export(self, run: Run) -> None:
+    def export(self, run: Run) -> str | None:
+        run_id: str | None = None
         for exporter in self.exporters:
             try:
-                exporter.export(run)
+                result = exporter.export(run)
             except Exception:
                 logger.exception(
                     "composite exporter %s failed", type(exporter).__name__
                 )
+                continue
+            if run_id is None and result is not None:
+                run_id = result
+        return run_id
 
     def close(self) -> None:
         for exporter in self.exporters:

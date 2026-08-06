@@ -95,6 +95,30 @@ except GraphInterrupt as interrupt:
 The answer lands in `state["approved"]` and execution continues. Interrupts
 require a `checkpointer`.
 
+### Validating the answer
+
+A bare `interrupt` compares the resume value verbatim. To validate the answer
+(and capture a value, e.g. a promo code) instead, pair the interrupt with an
+[`Ask`](../reference/nodes.md#ask) strategy and re-ask until it passes with
+`interrupt_loop`:
+
+```python
+from draf.node import Ask
+
+flow.interrupt_loop(
+    key="code",
+    prompt="Введите промокод (формат XX-1234):",
+    accept=Ask.regex(r"^[A-Z]{2}-[0-9]{4}$", decision_key="code_ok", value_key="discount_code"),
+    body=LLM(model="llama3.1:8b", prompt="Введите корректный код.", output_key="hint"),
+    done=LLM(model="llama3.1:8b", prompt="Примени скидку {discount_code}.", output_key="final"),
+)
+```
+
+`Ask.model(...)` adds an LLM classifier so free-form answers ("конечно", "ок")
+count as approval. See the
+[`ask_strategies` example](../examples.md) and the
+[`validate` reference](../reference/nodes.md#validate).
+
 ### Revision loop
 
 Wire a conditional cycle back to the `Interrupt` with `Flow.loop()`:

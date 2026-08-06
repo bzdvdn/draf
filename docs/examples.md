@@ -11,6 +11,7 @@ README for exact commands.
 | [parallel](https://github.com/bzdvdn/draf/tree/main/examples/parallel/) | Concurrent branches + typed `State` reducers |
 | [map_repair_plans](https://github.com/bzdvdn/draf/tree/main/examples/map_repair_plans/) | Dynamic fan-out (`Map`) + `{key}` prompt templates + typed `State` |
 | [human_in_loop](https://github.com/bzdvdn/draf/tree/main/examples/human_in_loop/) | Approve/Edit LLM output via `Interrupt` + `loop()` + resume (Python and YAML) |
+| [ask_strategies](https://github.com/bzdvdn/draf/tree/main/examples/ask_strategies/) | Validate interrupt answers with `Ask` — regex (capture a promo code), `equals`, and an LLM `model` classifier (offline, no API key) |
 | [react_agent](https://github.com/bzdvdn/draf/tree/main/examples/react_agent/) | ReAct agent loop with a calculator tool and live token streaming |
 | [memory_assistant](https://github.com/bzdvdn/draf/tree/main/examples/memory_assistant/) | Long-term memory: LLM fact extraction, `MemoryStore` + provider-aware embedder, context injection |
 | [memory_chat](https://github.com/bzdvdn/draf/tree/main/examples/memory_chat/) | Multi-user streaming chat — owner picked at the console, per-owner memory (`${owner}`), live tokens, auto fact extraction |

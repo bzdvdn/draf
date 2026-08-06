@@ -10,7 +10,11 @@ class Transform(Node):
     """Apply a string transform to state values.
 
     Supported actions: ``uppercase``, ``lowercase``, ``trim``,
-    ``count_lines``, ``value``, ``json_get``, ``append``.
+    ``count_lines``, ``value``, ``render``, ``json_get``, ``append``.
+
+    ``render`` formats a ``template`` (``{key}`` placeholders rendered from
+    state) and stores the resulting string under *output_key* — the scalar
+    counterpart of ``append`` (which accumulates into a list).
 
     ``json_get`` extracts ``field`` from a dict in *input_key*.  Non-string
     values are stringified by default; pass ``raw=True`` to keep the value
@@ -78,6 +82,11 @@ class Transform(Node):
             items.append(item)
             state[output_key] = items
             return {output_key: items}
+
+        if action == "render":
+            result = render_template(self.config.get("template", ""), state)
+            state[output_key] = result
+            return {output_key: result}
 
         source = value if value is not None else state.get(input_key, "")
         result = self._apply(action, source)

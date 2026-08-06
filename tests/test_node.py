@@ -307,3 +307,220 @@ class TestRetry:
         assert wrap_with_retry(node, {"enabled": False}) is node
         wrapped = wrap_with_retry(node, {"max_retries": 2, "delay": 0.01})
         assert isinstance(wrapped, Retry)
+
+
+class TestGate:
+    async def _run(self, gate, state):
+        from draf.node import ExecContext
+
+        ctx = ExecContext(state=state, tools={})
+        return await gate.execute(ctx, state)
+
+    @pytest.mark.asyncio
+    async def test_passing_verdict_writes_pass_value_and_increments_rounds(self):
+        from draf.node import Gate
+
+        state = {"verdict": {"ok": True}}
+        out = await self._run(Gate(), state)
+        assert out["decision"] == "yes"
+        assert out["rounds"] == 1
+
+    @pytest.mark.asyncio
+    async def test_failing_verdict_writes_fail_value(self):
+        from draf.node import Gate
+
+        state = {"verdict": {"ok": False}}
+        out = await self._run(Gate(), state)
+        assert out["decision"] == "fix"
+        assert out["rounds"] == 1
+
+    @pytest.mark.asyncio
+    async def test_message_copied_on_fail_and_cleared_on_pass(self):
+        from draf.node import Gate
+
+        gate = Gate(message_key="feedback")
+        out = await self._run(gate, {"verdict": {"ok": False, "message": "  x  "}})
+        assert out["feedback"] == "x"
+        out = await self._run(gate, {"verdict": {"ok": True, "message": "x"}})
+        assert out["feedback"] == ""
+
+    @pytest.mark.asyncio
+    async def test_forces_pass_after_max_rounds(self):
+        from draf.node import Gate
+
+        gate = Gate(max_rounds=3)
+        state = {"verdict": {"ok": False}, "rounds": 2}
+        out = await self._run(gate, state)
+        assert out["decision"] == "yes"
+        assert out["rounds"] == 3
+
+    @pytest.mark.asyncio
+    async def test_missing_verdict_is_treated_as_pass(self):
+        from draf.node import Gate
+
+        out = await self._run(Gate(), {"verdict": None})
+        assert out["decision"] == "yes"
+
+    @pytest.mark.asyncio
+    async def test_configurable_key_names_and_values(self):
+        from draf.node import Gate
+
+        gate = Gate(
+            input_key="qa",
+            output_key="go",
+            rounds_key="n",
+            pass_value="done",
+            fail_value="redo",
+            max_rounds=2,
+        )
+        out = await self._run(gate, {"qa": {"ok": False}})
+        assert out["go"] == "redo"
+        assert out["n"] == 1
+        out = await self._run(gate, {"qa": {"ok": False}, "n": 1})
+        assert out["go"] == "done"
+        assert out["n"] == 2
+
+
+class TestValidate:
+    async def _run(self, validate, state):
+        from draf.node import ExecContext
+
+        ctx = ExecContext(state=state, tools={})
+        return await validate.execute(ctx, state)
+
+    @pytest.mark.asyncio
+    async def test_equals_match_writes_pass_and_extracts_value(self):
+        from draf.node import Validate
+
+        v = Validate(
+            input_key="answer",
+            strategy="equals",
+            equals="да",
+            output_key="go",
+            value_key="discount",
+        )
+        out = await self._run(v, {"answer": "Да"})
+        assert out["go"] == "да"
+        assert out["discount"] == "Да"
+        assert out["rounds"] == 1
+
+    @pytest.mark.asyncio
+    async def test_equals_miss_writes_fail_and_clears_value(self):
+        from draf.node import Validate
+
+        v = Validate(
+            input_key="answer",
+            strategy="equals",
+            equals="да",
+            output_key="go",
+            value_key="discount",
+        )
+        out = await self._run(v, {"answer": "нет"})
+        assert out["go"] == "нет"
+        assert out["discount"] == ""
+
+    @pytest.mark.asyncio
+    async def test_any_of_matches_normalized_value(self):
+        from draf.node import Validate
+
+        v = Validate(input_key="answer", strategy="any_of", any_of=["да", "ок", "конечно"])
+        out = await self._run(v, {"answer": "  ОК "})
+        assert out["decision"] == "да"
+
+    @pytest.mark.asyncio
+    async def test_regex_extracts_capture_group(self):
+        from draf.node import Validate
+
+        v = Validate(
+            input_key="answer",
+            strategy="regex",
+            regex=r"(\d{3,6})",
+            output_key="go",
+            value_key="code",
+        )
+        out = await self._run(v, {"answer": "мой код 12345"})
+        assert out["go"] == "да"
+        assert out["code"] == "12345"
+
+    @pytest.mark.asyncio
+    async def test_check_callable_tuple_result(self):
+        from draf.node import Validate
+
+        def check(value):
+            return value == "12345", "captured"
+
+        v = Validate(
+            input_key="answer",
+            strategy="check",
+            check=check,
+            output_key="go",
+            value_key="code",
+        )
+        out = await self._run(v, {"answer": "12345"})
+        assert out["go"] == "да"
+        assert out["code"] == "captured"
+        out = await self._run(v, {"answer": "wrong"})
+        assert out["go"] == "нет"
+        assert out["code"] == ""
+
+    @pytest.mark.asyncio
+    async def test_forces_pass_after_max_rounds(self):
+        from draf.node import Validate
+
+        v = Validate(
+            input_key="answer",
+            strategy="equals",
+            equals="да",
+            max_rounds=3,
+        )
+        out = await self._run(v, {"answer": "нет", "rounds": 2})
+        assert out["decision"] == "да"
+        assert out["rounds"] == 3
+
+
+class TestAsk:
+    def test_detects_strategy_from_kwargs(self):
+        from draf.node import Ask
+
+        assert Ask(equals="да").strategy == "equals"
+        assert Ask(any_of=["да", "ок"]).strategy == "any_of"
+        assert Ask(regex=r"\d+").strategy == "regex"
+        assert Ask(system="s", schema={}).strategy == "model"
+
+    def test_classmethod_constructors(self):
+        from draf.node import Ask
+
+        assert Ask.equals("да")._expected == "да"
+        assert Ask.any_of("да", "ок")._allowed == ["да", "ок"]
+        assert Ask.regex(r"\d+")._pattern == r"\d+"
+        assert Ask.check(lambda v: True)._predicate is not None
+        assert Ask.model(
+            system="s", user="u", schema={"x": 1}, model="m", provider="p"
+        ).strategy == "model"
+
+    def test_model_ask_needs_classifier(self):
+        from draf.node import Ask
+
+        assert Ask.model(
+            system="s", user="u", schema={}, model="m", provider="p"
+        ).needs_classifier()
+        assert not Ask.equals("да").needs_classifier()
+
+    def test_validate_node_wiring(self):
+        from draf.node import Ask
+
+        v = Ask.equals("да", decision_key="go", value_key="code").validate_node("answer")
+        assert v.config["input_key"] == "answer"
+        assert v.config["output_key"] == "go"
+        assert v.config["value_key"] == "code"
+        assert v.config["equals"] == "да"
+        assert v.config["strategy"] == "equals"
+
+    def test_validate_registerable_and_type(self):
+        from draf.node import default_registry
+
+        v = default_registry.create(
+            "validate",
+            {"input_key": "answer", "strategy": "equals", "equals": "да"},
+        )
+        assert v.type == "validate"
