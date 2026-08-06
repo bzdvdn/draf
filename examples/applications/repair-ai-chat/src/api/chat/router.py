@@ -108,10 +108,8 @@ async def chat(
         run_id = _finish(observer)
     return {
         "session_id": session_id,
-        "message": result.reply,
+        "message": result.reply if not result.waiting else result.prompt,
         "run_id": run_id,
-        "waiting": result.waiting,
-        "prompt": result.prompt if result.waiting else None,
     }
 
 

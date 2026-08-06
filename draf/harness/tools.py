@@ -49,6 +49,25 @@ async def resolve_approval(approver: typing.Any, name: str, args: dict) -> str:
     return "approve"
 
 
+def _tool_runtime_kwargs(tool: Tool, state: dict | None, ctx: typing.Any) -> dict:
+    """Runtime kwargs (``__state__`` / ``__ctx__``) injected into a tool call.
+
+    Only tools whose ``arun``/``run`` declare the matching parameter receive
+    the value — plain domain tools are untouched.  ``__state__`` gives a
+    tool read/write access to the enclosing workflow state (used by
+    sub-agent tools that orchestrate their own LLM loop), and ``__ctx__``
+    carries the :class:`~draf.node.context.ExecContext` for tracing.
+    """
+    method = tool.arun if type(tool).run is Tool.run else tool.run
+    params = inspect.signature(method).parameters
+    injected: dict = {}
+    if state is not None and "__state__" in params:
+        injected["__state__"] = state
+    if ctx is not None and "__ctx__" in params:
+        injected["__ctx__"] = ctx
+    return injected
+
+
 async def _run_one_tool_call(
     tc: dict,
     tools: Mapping[str, Tool],
@@ -56,6 +75,8 @@ async def _run_one_tool_call(
     timeout: float | None = None,
     tool_retries: int = 0,
     approver: typing.Any = None,
+    state: dict | None = None,
+    ctx: typing.Any = None,
 ) -> str:
     name, raw_args, _call_id = _tool_call_parts(tc)
     try:
@@ -74,7 +95,9 @@ async def _run_one_tool_call(
     last_exc: Exception | None = None
     for attempt in range(attempts):
         try:
-            coro = tool.arun(**coerce_args(tool, args))
+            kwargs = coerce_args(tool, args)
+            kwargs.update(_tool_runtime_kwargs(tool, state, ctx))
+            coro = tool.arun(**kwargs)
             if timeout and timeout > 0:
                 coro = asyncio.wait_for(coro, timeout=timeout)
             result = await coro
@@ -99,6 +122,8 @@ async def execute_tool_calls(
     timeout: float | None = None,
     tool_retries: int = 0,
     approver: typing.Any = None,
+    state: dict | None = None,
+    ctx: typing.Any = None,
 ) -> list[str]:
     """Execute *tool_calls* against *tools* in parallel.
 
@@ -109,6 +134,10 @@ async def execute_tool_calls(
     runs (see :func:`resolve_approval`); non-``"approve"`` decisions
     short-circuit the call with a "not approved" message.
 
+    *state* / *ctx* are injected into tools that declare ``__state__`` /
+    ``__ctx__`` runtime kwargs (sub-agent tools), so they can read/write the
+    enclosing workflow state and forward tracing.
+
     Args:
         tool_calls: List of tool-call dicts.
         tools: Tool registry (name -> ``Tool``).
@@ -116,13 +145,22 @@ async def execute_tool_calls(
         timeout: Per-tool timeout in seconds (``None`` = no limit).
         tool_retries: Extra attempts per tool call after a failure.
         approver: Approval policy (string or callable).
+        state: Workflow state dict to expose to state-aware tools.
+        ctx: :class:`~draf.node.context.ExecContext` to expose to tools.
     """
     if not tool_calls:
         return []
     return await gather_or_cancel(
         *(
             _run_one_tool_call(
-                tc, tools, tool_error_mode, timeout, tool_retries, approver
+                tc,
+                tools,
+                tool_error_mode,
+                timeout,
+                tool_retries,
+                approver,
+                state,
+                ctx,
             )
             for tc in tool_calls
         )

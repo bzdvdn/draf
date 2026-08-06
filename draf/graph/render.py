@@ -15,6 +15,14 @@ def _mme(value: str) -> str:
     return value.replace("\\", "\\\\").replace(chr(34), "&#34;")
 
 
+def _condition_label(condition) -> str:
+    """Render an edge condition as a label string (callables by name)."""
+    if callable(condition):
+        name = getattr(condition, "__name__", None)
+        return f"when:{name}" if name else "when:<callable>"
+    return str(condition)
+
+
 def to_mermaid(graph, show_conditions: bool = True) -> str:
     """Render *graph* as a Mermaid flowchart diagram.
 
@@ -43,7 +51,8 @@ def to_mermaid(graph, show_conditions: bool = True) -> str:
         if edge.condition == _ERROR_CONDITION:
             lines.append(f"    {src} -.->|error| {dst}")
         elif edge.condition and show_conditions:
-            lines.append(f'    {src} -->|"{_mme(edge.condition)}"| {dst}')
+            label = _condition_label(edge.condition)
+            lines.append(f'    {src} -->|"{_mme(label)}"| {dst}')
         else:
             lines.append(f"    {src} --> {dst}")
     lines.append("    classDef entry fill:#bde0fe;")

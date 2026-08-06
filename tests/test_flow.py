@@ -106,14 +106,14 @@ class TestStep:
         from draf.flow import Flow
 
         flow = Flow("test")
-        with pytest.raises(TypeError, match="Node instance"):
+        with pytest.raises(TypeError, match="must be a Node or function"):
             flow.step("transform")  # type: ignore[arg-type]
 
     def test_step_rejects_non_node(self):
         from draf.flow import Flow
 
         flow = Flow("test")
-        with pytest.raises(TypeError, match="Node instance"):
+        with pytest.raises(TypeError, match="must be a Node or function"):
             flow.step({"action": "uppercase"})  # type: ignore[arg-type]
 
     def test_step_with_transform_node(self):

@@ -14,6 +14,7 @@ from draf.flow import Flow
 from draf.node import Ask, Transform
 from draf.node.ask import Validate
 from draf.node.interrupt import GraphInterrupt
+from draf.node.node import Node
 
 
 async def _run(node, state: dict) -> dict:
@@ -97,6 +98,23 @@ class TestValidateStrategies:
         assert out["decision"] == "нет"
         assert out["discount_code"] == ""
 
+    @pytest.mark.asyncio
+    async def test_unclear_verdict_writes_clarify_value(self):
+        v = Validate(
+            input_key="verdict",
+            verdict_key="verdict",
+            ok_field="ok",
+            clear_field="clear",
+            clarify_value="уточнить",
+        )
+        out = await _run(v, {"verdict": {"ok": False, "clear": False}})
+        assert out["decision"] == "уточнить"
+        out = await _run(v, {"verdict": {"ok": False, "clear": True}})
+        assert out["decision"] == "нет"
+        # an unclear reply vetoes an approval too — never auto-approve
+        out = await _run(v, {"verdict": {"ok": True, "clear": False}})
+        assert out["decision"] == "уточнить"
+
 
 class TestAsk:
     def test_strategy_detection(self):
@@ -117,6 +135,19 @@ class TestAsk:
         assert v.config["output_key"] == "go"
         assert v.config["value_key"] == "code"
         assert v.config["strategy"] == "regex"
+
+    def test_model_ask_carries_clarify_config(self):
+        v = Ask.model(
+            system="s",
+            user="u",
+            schema={},
+            model="m",
+            provider="p",
+            clear_field="clear",
+            clarify_value="уточнить",
+        ).validate_node("answer")
+        assert v.config["clear_field"] == "clear"
+        assert v.config["clarify_value"] == "уточнить"
 
 
 class TestInterruptLoopAsk:
@@ -222,3 +253,73 @@ class TestInterruptLoopModel:
         assert last["total"] == "да"
         assert last["approved_ok"] == "да"
         assert "да" in mock_calls
+
+    @pytest.mark.asyncio
+    async def test_unclear_answer_reasks_without_body(self, monkeypatch, tmp_path):
+        """A clear=false verdict routes back to the interrupt (re-ask) and the
+        body chain is NOT re-run; a later pass completes the loop."""
+        from draf.checkpoint import JSONFileCheckpointer
+        from draf.provider import ProviderRegistry
+
+        body_calls = []
+
+        class _Body(Node):
+            type = "body"
+
+            async def execute(self, ctx, state):
+                body_calls.append(1)
+                return {}
+
+        async def fake_execute(self, ctx, state):
+            answer = state.get("approved")
+            return {
+                "verdict": {
+                    "ok": answer == "да",
+                    "clear": answer in ("да", "нет"),
+                }
+            }
+
+        from draf.node.llm import LLM
+
+        monkeypatch.setattr(LLM, "execute", fake_execute)
+
+        flow = (
+            Flow("model", providers=ProviderRegistry.from_presets("ollama"))
+            .interrupt_loop(
+                key="approved",
+                prompt="Одобрить?",
+                accept=Ask.model(
+                    system="s",
+                    user="Ответ: {approved}",
+                    schema={
+                        "type": "object",
+                        "properties": {"ok": {"type": "boolean"}},
+                    },
+                    model="m",
+                    provider="ollama",
+                    verdict_key="verdict",
+                    decision_key="approved_ok",
+                    clear_field="clear",
+                    clarify_value="уточнить",
+                ),
+                body=_Body(),
+                done=Transform({"action": "value", "value": "да", "output_key": "total"}),
+                id="approval",
+            )
+        )
+        graph = flow.compile()
+        edges = {(e.source_id, e.target_id, e.condition) for e in graph.edges}
+        assert (
+            "approval-validate",
+            "approval-interrupt",
+            "approved_ok=уточнить",
+        ) in edges
+
+        cp = JSONFileCheckpointer(str(tmp_path))
+        last = await _resume(
+            graph,
+            cp,
+            [{"approved": "qhjrkjlkjsdgjdlksgj"}, {"approved": "да"}],
+        )
+        assert last["total"] == "да"
+        assert body_calls == []  # the unclear reply only re-asked, no re-plan

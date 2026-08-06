@@ -232,6 +232,12 @@ def workflow_to_yaml(
 
     edges = []
     for e in graph.edges:
+        if callable(e.condition):
+            raise ValueError(
+                "cannot serialize a callable edge condition to YAML "
+                "(callable conditions are programmatic-only; use a string "
+                f"condition or a decider key for the edge {e.source_id!r} -> {e.target_id!r})"
+            )
         entry = {"from": e.source_id, "to": e.target_id}
         if e.condition:
             entry["condition"] = e.condition

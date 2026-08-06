@@ -3,6 +3,8 @@
 import typing
 from abc import ABC, abstractmethod
 
+from draf.node.command import Command
+
 
 class Node(ABC):
     """Abstract base class for all graph nodes.
@@ -20,7 +22,7 @@ class Node(ABC):
         self.config = {**(config or {}), **kwargs}
 
     @abstractmethod
-    async def execute(self, ctx: typing.Any, state: dict) -> dict:
+    async def execute(self, ctx: typing.Any, state: dict) -> "dict | Command":
         """Execute the node's logic.
 
         Args:
@@ -28,5 +30,7 @@ class Node(ABC):
             state: Current workflow state dict (shallow-merge in/out).
 
         Returns:
-            State updates to shallow-merge into the workflow state.
+            State updates to shallow-merge into the workflow state, or a
+            :class:`~draf.node.Command` that additionally routes the graph
+            to a specific next node.
         """

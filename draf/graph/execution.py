@@ -28,6 +28,7 @@ from draf.logging import (
     node_id_ctx,
     run_id_ctx,
 )
+from draf.node.command import Command
 from draf.node.context import ExecContext
 from draf.node.interrupt import GraphInterrupt
 from draf.node.node import Node
@@ -418,11 +419,16 @@ async def _execute_impl(
                 raise
 
             log.info("node_end duration_ms=%s", _ms(start))
-            if result:
+            updates: dict = result  # type: ignore[assignment]
+            goto = None
+            if isinstance(result, Command):
+                updates = result.update
+                goto = result.goto
+            if updates:
                 if isinstance(state, State):
-                    state.merge(result)
+                    state.merge(updates)
                 else:
-                    apply_reducers(state, result, reducers or {})
+                    apply_reducers(state, updates, reducers or {})
             await _call_hook(hooks, "on_node_end", current_id, node, state, result)
             if tracer is not None:
                 tracer.node_end(current_id, node.type, _ms(start))
@@ -436,27 +442,47 @@ async def _execute_impl(
                     )
                 )
 
+            if goto is Command.STOP:
+                break
+
             outgoing = [
                 e
                 for e in graph.edges
                 if e.source_id == current_id and e.condition != _ERROR_CONDITION
             ]
-            if not outgoing:
-                break
 
-            next_id = resolve_edge(outgoing, state)
-            if next_id is None:
-                break
-            condition = matched_condition(outgoing, state, next_id)
-            log.info("edge %s -> %s condition=%s", current_id, next_id, condition)
+            if goto is not None and goto is not Command.STOP:
+                if goto not in graph.nodes:
+                    raise WorkflowError(
+                        f"Command(goto={goto!r}) from node {current_id!r} targets an "
+                        f"unknown node (known nodes: {sorted(graph.nodes)})"
+                    )
+                assert isinstance(goto, str)
+                next_id: str | None = goto
+                condition: "str | Callable[[dict], bool] | None" = None
+            else:
+                if not outgoing:
+                    break
+                next_id = resolve_edge(outgoing, state)
+                if next_id is None:
+                    break
+                condition = matched_condition(outgoing, state, next_id)
+            assert next_id is not None
+
+            condition_label = (
+                condition
+                if isinstance(condition, str)
+                else f"<{type(condition).__name__}>"
+            )
+            log.info("edge %s -> %s condition=%s", current_id, next_id, condition_label)
             if tracer is not None:
-                tracer.edge(current_id, next_id, condition)
+                tracer.edge(current_id, next_id, condition_label)
             if emit is not None:
                 await emit(
                     StreamEvent(
                         "edge",
                         node_id=current_id,
-                        data={"target_id": next_id, "condition": condition},
+                        data={"target_id": next_id, "condition": condition_label},
                     )
                 )
             current_id = next_id

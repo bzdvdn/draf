@@ -17,6 +17,14 @@ Strategies:
   structured verdict (``{ok: bool, ...}``); ``value_field`` names the
   verdict field to capture.
 
+A ``model`` strategy can also declare a *third* outcome — "unclear, re-ask".
+When ``clear_field`` names a verdict boolean (e.g. ``clear``) that is
+``False``, :class:`Validate` writes ``clarify_value`` instead of a pass/fail
+decision; :meth:`~draf.flow.Flow.interrupt_loop` then routes that value back
+to the interrupt (re-ask the operator) **without** re-running the body chain.
+This is how a free-form reply like ``"qhjrkjlkjsdgjdlksgj"`` gets re-asked
+while ``"да"`` / ``"конечно"`` approve and ``"нет"`` re-plans.
+
 The strategy is executed by the :class:`Validate` node, which decodes the
 verdict / raw answer into a ``flow.loop`` decider value (like
 :class:`~draf.node.Gate`) and optionally writes the extracted value.
@@ -69,6 +77,8 @@ class Ask:
         decision_key: str = "decision",
         pass_value: str = "да",
         fail_value: str = "нет",
+        clear_field: str = "",
+        clarify_value: str = "",
         rounds_key: str = "rounds",
         max_rounds: int = 100,
     ):
@@ -89,6 +99,8 @@ class Ask:
         self.decision_key = decision_key
         self.pass_value = pass_value
         self.fail_value = fail_value
+        self.clear_field = clear_field
+        self.clarify_value = clarify_value
         self.rounds_key = rounds_key
         self.max_rounds = max_rounds
 
@@ -158,6 +170,8 @@ class Ask:
             output_key=self.decision_key,
             pass_value=self.pass_value,
             fail_value=self.fail_value,
+            clear_field=self.clear_field,
+            clarify_value=self.clarify_value,
             value_key=self.value_key,
             value_field=self.value_field,
             rounds_key=self.rounds_key,
@@ -192,6 +206,11 @@ class Validate(Node):
         ok_field: Pass-flag field of the verdict object.
         output_key: State key receiving ``pass_value`` / ``fail_value``.
         pass_value/fail_value: Decision values written on pass / fail.
+        clear_field: Optional verdict boolean naming "is this answer
+            decipherable".  When it is ``False`` the node writes
+            ``clarify_value`` instead of pass/fail (re-ask, no body).
+        clarify_value: Decision value written when *clear_field* is
+            ``False`` (falls back to *fail_value* when empty).
         value_key: State key receiving the extracted value (cleared on a
             fail).  Empty to skip.
         value_field: Verdict field captured into *value_key*.
@@ -217,6 +236,8 @@ class Validate(Node):
         output_key: str = "decision",
         pass_value: str = "да",
         fail_value: str = "нет",
+        clear_field: str = "",
+        clarify_value: str = "",
         value_key: str = "",
         value_field: str = "",
         rounds_key: str = "rounds",
@@ -236,6 +257,8 @@ class Validate(Node):
             "output_key": output_key,
             "pass_value": pass_value,
             "fail_value": fail_value,
+            "clear_field": clear_field,
+            "clarify_value": clarify_value,
             "value_key": value_key,
             "value_field": value_field,
             "rounds_key": rounds_key,
@@ -284,12 +307,21 @@ class Validate(Node):
         if isinstance(data, dict):
             ok = bool(data.get(cfg["ok_field"], cfg["missing_is_ok"]))
             value = data.get(cfg["value_field"]) if cfg["value_field"] else None
+            clear = cfg["clear_field"] == "" or bool(
+                data.get(cfg["clear_field"], False)
+            )
         else:
             ok, value = self._match(data)
+            clear = True
 
         forced = rounds >= int(cfg["max_rounds"])
-        passed = bool(ok or forced)
-        decision = cfg["pass_value"] if passed else cfg["fail_value"]
+        if not forced and not clear:
+            # the verdict is unclear — route to the "re-ask" branch (no body)
+            decision = cfg["clarify_value"] or cfg["fail_value"]
+            passed = False
+        else:
+            passed = bool(ok or forced)
+            decision = cfg["pass_value"] if passed else cfg["fail_value"]
 
         out: dict = {
             cfg["rounds_key"]: rounds,

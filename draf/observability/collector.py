@@ -107,7 +107,7 @@ class GraphObserver:
             provider=provider,
             model=model,
             messages=messages,
-            response=response,
+            response=str(response or ""),
             prompt_tokens=int(usage.get("prompt", 0) or 0),
             completion_tokens=int(usage.get("completion", 0) or 0),
             latency_ms=latency_ms,

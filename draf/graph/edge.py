@@ -22,12 +22,16 @@ class Edge:
             comma-separated disjunction ``key=a,b``, or numeric comparison
             ``key>=N`` / ``key<=N`` / ``key>N`` / ``key<N``.
             ``None`` means unconditional.
+            A callable ``(state) -> bool`` is accepted for programmatic
+            graphs (arbitrary predicates — list membership, length checks,
+            …); it is evaluated against the state and cannot be serialised
+            to YAML.
             ``"__error__"`` matches when the source node raises an exception.
     """
 
     source_id: str
     target_id: str
-    condition: str | None = None
+    condition: str | Callable[[dict], bool] | None = None
 
 
 Hook = Callable[..., Any]

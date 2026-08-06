@@ -4,6 +4,7 @@ import inspect
 from typing import Any, Callable
 
 from draf.errors import ConfigError
+from draf.node.command import Command
 from draf.node.node import Node
 
 NodeFactory = Callable[..., Node]
@@ -56,6 +57,40 @@ class NodeRegistry:
 
 
 default_registry = NodeRegistry()
+
+
+def make_function_node(fn: Callable, type_name: str | None = None) -> Node:
+    """Wrap an async (or sync) function into a :class:`Node` instance.
+
+    The function is called as ``fn(ctx, state)`` and must return a dict of
+    state updates or a :class:`~draf.node.command.Command`.  Sync functions
+    are supported.  *type_name* sets the node's ``type`` (defaults to the
+    function's ``__name__``).
+
+    This is the building block behind ``Flow.step(fn)``; it does **not**
+    register the node type in the registry.
+    """
+    if not callable(fn):
+        raise TypeError("make_function_node requires a callable")
+    name = type_name or getattr(fn, "__name__", "function")
+
+    class _FunctionNode(Node):
+        type = str(name)
+
+        async def execute(self, ctx, state: dict) -> dict | Command:
+            result = fn(ctx, state)
+            if inspect.isawaitable(result):
+                result = await result
+            if result is None:
+                return {}
+            if not isinstance(result, (dict, Command)):
+                raise TypeError(
+                    f"function node {name!r} must return a dict or Command, "
+                    f"got {type(result).__name__}"
+                )
+            return result
+
+    return _FunctionNode()
 
 
 def node(node_name: str, config: type[Any] | None = None):

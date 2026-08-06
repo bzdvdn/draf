@@ -11,6 +11,7 @@ from draf.harness import (
     resolve_approval,
     tool_to_schema,
 )
+from draf.harness.formats import _tool_call_parts
 from draf.memory.context import MemoryConfig
 from draf.node.interrupt import GraphInterrupt
 from draf.node.node import Node
@@ -318,6 +319,12 @@ class ToolExec(Node):
             ``(name, args) -> bool | str`` (sync or async).  A ``"pause"``
             decision pauses the run as a :class:`GraphInterrupt`; ``"deny"``
             short-circuits the call with a "denied" tool message.
+        human_key: State key / tool name of the human-in-the-loop
+            question (default ``"ask_human"``).  A call to this tool is
+            intercepted *before* execution: without a pending reply it
+            pauses the run as a :class:`GraphInterrupt` carrying the
+            question; with a reply in the state (from ``resume``) it
+            consumes it and returns it as the tool result.
     """
 
     type = "tool_exec"
@@ -359,6 +366,7 @@ class ToolExec(Node):
         tool_timeout = self.config.get("tool_timeout")
         tool_retries = int(self.config.get("tool_retries", 0))
         approver = self.config.get("tool_approval")
+        human_key = self.config.get("human_key", "ask_human")
 
         calls = list(state.get("_tool_calls") or [])
         if not calls and state.get(tool_call_key):
@@ -373,16 +381,43 @@ class ToolExec(Node):
         skills = resolve_skills(self.config)
         scoped = scope_tools(ctx.tools, self.config, skills)
 
+        # Human-in-the-loop: an ask_human call pauses the run for an
+        # operator's answer.  On resume the answer arrives in the state under
+        # *human_key* (the resume dict key), is consumed here and delivered
+        # back as the tool result — the same re-invoke pattern as the
+        # tool_approval "pause" decision.  The call never reaches
+        # execute_tool_calls (AskHuman.arun raises NotImplementedError).
+        ask_replies: dict[str, str] = {}
+        normal_calls: list[dict] = []
+        for call in calls:
+            name, raw_args, _call_id = _tool_call_parts(call)
+            if name == human_key:
+                try:
+                    args = json.loads(raw_args) if raw_args else {}
+                except json.JSONDecodeError:
+                    args = {}
+                question = str(args.get("question", ""))
+                pending = state.get(human_key)
+                if pending is None:
+                    raise GraphInterrupt(
+                        key=human_key,
+                        prompt=question or "The agent is asking for your input.",
+                    )
+                state.pop(human_key, None)  # consume the operator's answer
+                ask_replies[call.get("id", "")] = str(pending)
+            else:
+                normal_calls.append(call)
+
         # After a pause/interrupt, the operator's decision comes back in the
         # resume payload under the interrupt key; use it instead of re-asking.
         resumed = state.get("tool_approval")
         resumed = resumed if resumed in ("approve", "deny") else None
 
-        to_run = calls
+        to_run = normal_calls
         denied: list[tuple[str, str, str]] = []
-        if approver is not None and approver != "auto" and calls:
+        if approver is not None and approver != "auto" and normal_calls:
             to_run = []
-            for call in calls:
+            for call in normal_calls:
                 name = call.get("name", "")
                 try:
                     args = (
@@ -407,19 +442,34 @@ class ToolExec(Node):
                     to_run.append(call)
 
         results = await execute_tool_calls(
-            to_run, scoped, tool_error_mode, tool_timeout, tool_retries
+            to_run, scoped, tool_error_mode, tool_timeout, tool_retries, state=state, ctx=ctx
         )
+
+        result_by_id = {
+            call.get("id", ""): str(res) if res is not None else ""
+            for call, res in zip(to_run, results)
+        }
 
         messages = list(state.get(messages_key, []))
         start = len(messages)
-        for call, res in zip(to_run, results):
-            messages.append(
-                {
-                    "role": "tool",
-                    "tool_call_id": call.get("id", ""),
-                    "content": str(res) if res is not None else "",
-                }
-            )
+        for call in calls:  # keep the original call order in the conversation
+            call_id = call.get("id", "")
+            if call_id in result_by_id:
+                messages.append(
+                    {
+                        "role": "tool",
+                        "tool_call_id": call_id,
+                        "content": result_by_id[call_id],
+                    }
+                )
+            elif call_id in ask_replies:
+                messages.append(
+                    {
+                        "role": "tool",
+                        "tool_call_id": call_id,
+                        "content": ask_replies[call_id],
+                    }
+                )
         for name, call_id, decision in denied:
             messages.append(
                 {

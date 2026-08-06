@@ -44,69 +44,174 @@ def _stream_lines(content: str) -> list[str]:
     return lines
 
 
+def _tool_call(name: str, call_id: str, arguments: dict) -> dict:
+    return {
+        "choices": [
+            {
+                "message": {
+                    "role": "assistant",
+                    "content": None,
+                    "tool_calls": [
+                        {
+                            "id": call_id,
+                            "type": "function",
+                            "function": {
+                                "name": name,
+                                "arguments": json.dumps(arguments, ensure_ascii=False),
+                            },
+                        }
+                    ],
+                }
+            }
+        ],
+        "message": {
+            "role": "assistant",
+            "content": None,
+            "tool_calls": [
+                {
+                    "id": call_id,
+                    "type": "function",
+                    "function": {
+                        "name": name,
+                        "arguments": json.dumps(arguments, ensure_ascii=False),
+                    },
+                }
+            ],
+        },
+        "usage": {"prompt_tokens": 10, "completion_tokens": 5},
+    }
+
+
+_PLAN = "1. Демонтаж.\n2. Стены.\n3. Пол.\n4. Отделка."
+_ESTIMATE = "Смета: стены 12000, пол 20000, отделка 30000."
+_FINAL = f"План: {_PLAN}\n\nСмета: стены 12000, пол 20000, отделка 30000."
+_MATERIALS = "Плитка Керама-Белый 780 ₽/м², ламинат Дуб-Прованс 890 ₽/м²."
+_HAPPY_PATH = ["extract", "plan", "ask_plan", "estimate", "qa", "ask_estimate"]
+
+
 class _MockTransport:
-    """Canned, system-prompt-aware LLM transport (see the app wiring test)."""
+    """Serves a canned, system-prompt-aware reply per LLM call.
 
-    def __init__(self):
+    Installed on both ``httpx.AsyncClient.post`` and ``.stream``.  Dispatches
+    on the system-prompt text: the coordinator gets a scripted sequence of
+    tool calls (``coordinator_steps``), while each sub-agent runs its canned
+    content.
+    """
+
+    def __init__(self, *, coordinator_steps: list[str] | None = None):
         self.calls: list[str] = []
+        self.coordinator_calls = 0
+        self.coordinator_steps = list(
+            coordinator_steps if coordinator_steps is not None else _HAPPY_PATH
+        )
+        self._call_seq = 0
+        self.last_tool = None
 
-    def _content_for(self, body: dict) -> str:
+    def _with_tool(self, name: str, call_id: str, arguments: dict) -> dict:
+        self.last_tool = name
+        return _tool_call(name, call_id, arguments)
+
+    def _coordinator_reply(self, messages: list[dict]) -> dict:
+        self.coordinator_calls += 1
+        self._call_seq += 1
+        call_id = f"coord{self._call_seq}"
+        # A resume returns the coordinator to a pending ask_human: the last
+        # message is an assistant tool-call with no matching tool reply, so
+        # re-emit the same ask for the executor to answer.
+        last = messages[-1] if messages else None
+        if last and last.get("role") == "assistant" and last.get("tool_calls"):
+            fn = last["tool_calls"][0]["function"]
+            return self._with_tool(
+                fn["name"],
+                call_id,
+                json.loads(fn["arguments"]),
+            )
+        if not self.coordinator_steps:
+            ran_tools = any(
+                m.get("role") == "tool"
+                or (m.get("role") == "assistant" and m.get("tool_calls"))
+                for m in messages
+            )
+            if ran_tools:
+                if self.last_tool == "select_materials":
+                    return _reply(_MATERIALS)
+                return _reply(_FINAL)
+            return _reply("Здравствуйте! Помогу спланировать ремонт.")
+        token = self.coordinator_steps.pop(0)
+        if token == "extract":
+            return self._with_tool("extract_project_info", call_id, {})
+        if token == "plan":
+            return self._with_tool("propose_plan", call_id, {})
+        if token == "ask_plan":
+            return self._with_tool(
+                "ask_human",
+                call_id,
+                {"question": "План готов. Одобряешь план? Ответь: да или нет."},
+            )
+        if token == "materials":
+            return self._with_tool("select_materials", call_id, {})
+        if token == "estimate":
+            return self._with_tool("prepare_estimate", call_id, {})
+        if token == "qa":
+            return self._with_tool("run_qa_check", call_id, {})
+        if token == "ask_estimate":
+            return self._with_tool(
+                "ask_human",
+                call_id,
+                {"question": "Смета готова. Одобряешь смету? Ответь: да или нет."},
+            )
+        return _reply(_FINAL)
+
+    def _content_for(self, body: dict) -> dict:
         system = "".join(
             m.get("content", "")
             for m in body.get("messages", [])
             if m.get("role") == "system"
         )
         self.calls.append(system[:40])
-        if "Supervisor" in system:
-            return "pipeline"
+        if "Координатор" in system:
+            return self._coordinator_reply(body.get("messages", []) or [])
         if "извлекаешь" in system:
-            return json.dumps({"room_type": "bathroom", "area": 5.0})
-        if "классифицируешь" in system:
-            user = " ".join(
-                m.get("content", "")
-                for m in body.get("messages", [])
-                if m.get("role") == "user"
-            )
-            return json.dumps(
-                {"ok": any(w in user.lower() for w in ("да", "ок", "конечно")), "message": ""}
-            )
+            return _reply(json.dumps({"room_type": "bathroom", "area": 5.0}))
         if "Planner" in system:
-            return "1. Демонтаж. 2. Стены. 3. Пол. 4. Отделка."
+            return _reply(_PLAN)
         if "Estimator" in system:
-            return "Смета: стены 12000."
+            return _reply(_ESTIMATE)
         if "Materials Agent" in system:
-            return "Плитка 780 ₽/м²."
+            return _reply("Плитка Керама-Белый 780 ₽/м², ламинат Дуб-Прованс 890 ₽/м².")
         if "QA Agent" in system:
-            return json.dumps({"ok": True, "message": ""})
-        return "Помогу спланировать ремонт."
+            return _reply(json.dumps({"ok": True, "message": ""}))
+        return _reply("Здравствуйте! Помогу спланировать ремонт.")
 
     def __call__(self, *args, **kwargs):
-        content = self._content_for(kwargs.get("json") or {})
-        if args and args[0] == "POST":
+        data = self._content_for(kwargs.get("json") or {})
 
-            class _Resp:
+        if args and args[0] == "POST":  # streaming path
+
+            class _StreamResp:
                 def raise_for_status(self):
                     pass
 
                 async def aiter_lines(self):
+                    content = (data.get("message") or {}).get("content", "")
                     for line in _stream_lines(content):
                         yield line
 
-            class _CM:
+            class _StreamCM:
                 async def __aenter__(self):
-                    return _Resp()
+                    return _StreamResp()
 
                 async def __aexit__(self, *exc):
                     return False
 
-            return _CM()
+            return _StreamCM()
 
         class _Resp:
             def raise_for_status(self):
                 pass
 
             def json(self):
-                return _reply(content)
+                return data
 
         async def _post():
             return _Resp()
@@ -188,6 +293,22 @@ async def test_stream_yields_interrupt_and_ends(transport, tmp_path):
     assert types[-1] == "interrupt"
     # the durable summary counts the plan-approval pause already present
     assert await assistant.pending(sid) is not None
+
+
+@pytest.mark.asyncio
+async def test_materials_question_routes_to_select_materials(transport, tmp_path):
+    """A pure materials question hits select_materials, not the full flow."""
+    transport.coordinator_steps = ["materials"]
+    assistant = _build_assistant(str(tmp_path))
+    sid = "sess-materials"
+    result = await assistant.run(
+        sid, "Какую плитку лучше взять и какая есть сейчас?"
+    )
+    assert result.waiting is False
+    assert transport.last_tool == "select_materials"
+    assert "Плитка Керама-Белый" in result.reply
+    assert not any("Planner" in c for c in transport.calls)
+    assert not any("Estimator" in c for c in transport.calls)
 
 
 def _build_graph(checkpoint_dir: str):

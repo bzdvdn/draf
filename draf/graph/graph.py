@@ -336,6 +336,15 @@ class Graph:
                 on_llm_payload=on_llm_payload,
             )
         except GraphInterrupt:
+            if tracer is not None:
+                tracer.run_end("interrupted", _ms(started))
+            if emit is not None:
+                await emit(
+                    StreamEvent(
+                        "run_end",
+                        data={"status": "interrupted", "total_ms": _ms(started)},
+                    )
+                )
             raise
         except Exception as exc:
             if tracer is not None:
@@ -395,7 +404,8 @@ class Graph:
         (any node with no tool calls streams automatically in this mode).
 
         A run paused at an ``Interrupt`` node ends with an ``interrupt``
-        event (no ``run_end``); call :meth:`stream` or :meth:`run` again
+        event followed by a ``run_end`` event with ``status: "interrupted"``;
+        call :meth:`stream` or :meth:`run` again
         with a ``resume`` dict and the same *checkpoint_id* to continue.
         A failed run yields a ``run_end`` event with ``status: "error"``.
 
@@ -473,6 +483,14 @@ class Graph:
                         on_llm_payload=on_llm_payload,
                     )
                 except GraphInterrupt:
+                    if tracer is not None:
+                        tracer.run_end("interrupted", _ms(started))
+                    await _emit(
+                        StreamEvent(
+                            "run_end",
+                            data={"status": "interrupted", "total_ms": _ms(started)},
+                        )
+                    )
                     return
                 except Exception as exc:
                     if tracer is not None:
@@ -590,6 +608,70 @@ class Graph:
             if message.get("role") == "assistant":
                 return str(message.get("content", ""))
         return ""
+
+    async def get_state(
+        self,
+        checkpoint_id: str,
+        *,
+        checkpointer: Checkpointer,
+        owner: str = DEFAULT_OWNER,
+    ) -> dict | None:
+        """Return the durable state for *checkpoint_id*, or ``None``.
+
+        Reads the latest checkpoint (paused or completed).  The internal
+        ``__interrupt__`` bookkeeping key is stripped — use
+        :meth:`pending` to inspect a paused run's interrupt.
+
+        Pairs with :meth:`update_state` for human-in-the-loop
+        corrections: read the state, fix a value, save it back, then
+        resume with ``run(resume=...)``.
+        """
+        saved = await checkpointer.load(checkpoint_id, owner=owner)
+        if saved is None:
+            return None
+        state = dict(saved.state)
+        state.pop(_INTERRUPT_KEY, None)
+        return state
+
+    async def update_state(
+        self,
+        checkpoint_id: str,
+        values: dict,
+        *,
+        checkpointer: Checkpointer,
+        owner: str = DEFAULT_OWNER,
+        as_node: str | None = None,
+    ) -> dict:
+        """Edit the durable state of an existing run and persist it.
+
+        Loads the latest checkpoint for *checkpoint_id*, overrides the
+        given keys with *values*, and saves it back — the HITL "fix the
+        data then resume" primitive.  A run paused on an interrupt stays
+        paused: the next ``run(resume=...)`` continues from the interrupt
+        with the edited state.
+
+        *as_node* is accepted for LangGraph parity but is informational —
+        DraftFlow resumes from the interrupt automatically, so update
+        attribution is not needed.
+
+        Raises:
+            KeyError: If *checkpoint_id* has no checkpoint yet.
+        """
+        saved = await checkpointer.load(checkpoint_id, owner=owner)
+        if saved is None:
+            raise KeyError(f"no checkpoint for {checkpoint_id!r} to update")
+        state = dict(saved.state)
+        state.update(values)
+        await checkpointer.save(
+            checkpoint_id,
+            Checkpoint(
+                state=state,
+                next_node_id=saved.next_node_id,
+                iteration=saved.iteration,
+            ),
+            owner=owner,
+        )
+        return state
 
     async def _conversation_turn(
         self,

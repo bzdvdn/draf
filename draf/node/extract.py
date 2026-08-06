@@ -67,6 +67,7 @@ class Extract:
         output_key: str = "output",
         parse: bool = False,
         fallbacks: list | None = None,
+        id: str = "",
         **llm_kwargs,
     ):
         self.system = system
@@ -77,6 +78,7 @@ class Extract:
         self.messages_key = messages_key
         self.output_key = output_key
         self.parse = parse
+        self._id = id
         self._fallbacks = list(fallbacks or [])
         self._llm_kwargs = dict(llm_kwargs)
 
@@ -90,7 +92,13 @@ class Extract:
         provider: str,
         **kwargs,
     ) -> "Extract":
-        """Build an extraction recipe around a structured ``LLM`` pass."""
+        """Build an extraction recipe around a structured ``LLM`` pass.
+
+        ``id`` (optional) names the built nodes in the compiled graph: the
+        extractor ``LLM`` becomes ``<id>`` and each fallback
+        ``<id>-fallback-<n>``, so the topology shows ``extractor`` instead of
+        an auto-generated ``llm_chat_7``.
+        """
         return cls(
             system=system,
             schema=schema,
@@ -111,7 +119,7 @@ class Extract:
 
     def llm(self) -> LLM:
         """Build the extraction ``LLM`` node."""
-        return LLM(
+        node = LLM(
             system=self.system,
             json_schema=self.schema,
             output_type=self.output_type,
@@ -122,18 +130,22 @@ class Extract:
             parse=self.parse,
             **self._llm_kwargs,
         )
+        if self._id:
+            node.config["id"] = self._id
+        return node
 
     def nodes(self) -> list[Node]:
         """Build ``[LLM extractor, *Fallback nodes]`` for flow wiring."""
         nodes: list[Node] = [self.llm()]
-        for spec in self._fallbacks:
-            nodes.append(
-                Fallback(
-                    input_key=self.output_key,
-                    field=spec.field,
-                    fn=spec.fn,
-                )
+        for i, spec in enumerate(self._fallbacks, start=1):
+            fb = Fallback(
+                input_key=self.output_key,
+                field=spec.field,
+                fn=spec.fn,
             )
+            if self._id:
+                fb.config["id"] = f"{self._id}-fallback-{i}"
+            nodes.append(fb)
         return nodes
 
 

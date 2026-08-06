@@ -23,6 +23,7 @@ from draf.tool.builtin.gitlab import (
     GitLabPostNoteTool,
 )
 from draf.tool.builtin.http import HttpRequestTool
+from draf.tool.builtin.human import AskHuman
 from draf.tool.builtin.lock import LockTool
 from draf.tool.builtin.notify import SendEmailTool, SendTelegramTool
 from draf.tool.builtin.pdf import PDFReadTool
@@ -76,6 +77,7 @@ default_tool_registry.register(GitHubGetPRChangesTool)
 default_tool_registry.register(GitHubPostCommentTool)
 default_tool_registry.register(GitHubApproveTool)
 default_tool_registry.register(MemoryTool)
+default_tool_registry.register(AskHuman)
 
 __all__ = [
     "CalculatorTool",
@@ -118,4 +120,5 @@ __all__ = [
     "GitHubPostCommentTool",
     "GitHubApproveTool",
     "MemoryTool",
+    "AskHuman",
 ]

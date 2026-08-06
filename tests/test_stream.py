@@ -356,11 +356,15 @@ class TestStreamInterrupt:
         first = [ev async for ev in g.stream({}, checkpointer=cp, checkpoint_id="s1")]
         types = [ev.type for ev in first]
         assert "interrupt" in types
-        assert "run_end" not in types
+        # an interrupted run ends with a run_end event carrying total_ms
+        assert "run_end" in types
+        run_end = next(e for e in first if e.type == "run_end")
+        assert run_end.data["status"] == "interrupted"
+        assert run_end.data["total_ms"] >= 0
         interrupt = next(e for e in first if e.type == "interrupt")
         assert interrupt.data == {"key": "approved", "prompt": "ok?"}
         assert interrupt.node_id == "ask"
-        assert types[-1] == "checkpoint"
+        assert types[-1] == "run_end"
 
         resumed = [
             ev

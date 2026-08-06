@@ -2,6 +2,7 @@
 
 import asyncio
 
+from draf.node.command import Command
 from draf.node.context import ExecContext
 from draf.node.interrupt import GraphInterrupt
 from draf.node.node import Node
@@ -70,7 +71,7 @@ class Retry(Node):
         self._timeout = float(timeout) if timeout else None
         self._retry_on = list(retry_on or [])
 
-    async def execute(self, ctx: ExecContext, state: dict) -> dict:
+    async def execute(self, ctx: ExecContext, state: dict) -> dict | Command:
         last_exc: Exception | None = None
         for attempt in range(self._max_retries):
             try:

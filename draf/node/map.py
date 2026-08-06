@@ -5,6 +5,7 @@ import time
 from typing import Sequence
 
 from draf._async_util import gather_or_cancel
+from draf.node.command import as_updates
 from draf.node.context import ExecContext
 from draf.node.node import Node
 from draf.state import apply_reducers
@@ -202,5 +203,5 @@ class Map(Node):
                 raise
             if ctx.tracer is not None:
                 ctx.tracer.node_end(node_id, node.type, _ms(start))
-            apply_reducers(branch_state, result, reducers)
+            apply_reducers(branch_state, as_updates(result), reducers)
         return branch_state.get(result_key)

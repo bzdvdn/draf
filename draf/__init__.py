@@ -37,6 +37,7 @@ from draf.memory import (
 )
 from draf.node import (
     LLM,
+    Command,
     ExecContext,
     GraphInterrupt,
     Interrupt,
@@ -133,6 +134,7 @@ __all__ = [
     "Map",
     "Interrupt",
     "GraphInterrupt",
+    "Command",
     "Flow",
     "Case",
     "SubFlow",

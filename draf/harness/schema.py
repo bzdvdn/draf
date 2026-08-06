@@ -61,6 +61,10 @@ def tool_to_schema(tool: Tool) -> dict:
     for pname, param in sig.parameters.items():
         if pname in ("self", "kwargs", "args"):
             continue
+        if pname.startswith("__"):
+            # Internal runtime kwargs (e.g. ``__state__``/``__ctx__``) injected
+            # by the executor — never exposed to the model as call arguments.
+            continue
         prop: dict = _py_type_to_schema(hints.get(pname, str))
         if param.default is not inspect.Parameter.empty:
             if param.default is not None:

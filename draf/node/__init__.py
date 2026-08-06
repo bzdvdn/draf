@@ -2,6 +2,7 @@ from typing import TYPE_CHECKING
 
 from draf.node.agent import ReActAgent, ToolExec
 from draf.node.ask import Ask, Validate
+from draf.node.command import Command
 from draf.node.extract import Extract, Fallback
 
 if TYPE_CHECKING:
@@ -187,4 +188,5 @@ __all__ = [
     "Validate",
     "Extract",
     "Fallback",
+    "Command",
 ]

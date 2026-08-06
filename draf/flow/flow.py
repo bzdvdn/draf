@@ -1,6 +1,6 @@
 """Fluid flow builder for constructing graphs."""
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Callable
 
 from draf.flow.case import Case
 from draf.flow.sub_flow import SubFlow
@@ -11,6 +11,7 @@ from draf.node.llm import LLM
 from draf.node.map import Map
 from draf.node.node import Node
 from draf.node.parallel import Parallel
+from draf.node.registry import make_function_node
 from draf.node.supervisor import Supervisor
 from draf.node.transform import Transform
 from draf.provider import ProviderRegistry
@@ -69,6 +70,7 @@ class Flow:
         self._branch_point: str | None = None
         self._branch_ends: list[str] = []
         self._route_terminates = False
+        self._guarded_step: str | None = None
 
     def _next_id(self, node: Node, id_hint: str | None = None) -> str:
         self._counter += 1
@@ -76,6 +78,20 @@ class Flow:
         if nid in self._node_ids:
             raise ValueError(f"duplicate node id: {nid}")
         return nid
+
+    def _existing_id(self, node: Node) -> str | None:
+        """The id *node* was registered under, if this instance is already added.
+
+        Loop bodies re-reference nodes that were added earlier in the flow
+        (a planner, an interrupt, its classifier/validate).  Re-adding the
+        same instance under a fresh auto-generated id would duplicate it in
+        the compiled graph (``llm_chat_7``, ``subflow_9``, …) — instead the
+        chain should route through the node's first registration.
+        """
+        for idx, existing in enumerate(self._nodes):
+            if existing is node:
+                return self._node_ids[idx]
+        return None
 
     def _check_continuation(self) -> None:
         """Raise if the last route() terminated the flow (finish=None)."""
@@ -93,7 +109,13 @@ class Flow:
             return [node_or_chain]
         return list(node_or_chain)
 
-    def step(self, node: Node, id: str | None = None) -> "Flow":
+    def step(
+        self,
+        node: Node,
+        id: str | None = None,
+        *,
+        when: str | Callable[[dict], bool] | None = None,
+    ) -> "Flow":
         """Append a node to the linear chain.
 
         Accepts a Node instance::
@@ -104,15 +126,39 @@ class Flow:
 
         *id* optionally names the node in the compiled graph instead of
         the auto-generated ``{type}_{n}``.  Returns ``self`` for chaining.
+
+        *when* guards the edge into this node: a string condition
+        (``"status=ok"``) or a callable ``(state) -> bool``.  The edge
+        fires only when the condition matches; pair with ``default()`` for
+        a fallback branch::
+
+            flow.step(transform_llm)                        # decider
+            flow.step(admin_panel, when=lambda s: s.get("role") == "admin")
+            flow.default(denied_panel)                      # runs when the guard fails
         """
         self._check_continuation()
         if not isinstance(node, Node):
-            raise TypeError("step expects a Node instance")
+            if not callable(node):
+                raise TypeError(
+                    "step() expects a Node instance or a function "
+                    "(ctx, state) -> dict; got a value of type "
+                    f"{type(node).__name__} — must be a Node or function"
+                )
+            node = make_function_node(node)
         self._nodes.append(node)
         nid = self._next_id(node, id)
         self._node_ids.append(nid)
-        if self._last_added is not None:
-            self._edges.append(Edge(source_id=self._last_added, target_id=nid))
+        prev = self._last_added
+        if prev is not None:
+            self._edges.append(Edge(source_id=prev, target_id=nid, condition=when))
+        elif when is not None:
+            raise ValueError(
+                "step(when=...) requires a preceding node to branch from"
+            )
+        if when is not None:
+            self._guarded_step = prev
+        else:
+            self._guarded_step = None
         self._last_added = nid
         return self
 
@@ -224,6 +270,7 @@ class Flow:
         self._nodes.append(sub)
         nid = self._next_id(sub, id)
         self._node_ids.append(nid)
+        self._guarded_step = None
         if self._last_added is not None:
             self._edges.append(Edge(source_id=self._last_added, target_id=nid))
         self._last_added = nid
@@ -253,6 +300,7 @@ class Flow:
         self._nodes.append(node)
         nid = self._next_id(node, id)
         self._node_ids.append(nid)
+        self._guarded_step = None
         if self._last_added is not None:
             self._edges.append(Edge(source_id=self._last_added, target_id=nid))
         self._last_added = nid
@@ -305,6 +353,7 @@ class Flow:
         self._nodes.append(node)
         nid = self._next_id(node, id)
         self._node_ids.append(nid)
+        self._guarded_step = None
         if self._last_added is not None:
             self._edges.append(Edge(source_id=self._last_added, target_id=nid))
         self._last_added = nid
@@ -332,6 +381,7 @@ class Flow:
         self._last_branch_values = []
         self._branch_point = self._last_added
         self._branch_ends = []
+        self._guarded_step = None
         for case in cases:
             self._last_branch_values.append(case.value)
             prev_id: str | None = None
@@ -372,9 +422,9 @@ class Flow:
         self._node_ids.append(dnid)
         bp = self._branch_point or self._last_added
         if self._last_branch_key and self._last_branch_values:
-            assert bp is not None
             key = self._last_branch_key
             negated = ",".join(self._last_branch_values)
+            assert bp is not None, "branch() must precede default()"
             self._edges.append(
                 Edge(
                     source_id=bp,
@@ -382,6 +432,12 @@ class Flow:
                     condition=f"{key}!={negated}",
                 )
             )
+        elif self._guarded_step is not None:
+            # fallback for a step(when=...) guard: the conditional edge was
+            # added first, so this unconditional edge only fires when the
+            # guard fails (first matching edge wins during execution)
+            self._edges.append(Edge(source_id=self._guarded_step, target_id=dnid))
+            self._guarded_step = None
         self._branch_ends.append(dnid)
         self._last_added = dnid
         return self
@@ -407,6 +463,7 @@ class Flow:
             self._edges.append(Edge(source_id=src, target_id=nid))
         self._last_added = nid
         self._branch_ends = []
+        self._guarded_step = None
         return self
 
     def interrupt(
@@ -527,14 +584,17 @@ class Flow:
         body_chain = [body] if isinstance(body, Node) else list(body)
         if not done_chain:
             raise ValueError("loop requires at least one node in done")
+        self._guarded_step = None
 
         def add_chain(chain: list[Node], first_condition: str) -> tuple[str, str]:
             first_id: str | None = None
             prev: str | None = None
             for n in chain:
-                self._nodes.append(n)
-                nid = self._next_id(n)
-                self._node_ids.append(nid)
+                nid = self._existing_id(n)
+                if nid is None:
+                    self._nodes.append(n)
+                    nid = self._next_id(n, n.config.get("id"))
+                    self._node_ids.append(nid)
                 if first_id is None:
                     self._edges.append(
                         Edge(
@@ -554,7 +614,12 @@ class Flow:
 
         _, done_last = add_chain(done_chain, f"{key}={until}")
         body_first, body_last = add_chain(body_chain, f"{key}!={until}")
-        if body_last is not None:
+        # The body may end on the decider itself (interrupt_loop re-runs the
+        # interrupt + classifier + validate, whose last node *is* the loop
+        # decider).  Its ``key!=until`` edge already closes the cycle, so a
+        # redundant loop-back edge would become a self-loop and, being
+        # unconditional, short-circuit every decision.
+        if body_last != decider:
             self._edges.append(Edge(source_id=body_last, target_id=decider))
 
         self._last_added = done_last
@@ -589,11 +654,15 @@ class Flow:
         Wires::
 
             decision --<decision_key>=<pass_value>--> done (continue)
+            decision --<decision_key>=<clarify_value>--> interrupt (re-ask, no body)
             decision --<decision_key>!=<pass_value>--> body -> interrupt -> decision  (re-ask)
 
         *body* typically re-runs whatever produced *key* (e.g. a planner)
         plus the ask nodes, so a "no" answer regenerates and re-asks; *done*
-        runs once the answer passes.
+        runs once the answer passes.  When the ``model`` strategy declares
+        *clear_field* / *clarify_value*, an unclear answer (e.g. gibberish)
+        routes back to the interrupt for a plain re-ask **without** re-running
+        *body* — free-form replies never trigger an unwanted re-plan.
 
         Args:
             key: State key receiving the interrupt resume value.
@@ -614,6 +683,7 @@ class Flow:
         self.step(Interrupt(key=key, prompt=prompt), id=f"{prefix}interrupt")
 
         ask_nodes: list[Node] = [self._nodes[-1]]
+        interrupt_id = self._node_ids[-1]
         input_key = key
         if accept.needs_classifier():
             if not accept.model_name or not accept.provider:
@@ -627,6 +697,22 @@ class Flow:
         validate = accept.validate_node(input_key=input_key)
         self.step(validate, id=f"{prefix}validate")
         ask_nodes.append(validate)
+
+        # Third outcome — "unclear, re-ask": a verdict whose clear_field is
+        # False lands in accept.clarify_value, which routes straight back to
+        # the interrupt (re-ask) instead of re-running the body.  This edge is
+        # added before loop() so it is evaluated first (resolve_edge picks the
+        # first match), ahead of the key!=until fail edge that would otherwise
+        # also match the clarify value.
+        clarify = getattr(accept, "clarify_value", "")
+        if clarify:
+            self._edges.append(
+                Edge(
+                    source_id=self._node_ids[-1],
+                    target_id=interrupt_id,
+                    condition=f"{accept.decision_key}={clarify}",
+                )
+            )
 
         body_chain = self._as_chain(body)
         return self.loop(
@@ -689,6 +775,7 @@ class Flow:
             raise ValueError("route requires a preceding node to decide from")
         if not agents:
             raise ValueError("route requires at least one agent route")
+        self._guarded_step = None
 
         def add_chain(
             chain: list[Node], first_condition: str, first_hint: str | None = None
@@ -909,6 +996,7 @@ class Flow:
         self._last_added = agent_id
         self._branch_point = None
         self._branch_ends = []
+        self._guarded_step = None
         return self
 
     def react(

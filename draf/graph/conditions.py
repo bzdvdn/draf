@@ -8,6 +8,8 @@ keeps the execution engine free of expression-language details.
 
 from __future__ import annotations
 
+from typing import Callable
+
 from draf.graph.edge import _ERROR_CONDITION, Edge
 
 
@@ -52,13 +54,16 @@ def _split_condition(condition: str) -> tuple[str, str, str] | None:
     return None
 
 
-def evaluate(condition: str, state: dict) -> bool:
+def evaluate(condition: str | Callable[[dict], bool], state: dict) -> bool:
     """Whether *condition* matches *state*.
 
     Supports equality/inequality on string keys, comma-separated
-    disjunctions (``key=a,b``), and numeric comparisons
-    (``key>=N`` / ``key<=N`` / ``key>N`` / ``key<N``).
+    disjunctions (``key=a,b``), numeric comparisons
+    (``key>=N`` / ``key<=N`` / ``key>N`` / ``key<N``), and callable
+    predicates ``fn(state) -> bool`` (evaluated verbatim).
     """
+    if callable(condition):
+        return bool(condition(state))
     parts = _split_condition(condition)
     if parts is None:
         return False
@@ -116,7 +121,9 @@ def resolve_edge(edges: list[Edge], state: dict) -> str | None:
     return None
 
 
-def matched_condition(edges: list[Edge], state: dict, target_id: str) -> str | None:
+def matched_condition(
+    edges: list[Edge], state: dict, target_id: str
+) -> "str | Callable[[dict], bool] | None":
     """Return the condition of the first edge matching *state* and *target_id*."""
     for edge in edges:
         if edge.target_id != target_id:

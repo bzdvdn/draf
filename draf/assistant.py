@@ -161,3 +161,38 @@ class Assistant:
         return await self.graph.pending(
             session_id, checkpointer=self.checkpointer, owner=owner
         )
+
+    async def get_state(
+        self, session_id: str, *, owner: str = DEFAULT_OWNER
+    ) -> dict | None:
+        """Return the durable conversation state for *session_id*.
+
+        Reads the latest checkpoint (paused or completed).  The internal
+        ``__interrupt__`` bookkeeping key is stripped — use
+        :meth:`pending` to inspect a paused run's interrupt.
+        """
+        return await self.graph.get_state(
+            session_id, checkpointer=self.checkpointer, owner=owner
+        )
+
+    async def update_state(
+        self,
+        session_id: str,
+        values: dict,
+        *,
+        owner: str = DEFAULT_OWNER,
+        as_node: str | None = None,
+    ) -> dict:
+        """Edit the durable state of a session and persist it.
+
+        The HITL "fix the data then resume" primitive: override the given
+        keys, save the checkpoint, then the next :meth:`run` continues
+        from where the session paused with the edited state.
+        """
+        return await self.graph.update_state(
+            session_id,
+            values,
+            checkpointer=self.checkpointer,
+            owner=owner,
+            as_node=as_node,
+        )
