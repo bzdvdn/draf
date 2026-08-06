@@ -4,7 +4,7 @@ The most powerful (and most complex) pattern in draf is the **supervisor
 loop**: one *decider* node picks which specialist agent handles the next
 turn; that agent runs and control returns to the decider, which picks again —
 until it says `finish` and the loop exits. This is what
-[`repair-ai-chat`](../examples.md) and the `draf new` scaffolds build.
+[`service_desk`](../examples.md) and the `draf new` scaffolds build.
 
 Two building blocks make it short:
 
@@ -130,9 +130,12 @@ flow.supervisor(
 flow.route("next_agent", finish=..., direct=..., planner=..., estimator=...)
 ```
 
-See `examples/applications/repair-ai-chat` for the full five-agent chat that
-chains `planner → estimator → materials → qa` via `fill_order` while routing
-small talk to `direct` via `done_keys`.
+See [`examples/applications/service_desk`](https://github.com/bzdvdn/draf/tree/main/examples/applications/service_desk/)
+for a concrete chat router built on these guards (one-word dispatch, the
+`done_keys` / `fallback_agent` guards, a bounded loop and a human `Interrupt`
+deploy gate).  For the alternative design — a single ReAct coordinator that
+drives specialists as *tools* instead of a decider node — see
+[`examples/applications/repair-ai-chat`](https://github.com/bzdvdn/draf/tree/main/examples/applications/repair-ai-chat/).
 
 Two override hooks cover deterministic policies:
 
@@ -246,8 +249,11 @@ that is how writer + reviewer collaborate through the same conversation.
 
 - [`examples/simple_router/`](https://github.com/bzdvdn/draf/tree/main/examples/simple_router/)
   — a minimal two-agent supervisor, offline tests.
+- [`examples/applications/service_desk/`](https://github.com/bzdvdn/draf/tree/main/examples/applications/service_desk/)
+  — the default `supervisor()` chat router: specialists, guards, bounded loop
+  and a human approval gate.
 - [`examples/applications/repair-ai-chat/`](https://github.com/bzdvdn/draf/tree/main/examples/applications/repair-ai-chat/)
-  — five routed agents with RAG + streaming.
+  — the alternative: one ReAct coordinator driving specialists as tools (RAG + streaming).
 - `draf new <name>` — scaffolds the same supervisor with `HOW TO EXTEND`
   comments (see [CLI](../cli.md)).
 

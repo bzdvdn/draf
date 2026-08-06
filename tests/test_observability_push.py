@@ -339,6 +339,36 @@ def test_obs_server_app(tmp_path):
     assert page["items"][0]["owner"] == "alice"
 
 
+def test_obs_ui_run_detail_page_lives_under_dashboard_path(tmp_path):
+    """The run-detail page is reachable at ``/obs/ui/runs/<id>`` and the
+    dashboard list links there — not at the API path ``/obs/runs/<id>``."""
+    from fastapi import FastAPI
+    from starlette.testclient import TestClient
+
+    from draf.observability import SQLiteExporter
+    from draf.observability.api import dashboard_router
+
+    exp = SQLiteExporter(str(tmp_path / "t.db"))
+    exp.export(_sample_run())
+    run_id = exp.list_runs()["items"][0]["run_id"]
+
+    app = FastAPI()
+    app.include_router(dashboard_router(exp))
+    client = TestClient(app)
+
+    page = client.get("/obs/ui/runs/" + run_id)
+    assert page.status_code == 200
+    assert "text/html" in page.headers["content-type"]
+    assert run_id in page.text
+
+    # the list page deep-links into the UI path, not the API path
+    index = client.get("/obs/ui").text
+    open_run = index.split("function openRun", 1)[1].split(";\n", 1)[0]
+    assert "BASE + '/ui/runs/' + id" in open_run
+    assert "/runs/" in open_run  # the full target is .../ui/runs/<id>
+    assert open_run != "(id) { window.location.href = BASE + '/runs/' + id }"
+
+
 # ---------------------------------------------------------------------------
 # CLI: draf run traces a YAML workflow automatically
 # ---------------------------------------------------------------------------

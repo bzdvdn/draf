@@ -191,7 +191,7 @@ async def run_plain_llm() -> None:
         },
         edges=[],
         entry_point="answer",
-        provider="ollama",
+        default_provider="ollama",
     )
 
     result = await graph.run(

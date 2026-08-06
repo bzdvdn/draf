@@ -12,6 +12,8 @@ that the same process (or another one) writes into::
 Endpoints:
 
 - ``GET /obs/ui`` — the dashboard (``ui.html`` next to this module).
+- ``GET /obs/ui/runs/{run_id}`` — the run-detail page for browsers (under
+  the dashboard path).
 - ``GET /obs/runs`` — recent runs (no payloads), with filters
   (``status``, ``name``, ``owner``, ``tag``) and pagination
   (``limit``/``offset``); returns ``{"items": [...], "total": n}``.
@@ -95,6 +97,19 @@ def dashboard_router(exporter: SQLiteExporter, *, prefix: str = "/obs") -> APIRo
             owner=owner,
             tag=tag,
         )
+
+    @router.get("/ui/runs/{run_id}")
+    async def ui_run_detail(run_id: str) -> Any:
+        """The run-detail page under the dashboard path (``/obs/ui/runs/<id>``).
+
+        The dashboard list links here for browsers; the pure JSON API stays at
+        ``/obs/runs/<id>``.  The page resolves its own fetches against the
+        dashboard *prefix*, so this URL is independent of the API path.
+        """
+        run = exporter.get_run(run_id)
+        if run is None:
+            raise HTTPException(status_code=404, detail="run not found")
+        return HTMLResponse(_ui_run_html(run_id, prefix))
 
     @router.get("/runs/{run_id}")
     async def run_detail(run_id: str, request: Request) -> Any:

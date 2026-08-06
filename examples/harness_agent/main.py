@@ -119,7 +119,7 @@ async def run_error_fallback() -> None:
             Edge("tool", "fallback", "__error__"),
         ],
         entry_point="agent",
-        provider="ollama",
+        default_provider="ollama",
     )
 
     print("\n=== tool_error_mode='raise' + __error__ edge ===")

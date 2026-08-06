@@ -31,7 +31,8 @@ README for exact commands.
 | [checkpoint_stores](https://github.com/bzdvdn/draf/tree/main/examples/checkpoint_stores/) | Durable workflow on file/sqlite/pg |
 | [release_features](https://github.com/bzdvdn/draf/tree/main/examples/release_features/) | Release API tour — validation, typed errors, `draf eval`, cost reports, response cache (mocked, no API key) |
 | [simple_router](https://github.com/bzdvdn/draf/tree/main/examples/simple_router/) | Minimal `Flow.route()` supervisor — two agents, a bounded loop (can't hang), offline tests |
-| [repair-ai-chat](https://github.com/bzdvdn/draf/tree/main/examples/applications/repair-ai-chat/) | Full FastAPI app built on `route()` — five agents, tools, RAG, streaming (Russian repair workflow) |
+| [service_desk](https://github.com/bzdvdn/draf/tree/main/examples/applications/service_desk/) | Default `supervisor()` chat router — one-word dispatch, `done_keys`/`fallback_agent` guards, bounded loop and a human `Interrupt` deploy gate (Russian support desk) |
+| [repair-ai-chat](https://github.com/bzdvdn/draf/tree/main/examples/applications/repair-ai-chat/) | Full FastAPI app — one ReAct coordinator driving specialist *tools* (extract, plan, materials, estimate, QA), RAG, streaming (Russian repair workflow) |
 
 All LLM examples use `llama3.1:8b` (`ollama pull llama3.1:8b`);
 [pdf_agent](https://github.com/bzdvdn/draf/tree/main/examples/pdf_agent/) uses `qwen2.5:7b`

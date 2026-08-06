@@ -328,7 +328,7 @@ function updatePager() {
     `${Math.min(state.total, state.offset + 1)}–${Math.min(state.total, state.offset + state.limit)} of ${state.total} · page ${page}/${pages}`;
 }
 
-function openRun(id) { window.location.href = BASE + '/runs/' + id; }
+function openRun(id) { window.location.href = BASE + '/ui/runs/' + id; }
 function filterTag(tag) {
   state.tag = tag; state.offset = 0;
   document.getElementById('f-tag').value = tag;

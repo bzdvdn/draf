@@ -1,0 +1,14 @@
+# Session state
+data/checkpoints/
+
+# Runtime artifacts (seeded KB store + observability trace db)
+data/knowledge/kb.db
+data/traces.db
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
