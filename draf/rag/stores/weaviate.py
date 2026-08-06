@@ -32,12 +32,15 @@ class WeaviateVectorStore(VectorStore):
         api_key: str = "",
         headers: dict | None = None,
         dim: int | None = None,
+        client=None,
     ):
         import weaviate
 
         self.collection = collection
         self.dim = dim
-        if embedded:
+        if client is not None:
+            self._client = client
+        elif embedded:
             self._client = weaviate.connect_to_embedded(headers=headers)
         else:
             auth = None

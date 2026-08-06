@@ -24,10 +24,12 @@ PROJECT_INFO_LABELS: dict[str, str] = {
 class ProjectInfo:
     """Information about a renovation project extracted from the chat.
 
-    This dataclass is the single source of truth for the project state: the
+    This dataclass is the single source of truth for the project model: the
     JSON Schema handed to the extractor is derived from it (see
-    :data:`PROJECT_INFO_SCHEMA`), and the ``project_info`` state field is
-    typed by it.  Every field is optional — the extractor returns ``null``
+    :data:`PROJECT_INFO_SCHEMA`).  The graph stores the same facts as a
+    plain dict under ``project_info`` so it serializes cleanly to the
+    checkpointer; :func:`project_info_from_dict` bridges dicts to this
+    model.  Every field is optional — the extractor returns ``null``
     for anything it cannot find.
     """
 

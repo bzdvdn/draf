@@ -15,7 +15,7 @@ from __future__ import annotations
 from typing import Annotated, Any, TypedDict
 
 from draf.state import reducers_from_typeddict
-from src.domain.models import ProjectInfo, merge_project_info
+from src.domain.models import merge_project_info
 
 
 def add_messages(current: list | None, new: list | None) -> list:
@@ -27,7 +27,9 @@ class RepairState(TypedDict):
     """Per-turn state carried through the graph and persisted to the checkpointer."""
 
     messages: Annotated[list, add_messages]
-    project_info: Annotated[ProjectInfo, merge_project_info]
+    # Stored as a plain dict (not ProjectInfo) so the checkpointer can
+    # serialize it directly; ProjectInfo is the schema source in models.py.
+    project_info: Annotated[dict, merge_project_info]
 
     plan: str
     estimate: str

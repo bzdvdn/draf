@@ -48,13 +48,19 @@ class QdrantVectorStore(VectorStore):
     """
 
     def __init__(
-        self, host: str = "localhost", port: int = 6333, collection: str = "draf"
+        self,
+        host: str = "localhost",
+        port: int = 6333,
+        collection: str = "draf",
+        client=None,
     ):
-        try:
-            from qdrant_client import QdrantClient
-        except ImportError as e:
-            raise ImportError("install qdrant-client for QdrantVectorStore") from e
-        self._client = QdrantClient(host=host, port=port)
+        if client is None:
+            try:
+                from qdrant_client import QdrantClient
+            except ImportError as e:
+                raise ImportError("install qdrant-client for QdrantVectorStore") from e
+            client = QdrantClient(host=host, port=port)
+        self._client = client
         self._collection = collection
 
     def _ensure_collection(self, dim: int) -> None:
