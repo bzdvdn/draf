@@ -56,7 +56,7 @@ def _state_delta(prev: dict, cur: dict) -> list[str]:
     return lines
 
 
-async def _stream_turn(assistant: Assistant, session: str, message: str) -> None:
+async def _stream(assistant: Assistant, session: str, message: str) -> None:
     """Run one turn, streaming the assistant's tokens plus debug ledger.
 
     Pause handling is delegated to :meth:`Assistant.stream`: on the plan- or
@@ -123,7 +123,7 @@ async def chat(assistant: Assistant, session: str) -> None:
             return
         if not message:
             continue
-        await _stream_turn(assistant, session, message)
+        await _stream(assistant, session, message)
 
 
 async def main() -> None:
@@ -194,7 +194,7 @@ async def main() -> None:
         f"session: {args.session}  (requires a running Ollama)"
     )
     if args.message:
-        await _stream_turn(assistant, args.session, args.message)
+        await _stream(assistant, args.session, args.message)
     else:
         await chat(assistant, args.session)
 

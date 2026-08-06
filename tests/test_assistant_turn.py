@@ -1,7 +1,7 @@
-"""Tests for the abstract ``Assistant.turn`` / ``pending`` / ``stream`` API.
+"""Tests for the abstract ``Assistant.run`` / ``pending`` / ``stream`` API.
 
 Builds the ``repair-ai-chat`` graph (a two-approval human-in-the-loop flow)
-and drives it through the unified ``Assistant.turn`` loop, proving that
+and drives it through the unified ``Assistant.run`` loop, proving that
 ``GraphInterrupt`` pauses are folded into a ``TurnResult`` (``waiting``)
 instead of leaking to the caller, and that ``Assistant`` resumes the run
 transparently from the durable checkpoint.
@@ -140,7 +140,7 @@ async def test_turn_loop_handles_interrupts(transport, tmp_path):
     assistant = _build_assistant(str(tmp_path))
     sid = "sess-turn"
 
-    first = await assistant.turn(sid, "Спланируй ремонт ванной 5 м².")
+    first = await assistant.run(sid, "Спланируй ремонт ванной 5 м².")
     assert isinstance(first, TurnResult)
     assert first.waiting is True
     assert first.prompt  # the plan-approval question
@@ -148,12 +148,12 @@ async def test_turn_loop_handles_interrupts(transport, tmp_path):
     assert await assistant.pending(sid) is not None  # durable pause is visible
 
     # "да" approves the plan; the run continues to the estimate-approval pause
-    second = await assistant.turn(sid, "да")
+    second = await assistant.run(sid, "да")
     assert second.waiting is True
     assert "Смета" in (second.prompt or "")
 
     # "да" approves the estimate; the pipeline completes
-    done = await assistant.turn(sid, "да")
+    done = await assistant.run(sid, "да")
     assert done.waiting is False
     assert "Смета:" in done.reply
     assert done.key is None
@@ -167,7 +167,7 @@ async def test_turn_fresh_session_and_durable_history(transport, tmp_path):
     assistant = _build_assistant(str(tmp_path))
     sid = "sess-fresh"
     assert await assistant.pending(sid) is None
-    result = await assistant.turn(sid, "Привет")
+    result = await assistant.run(sid, "Привет")
     # no interrupt raised at the entry router, so the turn runs to the end
     assert isinstance(result, TurnResult)
 
@@ -188,3 +188,98 @@ async def test_stream_yields_interrupt_and_ends(transport, tmp_path):
     assert types[-1] == "interrupt"
     # the durable summary counts the plan-approval pause already present
     assert await assistant.pending(sid) is not None
+
+
+def _build_graph(checkpoint_dir: str):
+    """Compile the graph, discarding the Assistant wrapper."""
+    flow, tools = build_flow()
+    return flow.compile(), tools, build_checkpointer(checkpoint_dir)
+
+
+@pytest.mark.asyncio
+async def test_graph_run_message_is_interrupt_aware(transport, tmp_path):
+    """graph.run(message=...) folds pauses and resumes from the checkpoint."""
+    graph, tools, checkpointer = _build_graph(str(tmp_path))
+    sid = "sess-graph-run"
+
+    first = await graph.run(
+        {},
+        message="Спланируй ремонт ванной 5 м².",
+        tools=tools,
+        reducers=STATE_REDUCERS,
+        checkpointer=checkpointer,
+        checkpoint_id=sid,
+        initial_state=initial_state,
+        transient_keys=TRANSIENT_KEYS,
+    )
+    assert isinstance(first, TurnResult)
+    assert first.waiting is True
+    assert first.prompt
+
+    second = await graph.run(
+        {},
+        message="да",
+        tools=tools,
+        reducers=STATE_REDUCERS,
+        checkpointer=checkpointer,
+        checkpoint_id=sid,
+        initial_state=initial_state,
+        transient_keys=TRANSIENT_KEYS,
+    )
+    assert second.waiting is True
+    assert "Смета" in (second.prompt or "")
+
+    done = await graph.run(
+        {},
+        message="да",
+        tools=tools,
+        reducers=STATE_REDUCERS,
+        checkpointer=checkpointer,
+        checkpoint_id=sid,
+        initial_state=initial_state,
+        transient_keys=TRANSIENT_KEYS,
+    )
+    assert done.waiting is False
+    assert "Смета:" in done.reply
+
+
+@pytest.mark.asyncio
+async def test_graph_run_message_requires_checkpointer(transport):
+    """run(message=...) without a checkpointer is a clear error."""
+    graph, _, _ = _build_graph(str(""))
+    with pytest.raises(ValueError, match="requires checkpointer and checkpoint_id"):
+        await graph.run({}, message="Привет")
+
+
+@pytest.mark.asyncio
+async def test_graph_stream_message_auto_resumes(transport, tmp_path):
+    """stream(message=...) resumes a paused session from durable state."""
+    graph, tools, checkpointer = _build_graph(str(tmp_path))
+    sid = "sess-graph-stream"
+
+    async def _turn(message: str) -> list[str]:
+        types = []
+        async for ev in graph.stream(
+            {},
+            message=message,
+            tools=tools,
+            reducers=STATE_REDUCERS,
+            checkpointer=checkpointer,
+            checkpoint_id=sid,
+            initial_state=initial_state,
+            transient_keys=TRANSIENT_KEYS,
+        ):
+            types.append(ev.type)
+            if ev.type == "interrupt":
+                break
+        return types
+
+    first = await _turn("Спланируй ремонт ванной 5 м².")
+    assert first[-1] == "interrupt"
+    assert await graph.pending(sid, checkpointer=checkpointer) is not None
+
+    resumed = await _turn("да")
+    assert resumed[-1] == "interrupt"  # now paused on the estimate approval
+    assert "Смета" in str(
+        (await graph.pending(sid, checkpointer=checkpointer) or {}).get("prompt")
+    )

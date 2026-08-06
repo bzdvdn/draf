@@ -161,7 +161,7 @@ async def test_bounded_loop_terminates_when_never_finish(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_assistant_turn_is_durable(transport, tmp_path):
-    """run_turn persists the conversation across a second turn."""
+    """run persists the conversation across a second turn."""
     from src.graphs.state import STATE_REDUCERS, initial_state
     from src.storage import TRANSIENT_KEYS, build_checkpointer
 
@@ -177,13 +177,13 @@ async def test_assistant_turn_is_durable(transport, tmp_path):
         transient_keys=TRANSIENT_KEYS,
     )
 
-    first = await assistant.run_turn("sess-1", "list files with python")
-    assert first["code"] == "import os\nprint(os.listdir())"
+    first = await assistant.run("sess-1", "list files with python")
+    assert first.state["code"] == "import os\nprint(os.listdir())"
 
-    second = await assistant.run_turn("sess-1", "now make it a class")
+    second = await assistant.run("sess-1", "now make it a class")
     # history is preserved: two user + two assistant messages, and the
     # supervisor routed again on the second turn (one call per turn)
-    users = [m for m in second["messages"] if m.get("role") == "user"]
+    users = [m for m in second.state["messages"] if m.get("role") == "user"]
     assert len(users) == 2
     assert transport.supervisor_calls == 2
 

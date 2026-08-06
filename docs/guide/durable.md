@@ -95,6 +95,40 @@ except GraphInterrupt as interrupt:
 The answer lands in `state["approved"]` and execution continues. Interrupts
 require a `checkpointer`.
 
+### Conversation turns: `run(message=...)`
+
+For chat applications the interrupt bookkeeping is better handled for you.
+Call `graph.run()` with a `message` and the checkpoint id as the *session id*:
+the run auto-detects a paused session from durable state and either resumes
+it with the message (the operator's answer) or starts/continues the
+conversation. A pause is **not** raised — it is folded into a `TurnResult`:
+
+```python
+from draf.graph import TurnResult
+
+session_id = "chat-1"
+
+result: TurnResult = await graph.run(
+    state={},
+    message="Спланируй ремонт ванной 5 м².",
+    checkpointer=cp,
+    checkpoint_id=session_id,
+    initial_state=lambda: {"task": "remont"},
+)
+if result.waiting:
+    # the run paused on an Interrupt: surface result.prompt to the operator
+    answer = input(result.prompt + " ")
+    result = await graph.run(state={}, message=answer, checkpointer=cp, checkpoint_id=session_id)
+else:
+    print(result.reply)  # latest assistant reply from the durable state
+```
+
+The loop above survives any number of interrupts (e.g. a "rework" branch that
+re-asks). `initial_state` seeds a fresh session, `transient_keys` are cleared
+at the start of every turn, and `messages_key` names the message list.
+`graph.stream(message=...)` is the streaming equivalent — a pause surfaces an
+`interrupt` event (with `key`/`prompt` in its `data`) where the stream ends.
+
 ### Validating the answer
 
 A bare `interrupt` compares the resume value verbatim. To validate the answer

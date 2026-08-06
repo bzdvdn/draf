@@ -164,7 +164,7 @@ def test_process_failed_turn_records_error(dirs, monkeypatch):
     job_id = enqueue("boom", session_id="sess-2", queue_dir=dirs["queue_dir"])
 
     class _Exploding:
-        async def run_turn(self, *a, **k):
+        async def run(self, *a, **k):
             raise RuntimeError("model exploded")
 
     result = await_process(dirs, _Exploding(), job_id)

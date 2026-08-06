@@ -12,12 +12,13 @@ The package is split into focused modules:
 """
 
 from draf.graph.edge import _ERROR_CONDITION, _INTERRUPT_KEY, Edge, Hook
-from draf.graph.graph import Graph
+from draf.graph.graph import Graph, TurnResult
 
 __all__ = [
     "Edge",
     "Graph",
     "Hook",
+    "TurnResult",
     "_ERROR_CONDITION",
     "_INTERRUPT_KEY",
 ]

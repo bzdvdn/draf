@@ -95,7 +95,7 @@ async def chat(
     assistant, owner, session_id = _session(req, request, x_user_id)
     observer = _observer(request, owner, session_id)
     try:
-        result = await assistant.turn(
+        result = await assistant.run(
             session_id,
             req.message,
             owner=owner,

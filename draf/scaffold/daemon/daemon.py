@@ -43,8 +43,12 @@ async def _process_job(
 ) -> dict:
     job = load_job(job_id, queue_dir=queue_dir)
     try:
-        result = await assistant.run_turn(job["session_id"], job["message"])
-        payload: dict = {"ok": True, "job_id": job_id, "result": result}
+        result = await assistant.run(job["session_id"], job["message"])
+        payload: dict = {
+            "ok": True,
+            "job_id": job_id,
+            "result": result.reply if not result.waiting else None,
+        }
     except Exception as exc:
         payload = {"ok": False, "job_id": job_id, "error": str(exc)}
     complete(job_id, payload, queue_dir=queue_dir, results_dir=results_dir)

@@ -72,7 +72,7 @@ def run(
         f"provider: {settings.provider}  model: {model}  "
         f"session: {session}  (requires a running Ollama)"
     )
-    asyncio.run(_stream_turn(assistant, session, message))
+    asyncio.run(_stream(assistant, session, message))
     print(f"\n== assistant ==\n{asyncio.run(assistant.last_reply(session))}")
 
 
@@ -96,13 +96,13 @@ def chat(
             return
         if not message:
             continue
-        asyncio.run(_stream_turn(assistant, session, message))
+        asyncio.run(_stream(assistant, session, message))
         print(f"\n== assistant ==\n{asyncio.run(assistant.last_reply(session))}")
         print()
 
 
-async def _stream_turn(assistant: Assistant, session: str, message: str) -> None:
-    async for event in assistant.stream_turn(session, message):
+async def _stream(assistant: Assistant, session: str, message: str) -> None:
+    async for event in assistant.stream(session, message):
         _render(event)
 
 

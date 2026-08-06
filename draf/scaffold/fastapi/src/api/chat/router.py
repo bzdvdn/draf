@@ -80,7 +80,7 @@ async def chat(
     assistant, owner, session_id = _session(req, request, x_user_id)
     observer = _observer(request, owner, session_id)
     try:
-        await assistant.run_turn(
+        result = await assistant.run(
             session_id,
             req.message,
             owner=owner,
@@ -94,8 +94,10 @@ async def chat(
         run_id = _finish(observer)
     return {
         "session_id": session_id,
-        "message": await assistant.last_reply(session_id, owner=owner),
+        "message": result.reply,
         "run_id": run_id,
+        "waiting": result.waiting,
+        "prompt": result.prompt if result.waiting else None,
     }
 
 
@@ -111,7 +113,7 @@ async def chat_stream(
         yield {"event": "chat_id", "data": json.dumps({"session_id": session_id})}
         observer = _observer(request, owner, session_id)
         try:
-            async for event in assistant.stream_turn(
+            async for event in assistant.stream(
                 session_id,
                 req.message,
                 owner=owner,

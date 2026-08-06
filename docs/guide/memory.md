@@ -206,7 +206,7 @@ tenant at the same store and keep the root segment — `"users"` — constant
 so tenants are just separate sub-namespaces. Facts written for one owner
 are never recalled for another; a fact can be shared by putting it under
 the common root instead. This is the pattern for chat apps like
-`examples/applications/repair-ai-chat`, whose `Assistant.run_turn` already
+`examples/applications/repair-ai-chat`, whose `Assistant.run` already
 threads `owner` into `graph.run`.
 
 ### Lifecycle

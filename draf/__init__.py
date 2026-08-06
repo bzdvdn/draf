@@ -5,7 +5,7 @@ graph-based pipelines with built-in tools and RAG support.
 """
 
 from draf._version import __version__
-from draf.assistant import Assistant, TurnResult
+from draf.assistant import Assistant
 from draf.errors import (
     ConfigError,
     DrafError,
@@ -17,7 +17,7 @@ from draf.errors import (
 )
 from draf.eval import extract_output, load_dataset, run_eval
 from draf.flow import Case, Flow, SubFlow
-from draf.graph import Edge, Graph
+from draf.graph import Edge, Graph, TurnResult
 from draf.harness import Harness
 from draf.logging import (
     configure_logging,

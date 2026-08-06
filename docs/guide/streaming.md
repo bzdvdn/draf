@@ -34,6 +34,12 @@ automatically in this mode); routing decisions, checkpoints, and interrupt
 pauses stream the same way. `stream()` accepts the same parameters as
 `run()` — tools, checkpointer, resume, tracer, `max_iterations`.
 
+For chat applications, `stream(message=...)` drives one durable conversation
+turn: a paused session auto-resumes with the message, and a re-work pause
+surfaces an `interrupt` event (with `key`/`prompt` in its `data`) where the
+stream ends — call `stream(message=...)` again with the operator's answer.
+See [Durable execution](durable.md#conversation-turns-runmessage).
+
 ## Observability (telemetry)
 
 Pass a `RunTracer` to `graph.run()` to collect a JSON-serialisable event log:

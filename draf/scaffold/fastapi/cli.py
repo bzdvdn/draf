@@ -77,7 +77,7 @@ async def main() -> None:
         f"provider: {settings.provider}  model: {args.model}  "
         f"session: {args.session}  (requires a running Ollama)"
     )
-    async for event in container.assistant.stream_turn(args.session, args.message):
+    async for event in container.assistant.stream(args.session, args.message):
         _render(event)
     reply = await container.assistant.last_reply(args.session)
     if reply:
