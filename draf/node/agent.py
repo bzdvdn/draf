@@ -442,7 +442,13 @@ class ToolExec(Node):
                     to_run.append(call)
 
         results = await execute_tool_calls(
-            to_run, scoped, tool_error_mode, tool_timeout, tool_retries, state=state, ctx=ctx
+            to_run,
+            scoped,
+            tool_error_mode,
+            tool_timeout,
+            tool_retries,
+            state=state,
+            ctx=ctx,
         )
 
         result_by_id = {

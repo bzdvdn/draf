@@ -423,7 +423,9 @@ class TestValidate:
     async def test_any_of_matches_normalized_value(self):
         from draf.node import Validate
 
-        v = Validate(input_key="answer", strategy="any_of", any_of=["да", "ок", "конечно"])
+        v = Validate(
+            input_key="answer", strategy="any_of", any_of=["да", "ок", "конечно"]
+        )
         out = await self._run(v, {"answer": "  ОК "})
         assert out["decision"] == "да"
 
@@ -494,9 +496,12 @@ class TestAsk:
         assert Ask.any_of("да", "ок")._allowed == ["да", "ок"]
         assert Ask.regex(r"\d+")._pattern == r"\d+"
         assert Ask.check(lambda v: True)._predicate is not None
-        assert Ask.model(
-            system="s", user="u", schema={"x": 1}, model="m", provider="p"
-        ).strategy == "model"
+        assert (
+            Ask.model(
+                system="s", user="u", schema={"x": 1}, model="m", provider="p"
+            ).strategy
+            == "model"
+        )
 
     def test_model_ask_needs_classifier(self):
         from draf.node import Ask
@@ -509,7 +514,9 @@ class TestAsk:
     def test_validate_node_wiring(self):
         from draf.node import Ask
 
-        v = Ask.equals("да", decision_key="go", value_key="code").validate_node("answer")
+        v = Ask.equals("да", decision_key="go", value_key="code").validate_node(
+            "answer"
+        )
         assert v.config["input_key"] == "answer"
         assert v.config["output_key"] == "go"
         assert v.config["value_key"] == "code"

@@ -25,8 +25,9 @@ from __future__ import annotations
 
 import json
 import time
-from typing import Any
+from typing import Any, Callable
 
+from draf.errors import redact as _default_redact
 from draf.observability.exporter import TraceExporter
 from draf.observability.model import (
     GraphTopology,
@@ -73,12 +74,15 @@ class GraphObserver:
         topology: GraphTopology | None = None,
         owner: str | None = None,
         checkpoint_id: str | None = None,
+        redact: bool = True,
+        redact_fn: Callable[[Any], Any] = _default_redact,
     ):
         self.name = name
         self.exporter = exporter
         self.topology = topology or GraphTopology()
         self.owner = owner
         self.checkpoint_id = checkpoint_id
+        self._redact_fn = redact_fn if redact else (lambda value: value)
 
         self.tracer = RunTracer()
         self._start = time.monotonic()
@@ -102,12 +106,13 @@ class GraphObserver:
         cached: bool,
     ) -> None:
         """Sink for the run's ``on_llm_payload`` channel."""
+        redact = self._redact_fn
         call = LLMCall(
             node_id=self._active[-1].node_id if self._active else None,
             provider=provider,
             model=model,
-            messages=messages,
-            response=str(response or ""),
+            messages=redact(messages),
+            response=str(redact(response) or ""),
             prompt_tokens=int(usage.get("prompt", 0) or 0),
             completion_tokens=int(usage.get("completion", 0) or 0),
             latency_ms=latency_ms,
@@ -150,14 +155,14 @@ class GraphObserver:
                 existing = seen.get(call_id)
                 if existing is not None:
                     if result is not None and not existing.result:
-                        existing.result = result
+                        existing.result = self._redact_fn(result)
                         existing.ok = not _is_tool_error(result)
                     continue
 
                 call = ToolCall(
                     name=name,
-                    args=raw_args,
-                    result=result or "",
+                    args=self._redact_fn(raw_args),
+                    result=self._redact_fn(result) if result else "",
                     ok=not (result and _is_tool_error(result)),
                 )
                 seen[call_id] = call

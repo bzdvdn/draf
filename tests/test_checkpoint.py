@@ -693,3 +693,185 @@ class TestPGCheckpointCleanup:
         await pg.save("b", _cp({}))
         assert await pg.cleanup(keep_last=1) == 1
         assert await pg.list() == ["b"]
+
+
+class _FakePGConn:
+    """Tiny in-memory stand-in for an ``asyncpg`` connection.
+
+    Understands exactly the SQL shapes issued by the PG checkpointer and the
+    PG history checkpointer, so the PG backends can be unit-tested without a
+    live PostgreSQL server.  Rows live in a plain dict shared by every
+    connection of the same checkpointer instance.
+    """
+
+    def __init__(self, state):
+        self._state = state
+
+    async def execute(self, sql: str, *args) -> str | None:
+        if sql.lstrip().startswith("CREATE TABLE"):
+            return None
+        if "checkpoint_history" in sql:
+            if "INSERT" in sql or "ON CONFLICT" in sql:
+                owner, cid, iteration, state_json, next_node_id = args
+                hist = self._state.setdefault("history", {})
+                key = (owner, cid)
+                hist.setdefault(key, {})[iteration] = {
+                    "state": state_json,
+                    "next_node_id": next_node_id,
+                }
+                return None
+        elif "INSERT" in sql or "ON CONFLICT" in sql:
+            owner, cid, state_json, next_node_id, iteration, updated_at = args
+            self._state.setdefault("checkpoints", {})[(owner, cid)] = {
+                "state": state_json,
+                "next_node_id": next_node_id,
+                "iteration": iteration,
+                "updated_at": updated_at,
+            }
+            return None
+        if "COALESCE(updated_at, 0) < $2" in sql:
+            owner, cutoff = args
+            to_drop = [
+                key
+                for key, row in self._state.setdefault("checkpoints", {}).items()
+                if key[0] == owner and (row["updated_at"] or 0) < cutoff
+            ]
+            for key in to_drop:
+                del self._state["checkpoints"][key]
+            return f"DELETE {len(to_drop)}"
+        if "DELETE FROM" in sql:
+            owner, cid = args
+            removed = self._state.setdefault("checkpoints", {}).pop((owner, cid), None)
+            return f"DELETE {1 if removed else 0}"
+        return None
+
+    async def fetch(self, sql: str, *args) -> list:
+        if "SELECT DISTINCT owner" in sql:
+            owners = {key[0] for key in self._state.setdefault("checkpoints", {})}
+            return [{"owner": o} for o in sorted(owners)]
+        if "checkpoint_history" in sql:
+            owner, cid = args
+            hist = self._state.setdefault("history", {}).get((owner, cid), {})
+            return [
+                {"iteration": it, "next_node_id": row["next_node_id"]}
+                for it, row in sorted(hist.items())
+            ]
+        if "ORDER BY COALESCE(updated_at, 0) DESC OFFSET" in sql:
+            owner, keep_last = args
+            rows = sorted(
+                self._state.setdefault("checkpoints", {}).items(),
+                key=lambda kv: kv[1]["updated_at"] or 0,
+                reverse=True,
+            )
+            return [{"checkpoint_id": key[1]} for key, _ in rows[keep_last:]]
+        owner = args[0]
+        return [
+            {"checkpoint_id": key[1]}
+            for key in sorted(self._state.setdefault("checkpoints", {}))
+            if key[0] == owner
+        ]
+
+    async def fetchrow(self, sql: str, *args) -> dict | None:
+        if "checkpoint_history" in sql:
+            owner, cid, iteration = args
+            row = (
+                self._state.setdefault("history", {})
+                .get((owner, cid), {})
+                .get(iteration)
+            )
+            if row is None:
+                return None
+            return {"state": row["state"], "next_node_id": row["next_node_id"]}
+        owner, cid = args
+        row = self._state.setdefault("checkpoints", {}).get((owner, cid))
+        if row is None:
+            return None
+        return {
+            "state": row["state"],
+            "next_node_id": row["next_node_id"],
+            "iteration": row["iteration"],
+        }
+
+    async def close(self) -> None:
+        pass
+
+
+def _mock_pg(monkeypatch, checkpointer_cls, dsn="postgresql://mock/mock"):
+    import importlib.util
+
+    if importlib.util.find_spec("asyncpg") is None:
+        pytest.skip("asyncpg is not installed")
+    import asyncpg
+
+    state = {}
+
+    async def _connect(dsn):
+        return _FakePGConn(state)
+
+    monkeypatch.setattr(asyncpg, "connect", _connect)
+    return checkpointer_cls(dsn)
+
+
+class TestPGCheckpointerMocked:
+    """PG checkpointer logic without a live server (asyncpg faked)."""
+
+    @pytest.fixture
+    def pg(self, monkeypatch):
+        from draf.checkpoint.pg import PGCheckpointer
+
+        return _mock_pg(monkeypatch, PGCheckpointer)
+
+    async def test_save_load_roundtrip(self, pg):
+        await pg.save("run-1", _cp({"n": 1}), owner="u1")
+        await pg.save("run-1", _cp({"n": 2}), owner="u1")
+        cp = await pg.load("run-1", owner="u1")
+        assert cp.state == {"n": 2}
+        assert await pg.load("run-1", owner="other") is None
+
+    async def test_delete_and_list(self, pg):
+        await pg.save("a", _cp({}), owner="u1")
+        await pg.save("b", _cp({}), owner="u1")
+        assert await pg.list(owner="u1") == ["a", "b"]
+        await pg.delete("a", owner="u1")
+        assert await pg.list(owner="u1") == ["b"]
+
+    async def test_cleanup_by_max_age(self, pg):
+        await pg.save("old", _cp({}), owner="u1")
+        await pg.save("new", _cp({}), owner="u1")
+        assert await pg.cleanup(max_age=0) == 2
+        assert await pg.list(owner="u1") == []
+
+    async def test_cleanup_keep_last(self, pg):
+        await pg.save("a", _cp({}), owner="u1")
+        await pg.save("b", _cp({}), owner="u1")
+        assert await pg.cleanup(keep_last=1) == 1
+        assert await pg.list(owner="u1") == ["b"]
+
+
+class TestPGHistoryCheckpointerMocked:
+    @pytest.fixture
+    def pg(self, monkeypatch):
+        from draf.checkpoint import PGHistoryCheckpointer
+
+        return _mock_pg(monkeypatch, PGHistoryCheckpointer)
+
+    async def test_save_history_load_at(self, pg):
+        from draf.checkpoint import Checkpoint
+
+        await pg.save(
+            "run-1",
+            Checkpoint(state={"n": 1}, next_node_id="n1", iteration=1),
+            owner="u1",
+        )
+        await pg.save(
+            "run-1",
+            Checkpoint(state={"n": 2}, next_node_id="n2", iteration=2),
+            owner="u1",
+        )
+        assert await pg.history("run-1", owner="u1") == [(1, "n1"), (2, "n2")]
+
+        past = await pg.load_at("run-1", 1, owner="u1")
+        assert past.state == {"n": 1}
+        assert past.next_node_id == "n1"
+        assert await pg.load_at("run-1", 99, owner="u1") is None
+        assert await pg.history("run-1", owner="other") == []

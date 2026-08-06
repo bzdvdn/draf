@@ -198,7 +198,9 @@ class _MockTransport:
         self.calls: list[str] = []
         self.coordinator_calls = 0
         self.qa_calls = 0
-        self.coordinator_steps = list(coordinator_steps if coordinator_steps is not None else _HAPPY_PATH)
+        self.coordinator_steps = list(
+            coordinator_steps if coordinator_steps is not None else _HAPPY_PATH
+        )
         self.qa_verdicts = list(qa_verdicts or [])
         self._call_seq = 0
 
@@ -212,7 +214,9 @@ class _MockTransport:
         last = messages[-1] if messages else None
         if last and last.get("role") == "assistant" and last.get("tool_calls"):
             fn = last["tool_calls"][0]["function"]
-            return _tool_call(name=fn["name"], call_id=call_id, arguments=json.loads(fn["arguments"]))
+            return _tool_call(
+                name=fn["name"], call_id=call_id, arguments=json.loads(fn["arguments"])
+            )
         if not self.coordinator_steps:
             ran_tools = any(
                 m.get("role") == "tool"
@@ -229,7 +233,9 @@ class _MockTransport:
             return _tool_call("propose_plan", call_id, {})
         if token == "ask_plan":
             return _tool_call(
-                "ask_human", call_id, {"question": "План готов. Одобряешь план? Ответь: да или нет."}
+                "ask_human",
+                call_id,
+                {"question": "План готов. Одобряешь план? Ответь: да или нет."},
             )
         if token == "estimate":
             return _tool_call("prepare_estimate", call_id, {})
@@ -237,7 +243,9 @@ class _MockTransport:
             return _tool_call("run_qa_check", call_id, {})
         if token == "ask_estimate":
             return _tool_call(
-                "ask_human", call_id, {"question": "Смета готова. Одобряешь смету? Ответь: да или нет."}
+                "ask_human",
+                call_id,
+                {"question": "Смета готова. Одобряешь смету? Ответь: да или нет."},
             )
         return _reply(_FINAL)
 
@@ -423,8 +431,14 @@ async def test_coordinator_replans_on_rejection(monkeypatch, tmp_path):
     "да" then completes."""
     mock = _MockTransport(
         coordinator_steps=[
-            "extract", "plan", "ask_plan", "plan", "ask_plan",
-            "estimate", "qa", "ask_estimate",
+            "extract",
+            "plan",
+            "ask_plan",
+            "plan",
+            "ask_plan",
+            "estimate",
+            "qa",
+            "ask_estimate",
         ]
     )
     monkeypatch.setattr(httpx.AsyncClient, "post", mock)
@@ -434,7 +448,10 @@ async def test_coordinator_replans_on_rejection(monkeypatch, tmp_path):
     graph = flow.compile()
 
     result = await _run_with_approval(
-        graph, _state_with_request(), tools, answers=("нет", "да"),
+        graph,
+        _state_with_request(),
+        tools,
+        answers=("нет", "да"),
         checkpoint_dir=str(tmp_path),
     )
 
@@ -453,8 +470,13 @@ async def test_unclear_answer_reasks_without_replanning(monkeypatch, tmp_path):
     the planner sub-agent runs exactly once."""
     mock = _MockTransport(
         coordinator_steps=[
-            "extract", "plan", "ask_plan", "ask_plan",
-            "estimate", "qa", "ask_estimate",
+            "extract",
+            "plan",
+            "ask_plan",
+            "ask_plan",
+            "estimate",
+            "qa",
+            "ask_estimate",
         ]
     )
     monkeypatch.setattr(httpx.AsyncClient, "post", mock)
@@ -464,7 +486,9 @@ async def test_unclear_answer_reasks_without_replanning(monkeypatch, tmp_path):
     graph = flow.compile()
 
     result = await _run_with_approval(
-        graph, _state_with_request(), tools,
+        graph,
+        _state_with_request(),
+        tools,
         answers=("qhjrkjlkjsdgjdlksgj", "да", "да"),
         checkpoint_dir=str(tmp_path),
     )
@@ -481,9 +505,15 @@ async def test_estimate_rejection_recalculates_and_reasks(monkeypatch, tmp_path)
     (and QA) before asking again; the second "да" completes."""
     mock = _MockTransport(
         coordinator_steps=[
-            "extract", "plan", "ask_plan",
-            "estimate", "qa", "ask_estimate",
-            "estimate", "qa", "ask_estimate",
+            "extract",
+            "plan",
+            "ask_plan",
+            "estimate",
+            "qa",
+            "ask_estimate",
+            "estimate",
+            "qa",
+            "ask_estimate",
         ]
     )
     monkeypatch.setattr(httpx.AsyncClient, "post", mock)
@@ -493,7 +523,9 @@ async def test_estimate_rejection_recalculates_and_reasks(monkeypatch, tmp_path)
     graph = flow.compile()
 
     result = await _run_with_approval(
-        graph, _state_with_request(), tools,
+        graph,
+        _state_with_request(),
+        tools,
         answers=("да", "нет", "да"),
         checkpoint_dir=str(tmp_path),
     )
@@ -515,8 +547,14 @@ async def test_qa_fix_loop_revises_and_finalizes(monkeypatch, tmp_path):
     run_qa_check, then ask the human; the ok verdict completes."""
     mock = _MockTransport(
         coordinator_steps=[
-            "extract", "plan", "ask_plan",
-            "estimate", "qa", "estimate", "qa", "ask_estimate",
+            "extract",
+            "plan",
+            "ask_plan",
+            "estimate",
+            "qa",
+            "estimate",
+            "qa",
+            "ask_estimate",
         ],
         qa_verdicts=[
             json.dumps({"ok": False, "message": "Смета не сходится с планом."}),
@@ -529,7 +567,9 @@ async def test_qa_fix_loop_revises_and_finalizes(monkeypatch, tmp_path):
     flow, tools = build_flow()
     graph = flow.compile()
 
-    result = await _run_with_approval(graph, _state_with_request(), tools, checkpoint_dir=str(tmp_path))
+    result = await _run_with_approval(
+        graph, _state_with_request(), tools, checkpoint_dir=str(tmp_path)
+    )
 
     assert mock.qa_calls == 2
     assert result["qa_feedback"] == ""  # final QA passed
@@ -824,9 +864,7 @@ async def test_route_wiring_in_example(transport):
 async def test_subagent_tools_write_state(monkeypatch, tmp_path):
     """The sub-agent tools read the shared state and write their output back
     into it via ``__state__``."""
-    mock = _MockTransport(
-        coordinator_steps=["extract", "plan", "ask_plan", "finish"]
-    )
+    mock = _MockTransport(coordinator_steps=["extract", "plan", "ask_plan", "finish"])
     monkeypatch.setattr(httpx.AsyncClient, "post", mock)
     monkeypatch.setattr(httpx.AsyncClient, "stream", mock)
 

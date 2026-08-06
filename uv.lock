@@ -958,7 +958,6 @@ source = { editable = "." }
 dependencies = [
     { name = "httpx" },
     { name = "jsonschema" },
-    { name = "mcp" },
     { name = "pyyaml" },
     { name = "typer" },
 ]
@@ -973,6 +972,7 @@ all = [
     { name = "faiss-cpu" },
     { name = "fastapi" },
     { name = "lancedb" },
+    { name = "mcp" },
     { name = "openpyxl" },
     { name = "pgvector" },
     { name = "pinecone" },
@@ -1009,6 +1009,9 @@ fastapi = [
     { name = "fastapi" },
     { name = "sse-starlette" },
     { name = "uvicorn" },
+]
+mcp = [
+    { name = "mcp" },
 ]
 observability = [
     { name = "fastapi" },
@@ -1077,15 +1080,15 @@ requires-dist = [
     { name = "boto3", marker = "extra == 'tools'", specifier = ">=1.34" },
     { name = "celery", extras = ["redis"], marker = "extra == 'queue'", specifier = ">=5.4" },
     { name = "chromadb", marker = "extra == 'stores-chroma'", specifier = ">=0.5" },
-    { name = "draf", extras = ["embedding", "tools", "rag-pdf", "rag-excel", "pg-checkpoint", "fastapi", "queue", "observability"], marker = "extra == 'all'" },
+    { name = "draf", extras = ["embedding", "tools", "mcp", "rag-pdf", "rag-excel", "pg-checkpoint", "fastapi", "queue", "observability"], marker = "extra == 'all'" },
     { name = "draf", extras = ["stores-qdrant", "stores-chroma", "stores-pgvector", "stores-faiss", "stores-lance", "stores-milvus", "stores-weaviate", "stores-pinecone"], marker = "extra == 'embedding'" },
     { name = "faiss-cpu", marker = "extra == 'stores-faiss'", specifier = ">=1.7" },
     { name = "fastapi", marker = "extra == 'fastapi'", specifier = ">=0.115" },
     { name = "fastapi", marker = "extra == 'observability'", specifier = ">=0.115" },
-    { name = "httpx", specifier = ">=0.27" },
-    { name = "jsonschema", specifier = ">=4.18" },
+    { name = "httpx", specifier = ">=0.27,<1.0" },
+    { name = "jsonschema", specifier = ">=4.18,<5.0" },
     { name = "lancedb", marker = "extra == 'stores-lance'", specifier = ">=0.26" },
-    { name = "mcp", specifier = ">=1.0" },
+    { name = "mcp", marker = "extra == 'mcp'", specifier = ">=2.0,<3.0" },
     { name = "mkdocs", marker = "extra == 'docs'", specifier = ">=1.6" },
     { name = "mkdocs-gen-files", marker = "extra == 'docs'", specifier = ">=0.5" },
     { name = "mkdocs-material", marker = "extra == 'docs'", specifier = ">=9.5" },
@@ -1097,18 +1100,18 @@ requires-dist = [
     { name = "pymilvus", marker = "extra == 'stores-milvus'", specifier = ">=2.4" },
     { name = "pypdf", marker = "extra == 'rag-pdf'", specifier = ">=4.0" },
     { name = "pypdf", marker = "extra == 'tools'", specifier = ">=4.0" },
-    { name = "pyyaml", specifier = ">=6.0" },
+    { name = "pyyaml", specifier = ">=6.0,<7.0" },
     { name = "qdrant-client", marker = "extra == 'stores-qdrant'", specifier = ">=1.9" },
     { name = "redis", marker = "extra == 'tools'", specifier = ">=5.0" },
     { name = "slack-sdk", marker = "extra == 'tools'", specifier = ">=3.27" },
     { name = "sqlalchemy", marker = "extra == 'stores-pgvector'", specifier = ">=2.0" },
     { name = "sse-starlette", marker = "extra == 'fastapi'", specifier = ">=2.0" },
-    { name = "typer", specifier = ">=0.12" },
+    { name = "typer", specifier = ">=0.12,<1.0" },
     { name = "uvicorn", marker = "extra == 'fastapi'", specifier = ">=0.30" },
     { name = "uvicorn", marker = "extra == 'observability'", specifier = ">=0.30" },
     { name = "weaviate-client", marker = "extra == 'stores-weaviate'", specifier = ">=4.4" },
 ]
-provides-extras = ["stores-qdrant", "stores-chroma", "stores-pgvector", "stores-faiss", "stores-lance", "stores-milvus", "stores-weaviate", "stores-pinecone", "embedding", "rag-pdf", "rag-excel", "pg-checkpoint", "tools", "fastapi", "observability", "queue", "docs", "all"]
+provides-extras = ["stores-qdrant", "stores-chroma", "stores-pgvector", "stores-faiss", "stores-lance", "stores-milvus", "stores-weaviate", "stores-pinecone", "embedding", "rag-pdf", "rag-excel", "pg-checkpoint", "tools", "mcp", "fastapi", "observability", "queue", "docs", "all"]
 
 [package.metadata.requires-dev]
 dev = [

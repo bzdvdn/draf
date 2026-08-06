@@ -153,13 +153,13 @@ class TestMemoryTool:
     async def test_forget_and_list(self, store, embedder):
         from draf.memory import MemoryTool
 
-        tool = MemoryTool(store=store, embedder=embedder)
-        await tool.arun(action="remember", namespace=["u"], key="a", text="one")
-        await tool.arun(action="remember", namespace=["u"], key="b", text="two")
-        out = await tool.arun(action="list", namespace=["u"])
+        tool = MemoryTool(store=store, embedder=embedder, namespace=("u",))
+        await tool.arun(action="remember", key="a", text="one")
+        await tool.arun(action="remember", key="b", text="two")
+        out = await tool.arun(action="list")
         assert "a" in out and "b" in out
-        await tool.arun(action="forget", namespace=["u"], key="a")
-        out = await tool.arun(action="list", namespace=["u"])
+        await tool.arun(action="forget", key="a")
+        out = await tool.arun(action="list")
         assert "a" not in out and "b" in out
 
     @pytest.mark.asyncio
@@ -176,6 +176,19 @@ class TestMemoryTool:
         keys = await tool.memory.list(("u",))
         assert len(keys) == 1
         assert keys[0] == "first"
+
+    @pytest.mark.asyncio
+    async def test_namespace_is_fixed_by_the_host(self, store, embedder):
+        """An agent cannot switch namespaces at call time: data written under
+        the configured namespace stays isolated from other namespaces."""
+        from draf.memory import MemoryTool
+
+        tool = MemoryTool(store=store, embedder=embedder, namespace=("users", "u1"))
+        await tool.arun(action="remember", key="a", text="secret for u1")
+        keys = await tool.memory.list(("users", "u1"))
+        assert keys == ["a"]
+        other = await tool.memory.list(("users", "u2"))
+        assert other == []
 
     @pytest.mark.asyncio
     async def test_unknown_action_raises(self, store, embedder):

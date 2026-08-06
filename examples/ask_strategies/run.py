@@ -92,58 +92,63 @@ class CheckoutState(TypedDict):
 
 def _regex_gate() -> Flow:
     """Discount code must match a pattern; the code is captured into state."""
-    return (
-        Flow("regex-gate", providers=ProviderRegistry.from_presets(PROVIDER))
-        .interrupt_loop(
-            key="code",
-            prompt="Введите промокод (формат XX-1234):",
-            accept=Ask.regex(
-                r"^[A-Z]{2}-[0-9]{4}$",
-                decision_key="code_ok",
-                value_key="discount_code",
-            ),
-            body=Transform({"action": "value", "value": "неверный код", "output_key": "total"}),
-            done=Transform({"action": "value", "value": "скидка применена", "output_key": "total"}),
-            id="discount",
-        )
+    return Flow(
+        "regex-gate", providers=ProviderRegistry.from_presets(PROVIDER)
+    ).interrupt_loop(
+        key="code",
+        prompt="Введите промокод (формат XX-1234):",
+        accept=Ask.regex(
+            r"^[A-Z]{2}-[0-9]{4}$",
+            decision_key="code_ok",
+            value_key="discount_code",
+        ),
+        body=Transform(
+            {"action": "value", "value": "неверный код", "output_key": "total"}
+        ),
+        done=Transform(
+            {"action": "value", "value": "скидка применена", "output_key": "total"}
+        ),
+        id="discount",
     )
 
 
 def _equals_gate() -> Flow:
     """Bare approval: the raw answer must normalize to "да"."""
-    return (
-        Flow("equals-gate", providers=ProviderRegistry.from_presets(PROVIDER))
-        .interrupt_loop(
-            key="approved",
-            prompt="Сумма 1000 руб. Одобрить? (да/нет)",
-            accept=Ask.equals("да", decision_key="approved_ok"),
-            body=Transform({"action": "value", "value": "отменено", "output_key": "total"}),
-            done=Transform({"action": "value", "value": "заказ оформлен", "output_key": "total"}),
-            id="approval",
-        )
+    return Flow(
+        "equals-gate", providers=ProviderRegistry.from_presets(PROVIDER)
+    ).interrupt_loop(
+        key="approved",
+        prompt="Сумма 1000 руб. Одобрить? (да/нет)",
+        accept=Ask.equals("да", decision_key="approved_ok"),
+        body=Transform({"action": "value", "value": "отменено", "output_key": "total"}),
+        done=Transform(
+            {"action": "value", "value": "заказ оформлен", "output_key": "total"}
+        ),
+        id="approval",
     )
 
 
 def _model_gate() -> Flow:
     """Free-form approval: a classifier LLM normalizes the answer."""
-    return (
-        Flow("model-gate", providers=ProviderRegistry.from_presets(PROVIDER))
-        .interrupt_loop(
-            key="approved",
-            prompt="Сумма 1000 руб. Одобрить? (можно своими словами)",
-            accept=Ask.model(
-                system=VERDICT_SYSTEM,
-                user="Ответ пользователя:\n{approved}\n\nОдобрил ли пользователь?",
-                schema=VERDICT_SCHEMA,
-                model=MODEL,
-                provider=PROVIDER,
-                verdict_key="verdict",
-                decision_key="approved_ok",
-            ),
-            body=Transform({"action": "value", "value": "отменено", "output_key": "total"}),
-            done=Transform({"action": "value", "value": "заказ оформлен", "output_key": "total"}),
-            id="approval",
-        )
+    return Flow(
+        "model-gate", providers=ProviderRegistry.from_presets(PROVIDER)
+    ).interrupt_loop(
+        key="approved",
+        prompt="Сумма 1000 руб. Одобрить? (можно своими словами)",
+        accept=Ask.model(
+            system=VERDICT_SYSTEM,
+            user="Ответ пользователя:\n{approved}\n\nОдобрил ли пользователь?",
+            schema=VERDICT_SCHEMA,
+            model=MODEL,
+            provider=PROVIDER,
+            verdict_key="verdict",
+            decision_key="approved_ok",
+        ),
+        body=Transform({"action": "value", "value": "отменено", "output_key": "total"}),
+        done=Transform(
+            {"action": "value", "value": "заказ оформлен", "output_key": "total"}
+        ),
+        id="approval",
     )
 
 

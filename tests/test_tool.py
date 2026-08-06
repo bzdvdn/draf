@@ -764,3 +764,23 @@ class TestShellSandbox:
         t = ShellTool()
         with pytest.raises(ValueError, match="empty"):
             await t.arun("")
+
+    @pytest.mark.asyncio
+    async def test_shell_metacharacters_rejected(self):
+        """Blocklist bypasses via &&/;/|/backticks/$(...) are impossible:
+        the tool runs execve, and tokens with shell metacharacters are
+        refused outright."""
+        from draf.tool.builtin import ShellTool
+
+        t = ShellTool()
+        for cmd in (
+            "echo hi && sudo rm -rf /",
+            "echo hi; reboot",
+            "echo hi | dd of=/dev/null",
+            "echo $(sudo id)",
+            "echo `sudo id`",
+            "ls *.py",
+            "cat /tmp/f > /etc/passwd",
+        ):
+            with pytest.raises(PermissionError, match="metacharacters"):
+                await t.arun(cmd)

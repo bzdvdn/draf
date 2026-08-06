@@ -139,7 +139,14 @@ class Ask:
 
     @classmethod
     def model(
-        cls, *, system: str, user: str, schema: dict, model: str, provider: str, **kwargs
+        cls,
+        *,
+        system: str,
+        user: str,
+        schema: dict,
+        model: str,
+        provider: str,
+        **kwargs,
     ) -> "Ask":
         return cls(
             system=system,

@@ -11,7 +11,6 @@ sub-agent is invisible in the graph topology.
 from __future__ import annotations
 
 from draf.tool.agent import AgentTool
-
 from src.domain.models import (
     PROJECT_INFO_LABELS,
     PROJECT_INFO_SCHEMA,

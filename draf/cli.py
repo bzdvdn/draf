@@ -15,6 +15,9 @@ from draf._version import __version__
 from draf.checkpoint import DEFAULT_OWNER
 from draf.scaffold import TEMPLATES
 
+#: Hosts where unauthenticated trace serving is still permitted.
+_LOOPBACK_HOSTS = {"127.0.0.1", "localhost", "::1"}
+
 app = typer.Typer(
     name="draf",
     help="Workflow as data. Agents as graphs.",
@@ -661,15 +664,31 @@ def obs_server(
     prefix: str = typer.Option(
         "/obs", "--prefix", help="URL prefix for the dashboard and ingest"
     ),
+    api_key: str | None = typer.Option(
+        None,
+        "--api-key",
+        envvar="DRAF_OBS_API_KEY",
+        help="Shared key required in the X-API-Key header (mandatory on 0.0.0.0)",
+    ),
 ) -> None:
     """Serve the trace dashboard + ingest endpoint (standalone obs server).
 
     Workflows with no API push their traces here via ``observability:``
     (``type: webhook``), and this process serves the dashboard UI::
 
-        draf obs-server --db traces.db --host 0.0.0.0 --port 8001
+        draf obs-server --db traces.db --host 127.0.0.1 --port 8001
         # open http://localhost:8001/obs/ui
+
+    Traces contain full prompts/responses.  Binding to a non-loopback host
+    (``0.0.0.0``) without ``--api-key`` is refused: the server refuses to
+    start rather than expose them unauthenticated.
     """
+    if api_key is None and host not in _LOOPBACK_HOSTS:
+        raise typer.BadParameter(
+            "--api-key is required when binding outside 127.0.0.1 "
+            "(traces contain full prompts/responses)",
+            param_hint="--host",
+        )
     try:
         from draf.observability.server import serve
     except ImportError as e:
@@ -678,7 +697,7 @@ def obs_server(
             err=True,
         )
         raise typer.Exit(1)
-    serve(db, host=host, port=port, prefix=prefix)
+    serve(db, host=host, port=port, prefix=prefix, api_key=api_key)
 
 
 @app.command()

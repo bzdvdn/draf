@@ -5,8 +5,8 @@ This module connects a Draf graph to an MCP server and exposes its tools as
 regular :class:`~draf.tool.Tool` instances, so they work anywhere the built-in
 tools do — LLM nodes, the ReAct agent, tool registries.
 
-The ``mcp`` SDK ships with the core package; it is imported lazily so a plain
-``import draf`` stays fast.
+    The ``mcp`` SDK is optional (install with ``draf[mcp]``); it is imported
+    lazily so a plain ``import draf`` stays light and fast.
 
 Usage::
 
@@ -95,8 +95,14 @@ async def _connect_tools(read_stream, write_stream, client_info: dict | None = N
     The caller owns *session* and must close it (``await
     session.__aexit__(None, None, None)``) when done.
     """
-    import mcp
-    from mcp.client.session import ClientSession
+    try:
+        import mcp
+        from mcp.client.session import ClientSession
+    except ModuleNotFoundError as exc:  # pragma: no cover - env-dependent
+        raise ModuleNotFoundError(
+            "mcp support requires the optional dependency; install with "
+            "'pip install draf[mcp]'"
+        ) from exc
 
     impl_name = "draf"
     impl_version = "unknown"

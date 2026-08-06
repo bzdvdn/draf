@@ -21,6 +21,7 @@ from fastapi import FastAPI
 from draf import Assistant
 from draf.observability import SQLiteExporter, topology_from_graph
 from draf.observability.api import attach_dashboard
+from service_desk.api.auth.router import require_api_key
 from service_desk.api.router import api_router
 from service_desk.config.config import Settings, get_settings
 from service_desk.core.deps import build_deps
@@ -79,6 +80,7 @@ def create_app(
 
     # Trace dashboard: every chat turn is captured by a GraphObserver into a
     # local SQLite store and browsable at /obs/ui (prefix from settings).
+    # It shares the API-key gate — traces expose full prompts and responses.
     trace_path = traces_db or (
         settings.traces_db
         or str(Path(__file__).resolve().parent / "data" / "traces.db")
@@ -86,6 +88,8 @@ def create_app(
     traces_exporter = SQLiteExporter(trace_path)
     app.state.traces_exporter = traces_exporter
     app.state.trace_topology = topology_from_graph(compiled)
-    attach_dashboard(app, traces_exporter, prefix=settings.traces_prefix)
+    attach_dashboard(
+        app, traces_exporter, prefix=settings.traces_prefix, auth=require_api_key
+    )
 
     return app

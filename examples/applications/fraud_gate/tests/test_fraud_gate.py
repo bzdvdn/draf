@@ -182,13 +182,21 @@ def _client(monkeypatch, tmp_path, risk=0.2):
     monkeypatch.setattr(httpx.AsyncClient, "post", _MockTransport(risk))
     client = TestClient(
         create_app(
-            Settings(checkpoint_dir=str(tmp_path / "ckpt"), model="llama3.1:8b"),
+            Settings(
+                checkpoint_dir=str(tmp_path / "ckpt"),
+                model="llama3.1:8b",
+                api_key="test-key",
+            ),
             checkpoint_dir=str(tmp_path / "ckpt"),
             traces_db=str(tmp_path / "traces.db"),
         ),
         raise_server_exceptions=False,
     )
     return client
+
+
+def _auth() -> dict:
+    return {"X-API-Key": "test-key", "X-User-Id": "test"}
 
 
 def test_api_health(monkeypatch, tmp_path):
@@ -205,6 +213,7 @@ def test_api_approves_transaction(monkeypatch, tmp_path):
     resp = client.post(
         "/api/review",
         json={"tx": {"id": "tx-1", "amount": 100, "note": "покупка"}},
+        headers=_auth(),
     )
     assert resp.status_code == 200
     body = resp.json()
@@ -215,7 +224,11 @@ def test_api_approves_transaction(monkeypatch, tmp_path):
 
 def test_api_denies_transaction(monkeypatch, tmp_path):
     client = _client(monkeypatch, tmp_path, risk=0.95)
-    body = client.post("/api/review", json={"tx": {"id": "tx-2", "amount": 100}}).json()
+    body = client.post(
+        "/api/review",
+        json={"tx": {"id": "tx-2", "amount": 100}},
+        headers=_auth(),
+    ).json()
     assert body["decision"] == "deny"
     assert body["waiting"] is False
     assert body["final"]["decision"] == "deny"
@@ -224,7 +237,11 @@ def test_api_denies_transaction(monkeypatch, tmp_path):
 
 def test_api_review_pauses_then_resumes(monkeypatch, tmp_path):
     client = _client(monkeypatch, tmp_path, risk=0.7)
-    first = client.post("/api/review", json={"tx": {"id": "tx-3", "amount": 100}})
+    first = client.post(
+        "/api/review",
+        json={"tx": {"id": "tx-3", "amount": 100}},
+        headers=_auth(),
+    )
     assert first.status_code == 200
     fdata = first.json()
     assert fdata["decision"] == "review"
@@ -232,7 +249,9 @@ def test_api_review_pauses_then_resumes(monkeypatch, tmp_path):
     assert fdata["prompt"]
     sid = fdata["session_id"]
 
-    resumed = client.post(f"/api/review/{sid}/decide", json={"answer": "pass"})
+    resumed = client.post(
+        f"/api/review/{sid}/decide", json={"answer": "pass"}, headers=_auth()
+    )
     assert resumed.status_code == 200
     body = resumed.json()
     assert body["decision"] == "review"
@@ -246,5 +265,6 @@ def test_api_decide_rejects_non_pending_session(monkeypatch, tmp_path):
     resp = client.post(
         "/api/review/{sid}/decide".format(sid="review:test:not-waiting"),
         json={"answer": "131232131"},
+        headers=_auth(),
     )
     assert resp.status_code == 409

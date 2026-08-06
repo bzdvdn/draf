@@ -2,8 +2,9 @@
 
 Handlers are thin: they read the :class:`~draf.assistant.Assistant` off
 ``request.app.state`` and delegate one turn to it.  Sessions are scoped
-to a user id (``X-User-Id`` header) and durable across requests and process
-restarts.
+to a caller id (``X-User-Id`` header, enforced by
+:func:`~src.api.auth.router.require_user_id`) and durable across requests
+and process restarts.
 
 Endpoints:
     POST   /api/chat         single-shot reply (runs the flow once)
@@ -19,12 +20,11 @@ from __future__ import annotations
 import json
 import uuid
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
-from src.api.auth.router import require_api_key
+from src.api.auth.router import require_api_key, require_user_id
 from sse_starlette.sse import EventSourceResponse
 
-from draf.checkpoint import DEFAULT_OWNER
 from draf.observability import GraphObserver
 
 router = APIRouter(dependencies=[Depends(require_api_key)])
@@ -34,14 +34,17 @@ class ChatRequest(BaseModel):
     """Body for ``POST /api/chat`` and ``POST /api/chat/stream``."""
 
     message: str = "Hi! Where should we start?"
-    session_id: str | None = None
     max_iterations: int = 80
 
 
-def _session(req: ChatRequest, request: Request, x_user_id: str | None):
-    """The durable session assets plus the session id for one turn."""
-    owner = x_user_id or DEFAULT_OWNER
-    session_id = req.session_id or uuid.uuid4().hex
+def _session(request: Request, owner: str):
+    """The durable session assets plus a fresh, server-generated session id.
+
+    The session id is **always** generated here — never taken from the
+    client — so callers cannot address or hijack another user's session by
+    supplying an id.  Sessions live in the caller's own namespace (``owner``).
+    """
+    session_id = uuid.uuid4().hex
     return request.app.state.assistant, owner, session_id
 
 
@@ -75,9 +78,9 @@ def _finish(observer: GraphObserver | None) -> str | None:
 async def chat(
     req: ChatRequest,
     request: Request,
-    x_user_id: str | None = Header(default=None, alias="X-User-Id"),
+    owner: str = Depends(require_user_id),
 ) -> dict:
-    assistant, owner, session_id = _session(req, request, x_user_id)
+    assistant, owner, session_id = _session(request, owner)
     observer = _observer(request, owner, session_id)
     try:
         result = await assistant.run(
@@ -89,12 +92,12 @@ async def chat(
             on_llm_payload=observer.on_llm_payload if observer else None,
         )
     except Exception as exc:
-        raise HTTPException(status_code=500, detail=str(exc))
+        raise HTTPException(status_code=500, detail="internal error") from exc
     finally:
         run_id = _finish(observer)
     return {
         "session_id": session_id,
-        "message": result.reply,
+        "reply": result.reply,
         "run_id": run_id,
         "waiting": result.waiting,
         "prompt": result.prompt if result.waiting else None,
@@ -105,9 +108,9 @@ async def chat(
 async def chat_stream(
     req: ChatRequest,
     request: Request,
-    x_user_id: str | None = Header(default=None, alias="X-User-Id"),
+    owner: str = Depends(require_user_id),
 ) -> EventSourceResponse:
-    assistant, owner, session_id = _session(req, request, x_user_id)
+    assistant, owner, session_id = _session(request, owner)
 
     async def events():
         yield {"event": "chat_id", "data": json.dumps({"session_id": session_id})}
@@ -134,7 +137,7 @@ async def chat_stream(
         yield {
             "event": "message",
             "data": json.dumps(
-                {"session_id": session_id, "message": reply, "run_id": run_id}
+                {"session_id": session_id, "reply": reply, "run_id": run_id}
             ),
         }
 

@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field, fields
+from dataclasses import dataclass, field
+from typing import Any
 
 from draf.schema import json_schema_from_type
 
@@ -71,15 +72,12 @@ def merge_project_info(current: dict | None, update: dict | None) -> dict:
     """State reducer: merge extracted fields into the running project info.
 
     ``None`` values in the update are skipped so an extraction that only
-    returns new fields never wipes previously known ones, and only fields
-    declared by :class:`ProjectInfo` are kept — the state value stays
-    conformant with its schema.
+    returns new fields never wipes previously known ones.
     """
-    known = {f.name for f in fields(ProjectInfo)}
-    merged = {k: v for k, v in (current or {}).items() if k in known}
+    merged = dict(current or {})
     if update:
         for key, value in update.items():
-            if key in known and value is not None:
+            if value is not None:
                 merged[key] = value
     return merged
 
@@ -106,17 +104,3 @@ def project_info_from_dict(data: dict[str, Any]) -> ProjectInfo:
     return ProjectInfo(
         **{k: v for k, v in data.items() if k in ProjectInfo.__dataclass_fields__}
     )
-
-
-def merge_project_info(current: dict | None, update: dict | None) -> dict:
-    """State reducer: merge extracted fields into the running project info.
-
-    ``None`` values in the update are skipped so an extraction that only
-    returns new fields never wipes previously known ones.
-    """
-    merged = dict(current or {})
-    if update:
-        for key, value in update.items():
-            if value is not None:
-                merged[key] = value
-    return merged

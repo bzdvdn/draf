@@ -22,6 +22,12 @@ Endpoints:
 - ``PATCH /obs/runs/{run_id}`` — update ``tags`` / ``notes`` on a run
   (body: ``{"tags": [...], "notes": "..."}``).
 
+Security: traces contain full LLM prompts and responses.  Do **not** bind
+these routers to a non-loopback host without passing an *auth* dependency —
+every dashboard read and every ingest write leaks conversation data
+otherwise.  ``attach_dashboard(..., auth=require_api_key)`` is the intended
+pattern for a public deployment.
+
 Run ids are the stable ``Run.run_id`` uuid4 values assigned when a run is
 collected and shared across all exporters.
 """
@@ -30,9 +36,9 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
-from fastapi import APIRouter, FastAPI, HTTPException, Query, Request
+from fastapi import APIRouter, Depends, FastAPI, HTTPException, Query, Request
 from fastapi.responses import HTMLResponse, JSONResponse
 from pydantic import BaseModel
 
@@ -62,7 +68,18 @@ class RunPatch(BaseModel):
     notes: str | None = None
 
 
-def dashboard_router(exporter: SQLiteExporter, *, prefix: str = "/obs") -> APIRouter:
+def _router(prefix: str, auth: Callable | None) -> APIRouter:
+    """Build an ``APIRouter`` with an optional auth dependency on every route."""
+    dependencies = [Depends(auth)] if auth is not None else []
+    return APIRouter(prefix=prefix, dependencies=dependencies)
+
+
+def dashboard_router(
+    exporter: SQLiteExporter,
+    *,
+    prefix: str = "/obs",
+    auth: Callable | None = None,
+) -> APIRouter:
     """Build the trace dashboard router over *exporter*.
 
     Mount it anywhere in your FastAPI app, under any prefix::
@@ -70,11 +87,15 @@ def dashboard_router(exporter: SQLiteExporter, *, prefix: str = "/obs") -> APIRo
         app.include_router(dashboard_router(exporter))            # /obs/*
         app.include_router(dashboard_router(exporter, prefix="/dash"))  # /dash/*
 
+    *auth* is an optional FastAPI dependency (e.g. ``require_api_key``)
+    enforced on every route.  Traces contain full prompts/responses — provide
+    one when the dashboard is reachable beyond localhost.
+
     The HTML pages resolve their own links and fetches against *prefix*,
     so a custom prefix keeps the UI working.
     """
 
-    router = APIRouter(prefix=prefix)
+    router = _router(prefix, auth)
 
     @router.get("/ui")
     async def ui() -> Any:
@@ -136,18 +157,27 @@ def attach_dashboard(
     exporter: SQLiteExporter,
     *,
     prefix: str = "/obs",
+    auth: Callable | None = None,
 ) -> None:
     """Mount the trace dashboard on an existing FastAPI *app*.
 
     Convenience wrapper around :func:`dashboard_router` for apps that
-    assemble their endpoints elsewhere (e.g. ``app.include_router``):
+    assemble their endpoints elsewhere (e.g. ``app.include_router``)::
 
         attach_dashboard(app, SQLiteExporter("./traces.db"))
+
+    Pass *auth* (a FastAPI dependency) to protect the dashboard when the app
+    is reachable beyond localhost — traces expose full prompts and responses.
     """
-    app.include_router(dashboard_router(exporter, prefix=prefix))
+    app.include_router(dashboard_router(exporter, prefix=prefix, auth=auth))
 
 
-def ingest_router(exporter: SQLiteExporter, *, prefix: str = "/obs") -> APIRouter:
+def ingest_router(
+    exporter: SQLiteExporter,
+    *,
+    prefix: str = "/obs",
+    auth: Callable | None = None,
+) -> APIRouter:
     """Build the trace ingest router over *exporter*.
 
     ``POST {prefix}/ingest`` accepts a run in :meth:`Run.to_dict` shape
@@ -156,8 +186,12 @@ def ingest_router(exporter: SQLiteExporter, *, prefix: str = "/obs") -> APIRoute
     traces into a shared dashboard::
 
         app.include_router(ingest_router(exporter))
+
+    *auth* is an optional FastAPI dependency enforced on the ingest endpoint.
+    Without one, any network-reachable process can write (and a leaked key on
+    the dashboard can read) arbitrary trace data.
     """
-    router = APIRouter(prefix=prefix)
+    router = _router(prefix, auth)
 
     @router.post("/ingest")
     async def ingest(payload: dict) -> JSONResponse:
@@ -173,6 +207,7 @@ def attach_ingest(
     exporter: SQLiteExporter,
     *,
     prefix: str = "/obs",
+    auth: Callable | None = None,
 ) -> None:
     """Mount the trace ingest endpoint on an existing FastAPI *app*."""
-    app.include_router(ingest_router(exporter, prefix=prefix))
+    app.include_router(ingest_router(exporter, prefix=prefix, auth=auth))

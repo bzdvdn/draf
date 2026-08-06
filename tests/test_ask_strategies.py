@@ -51,7 +51,9 @@ class TestValidateStrategies:
 
     @pytest.mark.asyncio
     async def test_any_of_accepts_variants(self):
-        v = Validate(input_key="answer", strategy="any_of", any_of=["да", "ок", "конечно"])
+        v = Validate(
+            input_key="answer", strategy="any_of", any_of=["да", "ок", "конечно"]
+        )
         assert (await _run(v, {"answer": "ОК"}))["decision"] == "да"
         assert (await _run(v, {"answer": "нет"}))["decision"] == "нет"
 
@@ -130,7 +132,9 @@ class TestAsk:
         assert not Ask.equals("да").needs_classifier()
 
     def test_validate_node_wiring(self):
-        v = Ask.regex(r"^[A-Z]{2}-\d{4}$", decision_key="go", value_key="code").validate_node("answer")
+        v = Ask.regex(
+            r"^[A-Z]{2}-\d{4}$", decision_key="go", value_key="code"
+        ).validate_node("answer")
         assert v.config["input_key"] == "answer"
         assert v.config["output_key"] == "go"
         assert v.config["value_key"] == "code"
@@ -158,20 +162,21 @@ class TestInterruptLoopAsk:
         self.cp = JSONFileCheckpointer(str(tmp_path))
 
     def _regex_flow(self) -> Flow:
-        return (
-            Flow("regex")
-            .interrupt_loop(
-                key="code",
-                prompt="Введите промокод:",
-                accept=Ask.regex(
-                    r"^[A-Z]{2}-[0-9]{4}$",
-                    decision_key="code_ok",
-                    value_key="discount_code",
-                ),
-                body=Transform({"action": "value", "value": "неверный код", "output_key": "total"}),
-                done=Transform({"action": "value", "value": "скидка применена", "output_key": "total"}),
-                id="discount",
-            )
+        return Flow("regex").interrupt_loop(
+            key="code",
+            prompt="Введите промокод:",
+            accept=Ask.regex(
+                r"^[A-Z]{2}-[0-9]{4}$",
+                decision_key="code_ok",
+                value_key="discount_code",
+            ),
+            body=Transform(
+                {"action": "value", "value": "неверный код", "output_key": "total"}
+            ),
+            done=Transform(
+                {"action": "value", "value": "скидка применена", "output_key": "total"}
+            ),
+            id="discount",
         )
 
     def test_wires_interrupt_validate_loop(self):
@@ -187,15 +192,15 @@ class TestInterruptLoopAsk:
             for src, _, cond in edges
         )
         # the "нет" branch loops back through a fresh interrupt -> validate
-        assert any(
-            target == "discount-validate" for src, target, cond in edges
-        )
+        assert any(target == "discount-validate" for src, target, cond in edges)
         node_types = {n.type for nid, n in g.nodes.items()}
         assert {"interrupt", "validate", "transform"} <= node_types
 
     def test_rejects_invalid_code_and_captures_valid(self):
         g = self._regex_flow().compile()
-        last = asyncio.run(_resume(g, self.cp, [{"code": "XX-000"}, {"code": "AB-1234"}]))
+        last = asyncio.run(
+            _resume(g, self.cp, [{"code": "XX-000"}, {"code": "AB-1234"}])
+        )
         assert last["total"] == "скидка применена"
         assert last["discount_code"] == "AB-1234"
         assert last["code_ok"] == "да"
@@ -224,24 +229,23 @@ class TestInterruptLoopModel:
 
         monkeypatch.setattr(LLM, "execute", fake_execute)
 
-        flow = (
-            Flow("model", providers=ProviderRegistry.from_presets("ollama"))
-            .interrupt_loop(
-                key="approved",
-                prompt="Одобрить?",
-                accept=Ask.model(
-                    system="s",
-                    user="Ответ: {approved}",
-                    schema={"type": "object", "properties": {"ok": {"type": "boolean"}}},
-                    model="m",
-                    provider="ollama",
-                    verdict_key="verdict",
-                    decision_key="approved_ok",
-                ),
-                body=Transform({"action": "value", "value": "нет", "output_key": "total"}),
-                done=Transform({"action": "value", "value": "да", "output_key": "total"}),
-                id="approval",
-            )
+        flow = Flow(
+            "model", providers=ProviderRegistry.from_presets("ollama")
+        ).interrupt_loop(
+            key="approved",
+            prompt="Одобрить?",
+            accept=Ask.model(
+                system="s",
+                user="Ответ: {approved}",
+                schema={"type": "object", "properties": {"ok": {"type": "boolean"}}},
+                model="m",
+                provider="ollama",
+                verdict_key="verdict",
+                decision_key="approved_ok",
+            ),
+            body=Transform({"action": "value", "value": "нет", "output_key": "total"}),
+            done=Transform({"action": "value", "value": "да", "output_key": "total"}),
+            id="approval",
         )
         graph = flow.compile()
         edges = {(e.source_id, e.target_id, e.condition) for e in graph.edges}
@@ -283,29 +287,28 @@ class TestInterruptLoopModel:
 
         monkeypatch.setattr(LLM, "execute", fake_execute)
 
-        flow = (
-            Flow("model", providers=ProviderRegistry.from_presets("ollama"))
-            .interrupt_loop(
-                key="approved",
-                prompt="Одобрить?",
-                accept=Ask.model(
-                    system="s",
-                    user="Ответ: {approved}",
-                    schema={
-                        "type": "object",
-                        "properties": {"ok": {"type": "boolean"}},
-                    },
-                    model="m",
-                    provider="ollama",
-                    verdict_key="verdict",
-                    decision_key="approved_ok",
-                    clear_field="clear",
-                    clarify_value="уточнить",
-                ),
-                body=_Body(),
-                done=Transform({"action": "value", "value": "да", "output_key": "total"}),
-                id="approval",
-            )
+        flow = Flow(
+            "model", providers=ProviderRegistry.from_presets("ollama")
+        ).interrupt_loop(
+            key="approved",
+            prompt="Одобрить?",
+            accept=Ask.model(
+                system="s",
+                user="Ответ: {approved}",
+                schema={
+                    "type": "object",
+                    "properties": {"ok": {"type": "boolean"}},
+                },
+                model="m",
+                provider="ollama",
+                verdict_key="verdict",
+                decision_key="approved_ok",
+                clear_field="clear",
+                clarify_value="уточнить",
+            ),
+            body=_Body(),
+            done=Transform({"action": "value", "value": "да", "output_key": "total"}),
+            id="approval",
         )
         graph = flow.compile()
         edges = {(e.source_id, e.target_id, e.condition) for e in graph.edges}

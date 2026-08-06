@@ -110,7 +110,12 @@ See [Plugins](../guide/plugins.md) for discovery of custom tools.
 ## Security notes
 
 - `shell` enforces a blocklist of dangerous commands plus an optional
-  whitelist.
+  whitelist. It executes via `execve` (no `/bin/sh`), so shell operators
+  (`&&`, `;`, pipes, backticks, `$(…)`) are never interpreted — any token
+  containing shell metacharacters is rejected outright.
+- `memory` fixes its namespace at construction time (`namespace=(...)` over
+  the `tools:` config); an agent cannot switch namespaces mid-call, so one
+  tool instance is scoped to one owner/tenant.
 - `getenv` masks values whose names hint at credentials (`TOKEN`,
   `API_KEY`, `PASSWORD`, `DSN`, …) unless configured with
   `mask_secrets: false`.

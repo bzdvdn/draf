@@ -201,10 +201,11 @@ error.
 ```python
 from draf.node import Gate, LLM
 
-flow.step(qa_llm)          # LLM(json_schema=QaVerdict) -> state["qa_verdict"]
+flow.step(qa_llm)  # LLM(json_schema=QaVerdict) -> state["qa_verdict"]
 flow.step(Gate(input_key="qa_verdict", output_key="qa_ok", rounds_key="qa_rounds"))
 flow.loop(
-    key="qa_ok", until="yes",
+    key="qa_ok",
+    until="yes",
     done=finalize,
     body=[planner, estimator, qa_llm],
 )
@@ -264,14 +265,18 @@ Ask.model(
     system="Ты классифицируешь ответ пользователя...",
     user="Ответ пользователя:\n{approved}\n\nОдобрил?",
     schema={"type": "object", "properties": {"ok": {"type": "boolean"}}},
-    model="llama3.1:8b", provider="ollama",
-    verdict_key="verdict", decision_key="approved_ok",
+    model="llama3.1:8b",
+    provider="ollama",
+    verdict_key="verdict",
+    decision_key="approved_ok",
 )
 
 flow.interrupt_loop(
     key="code",
     prompt="Введите промокод (формат XX-1234):",
-    accept=Ask.regex(r"^[A-Z]{2}-[0-9]{4}$", decision_key="code_ok", value_key="discount_code"),
+    accept=Ask.regex(
+        r"^[A-Z]{2}-[0-9]{4}$", decision_key="code_ok", value_key="discount_code"
+    ),
     body=Transform(action="value", value="неверный код", output_key="total"),
     done=Transform(action="value", value="скидка применена", output_key="total"),
 )

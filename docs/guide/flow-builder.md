@@ -136,12 +136,13 @@ returning a `Command` with an explicit `goto`:
 ```python
 from draf.node import Command
 
+
 async def classify(ctx, state):
     if "bad" in state["text"]:
         return Command(update={"blocked": True}, goto=Command.STOP)
     if "trusted" in state["text"]:
         return Command(update={"cleared": True}, goto="deliver")
-    return {"cleared": True}   # fall through to normal edges
+    return {"cleared": True}  # fall through to normal edges
 ```
 
 `goto` may target *any* node id — it does not need an edge — and
@@ -204,7 +205,9 @@ from draf.node import Ask
 flow.interrupt_loop(
     key="code",
     prompt="Введите промокод (формат XX-1234):",
-    accept=Ask.regex(r"^[A-Z]{2}-[0-9]{4}$", decision_key="code_ok", value_key="discount_code"),
+    accept=Ask.regex(
+        r"^[A-Z]{2}-[0-9]{4}$", decision_key="code_ok", value_key="discount_code"
+    ),
     body=Transform(action="value", value="неверный код", output_key="total"),
     done=Transform(action="value", value="скидка применена", output_key="total"),
 )

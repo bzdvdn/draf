@@ -13,15 +13,15 @@ classifiers = [
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
     "Topic :: Software Development :: Libraries :: Python Modules",
     "Topic :: Scientific/Engineering :: Artificial Intelligence",
 ]
 dependencies = [
-    "httpx>=0.27",
-    "jsonschema>=4.18",
-    "mcp>=1.0",
-    "pyyaml>=6.0",
-    "typer>=0.12",
+    "httpx>=0.27,<1.0",
+    "jsonschema>=4.18,<5.0",
+    "pyyaml>=6.0,<7.0",
+    "typer>=0.12,<1.0",
 ]
 
 [project.optional-dependencies]
@@ -73,6 +73,11 @@ tools = [
     "psycopg>=3.1",
     "redis>=5.0",
 ]
+# MCP client support (stdlib + streamable-http). Kept out of the core so the
+# base install stays light — `mcp` pulls in fastapi/uvicorn/starlette.
+mcp = [
+    "mcp>=2.0,<3.0",
+]
 fastapi = [
     "fastapi>=0.115",
     "uvicorn>=0.30",
@@ -92,7 +97,7 @@ docs = [
     "mkdocs-gen-files>=0.5",
 ]
 all = [
-    "draf[embedding,tools,rag-pdf,rag-excel,pg-checkpoint,fastapi,queue,observability]",
+    "draf[embedding,tools,mcp,rag-pdf,rag-excel,pg-checkpoint,fastapi,queue,observability]",
 ]
 
 [tool.pytest.ini_options]
@@ -106,7 +111,21 @@ build-backend = "hatchling.build"
 
 [tool.coverage.run]
 source = ["draf"]
-omit = ["draf/scaffold/*", "draf/_version.py", "draf/rag/stores/*"]
+# External vector-store backends require heavy dependencies / live services
+# and are covered via `draf[stores-*]` extras + smoke tests; the stdlib
+# stores (memory, sqlite) are measured.
+omit = [
+    "draf/scaffold/*",
+    "draf/_version.py",
+    "draf/rag/stores/chroma.py",
+    "draf/rag/stores/faiss.py",
+    "draf/rag/stores/lance.py",
+    "draf/rag/stores/milvus.py",
+    "draf/rag/stores/pgvector.py",
+    "draf/rag/stores/pinecone.py",
+    "draf/rag/stores/qdrant.py",
+    "draf/rag/stores/weaviate.py",
+]
 
 [tool.mypy]
 ignore_missing_imports = true

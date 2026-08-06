@@ -1,6 +1,5 @@
 """Tests for the ``Command`` node return value (update + goto routing)."""
 
-
 import pytest
 
 from draf.node import Command, Transform
@@ -39,7 +38,9 @@ class TestCommandRouting:
         flow = Flow("cmd")
         flow.step(_Set("role", "keep"), id="start")
         flow.step(_Set("who", "ADMIN", goto="admin"), id="decider")
-        flow.step(Transform(action="value", value="ADMIN_OK", output_key="who"), id="admin")
+        flow.step(
+            Transform(action="value", value="ADMIN_OK", output_key="who"), id="admin"
+        )
         r = await _run(flow.compile())
         assert r["who"] == "ADMIN_OK"
 
@@ -52,8 +53,12 @@ class TestCommandRouting:
         flow.step(_Set("role", "keep"), id="start")
         flow.step(_Set("who", "ADMIN", goto="admin"), id="decider")
         # an unconditional sibling the Command must skip
-        flow.step(Transform(action="value", value="WRONG", output_key="who"), id="other")
-        flow.step(Transform(action="value", value="ADMIN_OK", output_key="who"), id="admin")
+        flow.step(
+            Transform(action="value", value="WRONG", output_key="who"), id="other"
+        )
+        flow.step(
+            Transform(action="value", value="ADMIN_OK", output_key="who"), id="admin"
+        )
         r = await _run(flow.compile())
         assert r["who"] == "ADMIN_OK"
 
@@ -88,7 +93,9 @@ class TestCommandRouting:
         flow = Flow("stop")
         flow.step(_Set("who", "FIRST"), id="start")
         flow.step(_Set("who", "STOPPED", goto=Command.STOP), id="decider")
-        flow.step(Transform(action="value", value="NEVER", output_key="who"), id="never")
+        flow.step(
+            Transform(action="value", value="NEVER", output_key="who"), id="never"
+        )
         r = await _run(flow.compile())
         assert r["who"] == "STOPPED"
 
@@ -102,9 +109,7 @@ class TestCommandRouting:
         flow = Flow("reducers")
         flow.step(_Set("items", ["a"], goto=None, update_only=True), id="s1")
         flow.step(_Set("items", ["b"], goto=None, update_only=True), id="s2")
-        r = await flow.compile().run(
-            {}, max_iterations=20, reducers={"items": append}
-        )
+        r = await flow.compile().run({}, max_iterations=20, reducers={"items": append})
         assert r["items"] == ["a", "b"]
 
 

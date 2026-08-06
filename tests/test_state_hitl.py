@@ -12,9 +12,13 @@ from draf.node.interrupt import GraphInterrupt
 
 def _build_flow():
     flow = Flow("state")
-    flow.step(Transform({"action": "uppercase", "input_key": "text", "output_key": "draft"}))
+    flow.step(
+        Transform({"action": "uppercase", "input_key": "text", "output_key": "draft"})
+    )
     flow.interrupt("approve", prompt="Approve?")
-    flow.step(Transform({"action": "uppercase", "input_key": "fix", "output_key": "final"}))
+    flow.step(
+        Transform({"action": "uppercase", "input_key": "fix", "output_key": "final"})
+    )
     return flow.compile()
 
 
@@ -28,7 +32,9 @@ class TestGetState:
         g = _build_flow()
         cp = JSONFileCheckpointer(str(tmp_path))
         with pytest.raises(GraphInterrupt):
-            asyncio.run(g.run(state={"text": "hello"}, checkpointer=cp, checkpoint_id="run-1"))
+            asyncio.run(
+                g.run(state={"text": "hello"}, checkpointer=cp, checkpoint_id="run-1")
+            )
         state = asyncio.run(g.get_state("run-1", checkpointer=cp))
         assert state["draft"] == "HELLO"
         assert "__interrupt__" not in state
@@ -37,9 +43,16 @@ class TestGetState:
         g = _build_flow()
         cp = JSONFileCheckpointer(str(tmp_path))
         with pytest.raises(GraphInterrupt):
-            asyncio.run(g.run(state={"text": "hi"}, checkpointer=cp, checkpoint_id="run-2"))
+            asyncio.run(
+                g.run(state={"text": "hi"}, checkpointer=cp, checkpoint_id="run-2")
+            )
         asyncio.run(
-            g.run(state={}, checkpointer=cp, checkpoint_id="run-2", resume={"approve": "yes", "fix": "done"})
+            g.run(
+                state={},
+                checkpointer=cp,
+                checkpoint_id="run-2",
+                resume={"approve": "yes", "fix": "done"},
+            )
         )
         state = asyncio.run(g.get_state("run-2", checkpointer=cp))
         assert state["final"] == "DONE"
@@ -57,7 +70,9 @@ class TestUpdateState:
         g = _build_flow()
         cp = JSONFileCheckpointer(str(tmp_path))
         with pytest.raises(GraphInterrupt):
-            asyncio.run(g.run(state={"text": "hello"}, checkpointer=cp, checkpoint_id="run-1"))
+            asyncio.run(
+                g.run(state={"text": "hello"}, checkpointer=cp, checkpoint_id="run-1")
+            )
         edited = asyncio.run(
             g.update_state("run-1", {"draft": "EDITED"}, checkpointer=cp)
         )
@@ -70,10 +85,17 @@ class TestUpdateState:
         g = _build_flow()
         cp = JSONFileCheckpointer(str(tmp_path))
         with pytest.raises(GraphInterrupt):
-            asyncio.run(g.run(state={"text": "hello"}, checkpointer=cp, checkpoint_id="run-1"))
+            asyncio.run(
+                g.run(state={"text": "hello"}, checkpointer=cp, checkpoint_id="run-1")
+            )
         asyncio.run(g.update_state("run-1", {"fix": "good"}, checkpointer=cp))
         final = asyncio.run(
-            g.run(state={}, checkpointer=cp, checkpoint_id="run-1", resume={"approve": "yes"})
+            g.run(
+                state={},
+                checkpointer=cp,
+                checkpoint_id="run-1",
+                resume={"approve": "yes"},
+            )
         )
         assert final["final"] == "GOOD"
 
@@ -81,7 +103,9 @@ class TestUpdateState:
         g = _build_flow()
         cp = JSONFileCheckpointer(str(tmp_path))
         with pytest.raises(GraphInterrupt):
-            asyncio.run(g.run(state={"text": "hello"}, checkpointer=cp, checkpoint_id="run-1"))
+            asyncio.run(
+                g.run(state={"text": "hello"}, checkpointer=cp, checkpoint_id="run-1")
+            )
         asyncio.run(g.update_state("run-1", {"draft": "EDITED"}, checkpointer=cp))
         assert asyncio.run(g.pending("run-1", checkpointer=cp)) is not None
 
@@ -95,7 +119,9 @@ class TestAssistantWrappers:
         cp = JSONFileCheckpointer(str(tmp_path))
         assistant = Assistant(g, tools=[], checkpointer=cp)
         with pytest.raises(GraphInterrupt):
-            await g.run(state={"text": "hello"}, checkpointer=cp, checkpoint_id="sess-1")
+            await g.run(
+                state={"text": "hello"}, checkpointer=cp, checkpoint_id="sess-1"
+            )
         assert (await assistant.get_state("sess-1"))["draft"] == "HELLO"
         await assistant.update_state("sess-1", {"fix": "ready"})
         assert (await assistant.get_state("sess-1"))["fix"] == "ready"

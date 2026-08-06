@@ -157,9 +157,7 @@ class Flow:
         if prev is not None:
             self._edges.append(Edge(source_id=prev, target_id=nid, condition=when))
         elif when is not None:
-            raise ValueError(
-                "step(when=...) requires a preceding node to branch from"
-            )
+            raise ValueError("step(when=...) requires a preceding node to branch from")
         if when is not None:
             self._guarded_step = prev
         else:

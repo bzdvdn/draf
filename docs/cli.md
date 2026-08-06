@@ -34,13 +34,18 @@ Serves the trace dashboard and an HTTP ingest endpoint. Workflows with an
 this process renders them:
 
 ```bash
-draf obs-server --db ./data/traces.db --host 0.0.0.0 --port 8001
-# open http://localhost:8001/obs/ui
+draf obs-server --db ./data/traces.db --host 0.0.0.0 --port 8001 --api-key s3cr3t
+# open http://localhost:8001/obs/ui   (every /obs/* call needs the key)
 ```
 
 - `--db` — SQLite file holding the traces (default `traces.db`).
 - `--host` / `--port` — bind address / port (default `127.0.0.1:8001`).
+- `--api-key` — API key required for the dashboard and ingest requests
+  (env: `DRAF_OBS_API_KEY`).
 - `--prefix` — URL prefix for the dashboard and ingest (default `/obs`).
+
+Binding to anything other than loopback **requires** `--api-key`, otherwise
+the server refuses to start.
 - Ingest: `POST /obs/ingest` accepts a run in `Run.to_dict()` shape — the same
   body an `HttpExporter` (`type: webhook`) produces.
 - Requires `draf[observability]` (fastapi + uvicorn).

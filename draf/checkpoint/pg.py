@@ -148,7 +148,8 @@ class PGCheckpointer(Checkpointer):
                         own,
                         now - max_age,
                     )
-                    removed += int(result.split(" ", 1)[0] or 0)
+                    tag = result.split(" ", 1)
+                    removed += int(tag[1]) if len(tag) == 2 else 0
                 if keep_last is not None:
                     stale = await conn.fetch(
                         f"SELECT checkpoint_id FROM {self._table} WHERE owner = $1 "

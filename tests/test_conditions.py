@@ -1,6 +1,5 @@
 """Tests for callable edge conditions and ``Flow.step(when=...)`` guards."""
 
-
 import pytest
 
 from draf.flow import Flow
@@ -39,7 +38,11 @@ class TestGraphCallableConditions:
                 return {self._key: self._value}
 
         g = Graph(
-            nodes={"s": Write("seen", "y"), "a": Write("who", "YES"), "b": Write("who", "NO")},
+            nodes={
+                "s": Write("seen", "y"),
+                "a": Write("who", "YES"),
+                "b": Write("who", "NO"),
+            },
             edges=[
                 Edge("s", "a", lambda s: s.get("n", 0) > 5),
                 Edge("s", "b"),
@@ -79,15 +82,15 @@ class TestGraphCallableConditions:
 class TestFlowGuardedStep:
     def _flow(self):
         flow = Flow("g")
-        flow.step(Transform(action="value", value="keep", output_key="seen"), id="decider")
+        flow.step(
+            Transform(action="value", value="keep", output_key="seen"), id="decider"
+        )
         flow.step(
             Transform(action="value", value="YES", output_key="who"),
             id="yes",
             when=lambda s: s.get("v") == "x",
         )
-        flow.default(
-            Transform(action="value", value="NO", output_key="who"), id="no"
-        )
+        flow.default(Transform(action="value", value="NO", output_key="who"), id="no")
         return flow
 
     def test_wiring(self):
@@ -164,7 +167,11 @@ class TestCommandRoutingWithConditions:
                 return {"who": self._value}
 
         g = Graph(
-            nodes={"decider": Route(), "admin": Write("ADMIN_OK"), "guest": Write("GUEST_OK")},
+            nodes={
+                "decider": Route(),
+                "admin": Write("ADMIN_OK"),
+                "guest": Write("GUEST_OK"),
+            },
             edges=[Edge("decider", "admin"), Edge("decider", "guest")],
             entry_point="decider",
         )

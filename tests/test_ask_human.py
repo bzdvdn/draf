@@ -109,7 +109,9 @@ async def test_ask_human_pauses_without_a_reply(monkeypatch):
         default_provider="openai",
     )
     with pytest.raises(GraphInterrupt) as excinfo:
-        await g.run(state={"input": "book a trip"}, tools=[AskHuman()], max_iterations=5)
+        await g.run(
+            state={"input": "book a trip"}, tools=[AskHuman()], max_iterations=5
+        )
     assert excinfo.value.key == "ask_human"
     assert excinfo.value.prompt == "Which city?"
 

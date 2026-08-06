@@ -105,7 +105,7 @@ class _MockTransport:
             coordinator_steps if coordinator_steps is not None else _HAPPY_PATH
         )
         self._call_seq = 0
-        self.last_tool = None
+        self.last_tool: str | None = None
 
     def _with_tool(self, name: str, call_id: str, arguments: dict) -> dict:
         self.last_tool = name
@@ -301,9 +301,7 @@ async def test_materials_question_routes_to_select_materials(transport, tmp_path
     transport.coordinator_steps = ["materials"]
     assistant = _build_assistant(str(tmp_path))
     sid = "sess-materials"
-    result = await assistant.run(
-        sid, "Какую плитку лучше взять и какая есть сейчас?"
-    )
+    result = await assistant.run(sid, "Какую плитку лучше взять и какая есть сейчас?")
     assert result.waiting is False
     assert transport.last_tool == "select_materials"
     assert "Плитка Керама-Белый" in result.reply

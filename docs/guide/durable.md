@@ -118,7 +118,9 @@ result: TurnResult = await graph.run(
 if result.waiting:
     # the run paused on an Interrupt: surface result.prompt to the operator
     answer = input(result.prompt + " ")
-    result = await graph.run(state={}, message=answer, checkpointer=cp, checkpoint_id=session_id)
+    result = await graph.run(
+        state={}, message=answer, checkpointer=cp, checkpoint_id=session_id
+    )
 else:
     print(result.reply)  # latest assistant reply from the durable state
 ```
@@ -142,9 +144,15 @@ from draf.node import Ask
 flow.interrupt_loop(
     key="code",
     prompt="Введите промокод (формат XX-1234):",
-    accept=Ask.regex(r"^[A-Z]{2}-[0-9]{4}$", decision_key="code_ok", value_key="discount_code"),
+    accept=Ask.regex(
+        r"^[A-Z]{2}-[0-9]{4}$", decision_key="code_ok", value_key="discount_code"
+    ),
     body=LLM(model="llama3.1:8b", prompt="Введите корректный код.", output_key="hint"),
-    done=LLM(model="llama3.1:8b", prompt="Примени скидку {discount_code}.", output_key="final"),
+    done=LLM(
+        model="llama3.1:8b",
+        prompt="Примени скидку {discount_code}.",
+        output_key="final",
+    ),
 )
 ```
 

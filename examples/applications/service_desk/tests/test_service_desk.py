@@ -391,10 +391,12 @@ def _client(monkeypatch, tmp_path, words=("billing",)):
     monkeypatch.setattr(httpx.AsyncClient, "post", mock)
     monkeypatch.setattr(httpx.AsyncClient, "stream", mock)
     from fastapi.testclient import TestClient
+    from service_desk.config.config import Settings
     from service_desk.server import create_app
 
     client = TestClient(
         create_app(
+            Settings(api_key="test-key"),
             checkpoint_dir=str(tmp_path / "ckpt"),
             knowledge=_stub_knowledge(),
             traces_db=str(tmp_path / "traces.db"),
@@ -402,6 +404,10 @@ def _client(monkeypatch, tmp_path, words=("billing",)):
         raise_server_exceptions=False,
     )
     return client, mock
+
+
+def _auth() -> dict:
+    return {"X-API-Key": "test-key", "X-User-Id": "test"}
 
 
 def test_api_health(monkeypatch, tmp_path):
@@ -414,7 +420,9 @@ def test_api_health(monkeypatch, tmp_path):
 def test_api_chat_routes_and_persists_trace(monkeypatch, tmp_path):
     client, mock = _client(monkeypatch, tmp_path)
 
-    resp = client.post("/api/chat", json={"message": "сколько на счёту?"})
+    resp = client.post(
+        "/api/chat", json={"message": "сколько на счёту?"}, headers=_auth()
+    )
     assert resp.status_code == 200
     data = resp.json()
     assert data["message"]  # the billing specialist's answer flows through
@@ -423,12 +431,12 @@ def test_api_chat_routes_and_persists_trace(monkeypatch, tmp_path):
     assert run_id  # observability captured the turn
     assert mock.supervisor_calls == 1  # the done guard finished after one call
 
-    # the trace is browsable through the dashboard API
-    runs = client.get("/obs/runs").json()
+    # the trace is browsable through the dashboard API (behind auth)
+    runs = client.get("/obs/runs", headers=_auth()).json()
     assert runs["total"] >= 1
     assert any(bi["run_id"] == run_id for bi in runs["items"])
 
-    detail = client.get(f"/obs/runs/{run_id}").json()
+    detail = client.get(f"/obs/runs/{run_id}", headers=_auth()).json()
     assert detail["run_id"] == run_id
     assert detail["status"] == "ok"
     assert "billing" in {n["id"] for n in detail["topology"]["nodes"]}
@@ -437,13 +445,17 @@ def test_api_chat_routes_and_persists_trace(monkeypatch, tmp_path):
 def test_api_deploy_gateway_pauses_then_resumes(monkeypatch, tmp_path):
     client, _mock = _client(monkeypatch, tmp_path, words=("deploy",))
 
-    first = client.post("/api/chat", json={"message": "выкати изменения в прод"})
+    first = client.post(
+        "/api/chat", json={"message": "выкати изменения в прод"}, headers=_auth()
+    )
     assert first.status_code == 200
     fdata = first.json()
     assert fdata["message"]  # the deploy-approval prompt is surfaced as waiting
     sid = fdata["session_id"]
 
-    resumed = client.post("/api/chat", json={"message": "да", "session_id": sid})
+    resumed = client.post(
+        "/api/chat", json={"message": "да", "session_id": sid}, headers=_auth()
+    )
     assert resumed.status_code == 200
     body = resumed.json()
     assert body["message"]  # final summary honours deploy_approved
@@ -453,7 +465,9 @@ def test_api_deploy_gateway_pauses_then_resumes(monkeypatch, tmp_path):
 def test_api_streams_events(monkeypatch, tmp_path):
     client, _mock = _client(monkeypatch, tmp_path, words=("incident",))
 
-    stream = client.post("/api/chat/stream", json={"message": "сайт недоступен"})
+    stream = client.post(
+        "/api/chat/stream", json={"message": "сайт недоступен"}, headers=_auth()
+    )
     assert stream.status_code == 200
     assert "event: chat_id" in stream.text
     assert "event: run_start" in stream.text

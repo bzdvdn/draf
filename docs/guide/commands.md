@@ -8,6 +8,7 @@ runtime instead of being wired to fixed routes.
 ```python
 from draf.node import Command
 
+
 class AdminGate(Node):
     async def execute(self, ctx, state):
         if state.get("role") == "admin":
@@ -43,7 +44,7 @@ declared edge target. This is what makes it dynamic:
 async def route(self, ctx, state):
     if state.get("diag") == "fatal":
         return Command(goto="incident")
-    return {"diag": state.get("diag")}   # normal edge routing
+    return {"diag": state.get("diag")}  # normal edge routing
 ```
 
 Routing to an **unknown** id raises `WorkflowError`. `Command.STOP` is a

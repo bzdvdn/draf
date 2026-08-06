@@ -112,12 +112,22 @@ def client(tmp_path, monkeypatch):
     monkeypatch.setattr(httpx.AsyncClient, "post", transport)
     monkeypatch.setattr(httpx.AsyncClient, "stream", transport)
     return TestClient(
-        create_app(checkpoint_dir=str(tmp_path)), raise_server_exceptions=False
+        create_app(
+            Settings(
+                api_key="test-key",
+                checkpoint_dir=str(tmp_path),
+                traces_db=str(tmp_path / "traces.db"),
+            ),
+        ),
+        raise_server_exceptions=False,
     )
 
 
+_HEADERS = {"X-API-Key": "test-key", "X-User-Id": "u1"}
+
+
 def test_chat_runs_agent_and_returns_state(client):
-    resp = client.post("/api/chat", json={"message": "help me"})
+    resp = client.post("/api/chat", json={"message": "help me"}, headers=_HEADERS)
     assert resp.status_code == 200
     data = resp.json()
     assert data["session_id"]
@@ -128,7 +138,9 @@ def test_chat_runs_agent_and_returns_state(client):
 
 
 def test_chat_stream_emits_sse_events(client):
-    resp = client.post("/api/chat/stream", json={"message": "help me"})
+    resp = client.post(
+        "/api/chat/stream", json={"message": "help me"}, headers=_HEADERS
+    )
     assert resp.status_code == 200
     body = resp.text
     assert "event: chat_id" in body
@@ -140,29 +152,36 @@ def test_chat_stream_emits_sse_events(client):
 
 
 def test_trace_dashboard_served(client):
-    """The trace dashboard is mounted and records chat runs."""
-    ui = client.get("/obs/ui")
+    """The trace dashboard is mounted (behind auth) and records chat runs."""
+    ui = client.get("/obs/ui", headers=_HEADERS)
     assert ui.status_code == 200
     assert "draf traces" in ui.text
 
-    client.post("/api/chat", json={"message": "help me"})
-    page = client.get("/obs/runs").json()
+    client.post("/api/chat", json={"message": "help me"}, headers=_HEADERS)
+    page = client.get("/obs/runs", headers=_HEADERS).json()
     assert page["total"] == 1
     assert page["items"][0]["name"] == "chat"
 
 
+def test_trace_dashboard_requires_auth(client):
+    assert client.get("/obs/ui").status_code == 401
+    assert client.get("/obs/runs").status_code == 401
+
+
 def test_runs_get_and_delete(client):
-    created = client.post("/api/chat", json={"message": "help me"}).json()
+    created = client.post(
+        "/api/chat", json={"message": "help me"}, headers=_HEADERS
+    ).json()
     chat_id = created["session_id"]
 
-    saved = client.get(f"/api/runs/{chat_id}")
+    saved = client.get(f"/api/runs/{chat_id}", headers=_HEADERS)
     assert saved.status_code == 200
     assert "state" in saved.json()
 
-    deleted = client.delete(f"/api/runs/{chat_id}")
+    deleted = client.delete(f"/api/runs/{chat_id}", headers=_HEADERS)
     assert deleted.status_code == 200
 
-    missing = client.get(f"/api/runs/{chat_id}")
+    missing = client.get(f"/api/runs/{chat_id}", headers=_HEADERS)
     assert missing.status_code == 404
 
 
@@ -174,9 +193,30 @@ def test_health_reports_provider_and_model(client):
 
 
 def test_auth_verify_endpoint(client):
-    resp = client.get("/api/auth/verify")
+    resp = client.get("/api/auth/verify", headers=_HEADERS)
     assert resp.status_code == 200
     assert resp.json() == {"status": "ok"}
+
+
+def test_auth_is_fail_closed(tmp_path, monkeypatch):
+    """With no API key configured, protected routes 401 (no open default)."""
+    transport = _MockTransport()
+    monkeypatch.setattr(httpx.AsyncClient, "post", transport)
+    monkeypatch.setattr(httpx.AsyncClient, "stream", transport)
+    client = TestClient(
+        create_app(checkpoint_dir=str(tmp_path)), raise_server_exceptions=False
+    )
+    assert client.post("/api/chat", json={"message": "hi"}).status_code == 401
+    assert client.get("/api/auth/verify").status_code == 401
+    assert client.get("/obs/ui").status_code == 401
+
+
+def test_sessions_require_user_id(client):
+    """X-User-Id is mandatory — no silent DEFAULT_OWNER fallback."""
+    resp = client.post(
+        "/api/chat", json={"message": "hi"}, headers={"X-API-Key": "test-key"}
+    )
+    assert resp.status_code == 401
 
 
 def test_supervisor_loop_is_bounded(tmp_path, monkeypatch):
@@ -219,7 +259,9 @@ def test_api_key_gates_routes_when_configured(tmp_path, monkeypatch):
     assert denied.status_code == 401
 
     ok = client.post(
-        "/api/chat", json={"message": "hi"}, headers={"X-API-Key": "s3cret"}
+        "/api/chat",
+        json={"message": "hi"},
+        headers={"X-API-Key": "s3cret", "X-User-Id": "u1"},
     )
     assert ok.status_code == 200
 

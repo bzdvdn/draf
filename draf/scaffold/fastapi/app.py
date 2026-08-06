@@ -17,6 +17,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from fastapi import FastAPI
+from src.api.auth.router import require_api_key
 from src.api.router import api_router
 from src.config.config import Settings
 from src.core import build_container
@@ -53,12 +54,19 @@ def create_app(
 
     # Trace dashboard: every chat turn is captured by a GraphObserver into a
     # local SQLite store and browsable at /obs/ui (prefix from settings).
+    # It is protected by the same API-key gate as the chat/run routers —
+    # traces expose full prompts and responses, so it must not be open.
     traces_path = container.settings.traces_db or (
         Path(__file__).resolve().parent / "data" / "traces.db"
     )
     traces_exporter = SQLiteExporter(str(traces_path))
     app.state.traces_exporter = traces_exporter
     app.state.trace_topology = topology_from_graph(container.assistant.graph)
-    attach_dashboard(app, traces_exporter, prefix=container.settings.traces_prefix)
+    attach_dashboard(
+        app,
+        traces_exporter,
+        prefix=container.settings.traces_prefix,
+        auth=require_api_key,
+    )
 
     return app

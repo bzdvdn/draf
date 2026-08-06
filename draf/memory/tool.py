@@ -101,7 +101,6 @@ class MemoryTool(Tool):
     async def arun(  # type: ignore[override]
         self,
         action: str = "recall",
-        namespace: list[str] | tuple[str, ...] | None = None,
         key: str = "",
         text: str = "",
         value: dict | None = None,
@@ -109,8 +108,14 @@ class MemoryTool(Tool):
         metadata: dict | None = None,
         k: int | None = None,
     ) -> str:
-        """Run a memory operation and return a human-readable result."""
-        ns = tuple(namespace) if namespace is not None else self._namespace
+        """Run a memory operation and return a human-readable result.
+
+        The namespace is fixed at construction time and can never be
+        overridden by the caller — an agent cannot address another owner's
+        memories by passing a namespace.  Per-owner isolation is achieved by
+        building one tool per owner (``namespace=("users", owner)``).
+        """
+        ns = self._namespace
         eff_k = int(k) if k is not None else self._default_k
         mem = self.memory
 

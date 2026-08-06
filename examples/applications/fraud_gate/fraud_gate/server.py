@@ -21,6 +21,7 @@ from fastapi import FastAPI
 from draf import Assistant
 from draf.observability import SQLiteExporter, topology_from_graph
 from draf.observability.api import attach_dashboard
+from fraud_gate.api.auth.router import require_api_key
 from fraud_gate.api.router import api_router
 from fraud_gate.config.config import Settings, get_settings
 from fraud_gate.domain.review_service import ReviewService
@@ -71,6 +72,7 @@ def create_app(
 
     # Trace dashboard: every review is captured by a GraphObserver into a
     # local SQLite store and browsable at ``<traces_prefix>/ui`` (settings).
+    # It shares the API-key gate — traces expose full prompts and responses.
     trace_path = traces_db or (
         settings.traces_db
         or str(Path(__file__).resolve().parent / "data" / "traces.db")
@@ -78,6 +80,8 @@ def create_app(
     traces_exporter = SQLiteExporter(trace_path)
     app.state.traces_exporter = traces_exporter
     app.state.trace_topology = topology_from_graph(graph)
-    attach_dashboard(app, traces_exporter, prefix=settings.traces_prefix)
+    attach_dashboard(
+        app, traces_exporter, prefix=settings.traces_prefix, auth=require_api_key
+    )
 
     return app

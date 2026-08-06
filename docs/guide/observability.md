@@ -131,6 +131,12 @@ observability:
 draf obs-server --db /data/traces.db --host 0.0.0.0 --port 8001
 ```
 
+Bind the collector to anything but loopback (`127.0.0.1`/`localhost`) and it
+**refuses to start without an API key** — pass one with `--api-key` or the
+`DRAF_OBS_API_KEY` env var. Traces can embed full prompts and responses, so
+the dashboard and its `/obs/*` API are protected by that same key; turn them
+redacted at the source with `GraphObserver(..., redact=True)` (the default).
+
 Or run the published image:
 
 ```bash

@@ -4,8 +4,8 @@
 pip install draf
 ```
 
-Python **>=\ 3.11**. Core runtime depends only on `httpx`, `pyyaml`, and
-`typer`.
+Python **>=\ 3.11**. Core runtime depends only on `httpx`, `jsonschema`,
+`pyyaml`, and `typer`.
 
 ## The CLI
 
@@ -35,16 +35,18 @@ Install only what you need; `draf[all]` pulls in everything.
 | `draf[rag-pdf]` | `pypdf` — PDF text extraction for RAG |
 | `draf[rag-excel]` | `openpyxl` — Excel document loading for RAG |
 | `draf[pg-checkpoint]` | `asyncpg` — PostgreSQL checkpoint backend |
+| `draf[mcp]` | `mcp` — Model Context Protocol tool bridge (`draf.tool.McpTool` / `mcp_tools`, stdio + streamable-http) |
 | `draf[tools]` | Built-in tools that need third-party deps (web fetch, PDF, S3, Slack, SQL, email, Telegram, …) |
 | `draf[fastapi]` | Scaffold templates: `fastapi` + `uvicorn` + `sse-starlette` |
 | `draf[observability]` | Trace dashboard: `fastapi` + `uvicorn` (for `draf.observability.dashboard_router`) |
 | `draf[queue]` | `celery[redis]` — worker/beat scaffold variant |
 | `draf[docs]` | MkDocs toolchain to build this documentation |
-| `draf[all]` | Everything above except `docs` (MCP tooling is bundled with the core package) |
+| `draf[all]` | Everything above except `docs` |
 
 ```bash
 pip install "draf[stores-qdrant]"
 pip install "draf[tools]"
+pip install "draf[mcp]"
 pip install "draf[all]"
 ```
 

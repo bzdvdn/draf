@@ -1,4 +1,11 @@
-"""Shell tool — run shell commands asynchronously."""
+"""Shell tool — run shell commands asynchronously, without a shell.
+
+Commands are tokenized with :func:`shlex.split` and executed directly via
+``execve`` (no ``/bin/sh`` involved), so shell metacharacters can never
+escalate a permitted first token into arbitrary command execution.  Tokens
+containing shell metacharacters are rejected outright; ``&&``, ``;``,
+backticks and ``$(...)`` are never interpreted by the tool.
+"""
 
 import asyncio
 import shlex
@@ -34,9 +41,17 @@ _DEFAULT_BLOCKED = {
     "visudo",
 }
 
+_SHELL_METACHARS = set("&;|`$<>(){}[]*?~#!\\\"' \t\n")
+
 
 class ShellTool(Tool):
-    """Run shell commands with sandboxing.
+    """Run shell commands without a shell.
+
+    The command is split into an argument vector and executed via
+    ``execve`` directly — ``/bin/sh`` is never involved, so ``&&``, ``;``,
+    pipes, backticks and ``$(...)`` are inert literal arguments, never
+    executed.  Tokens that still contain shell metacharacters (globs,
+    redirections, quotes, whitespace) are rejected.
 
     Args:
         root_dir: Working directory for the command.
@@ -64,9 +79,14 @@ class ShellTool(Tool):
             raise PermissionError(
                 f"command not allowed: {prog} (allowed: {self._allowed})"
             )
+        for token in cmd:
+            if _SHELL_METACHARS.intersection(token):
+                raise PermissionError(
+                    f"shell metacharacters are not allowed in: {token!r}"
+                )
 
-        proc = await asyncio.create_subprocess_shell(
-            command,
+        proc = await asyncio.create_subprocess_exec(
+            *cmd,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
             cwd=self.root_dir,

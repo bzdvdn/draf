@@ -284,7 +284,9 @@ class Graph:
         """
         if message is not None:
             if checkpointer is None or checkpoint_id is None:
-                raise ValueError("run(message=...) requires checkpointer and checkpoint_id")
+                raise ValueError(
+                    "run(message=...) requires checkpointer and checkpoint_id"
+                )
             return await self._conversation_turn(
                 checkpoint_id,
                 message,
@@ -419,7 +421,9 @@ class Graph:
         """
         if message is not None:
             if checkpointer is None or checkpoint_id is None:
-                raise ValueError("stream(message=...) requires checkpointer and checkpoint_id")
+                raise ValueError(
+                    "stream(message=...) requires checkpointer and checkpoint_id"
+                )
             async for event in self._conversation_stream(
                 checkpoint_id,
                 message,
@@ -548,9 +552,7 @@ class Graph:
         """
         saved = await checkpointer.load(session_id, owner=owner)
         if saved is None:
-            state: dict[str, Any] = dict(
-                initial_state() if initial_state else {}
-            )
+            state: dict[str, Any] = dict(initial_state() if initial_state else {})
             state[messages_key] = [{"role": "user", "content": message}]
             return state, {}
 
@@ -957,9 +959,7 @@ class Graph:
         on_llm_payload: "Callable[..., Awaitable[None]] | None" = None,
     ) -> AsyncIterator[StreamEvent]:
         """Stream one durable conversation turn (see :meth:`stream`)."""
-        pending = await self.pending(
-            session_id, checkpointer=checkpointer, owner=owner
-        )
+        pending = await self.pending(session_id, checkpointer=checkpointer, owner=owner)
         source = (
             self._stream_resume(
                 session_id,
