@@ -128,6 +128,27 @@ node that writes `key` — an `Interrupt`, an `LLM`, a `Transform`, etc.
 The supervisor loop — route between agent chains, looping back to a decider
 until it says `finish`. See [Multi-agent supervisors](supervisors.md).
 
+### Dynamic routing with `Command`
+
+Edges are static — but any node can **pick its own successor at runtime** by
+returning a `Command` with an explicit `goto`:
+
+```python
+from draf.node import Command
+
+async def classify(ctx, state):
+    if "bad" in state["text"]:
+        return Command(update={"blocked": True}, goto=Command.STOP)
+    if "trusted" in state["text"]:
+        return Command(update={"cleared": True}, goto="deliver")
+    return {"cleared": True}   # fall through to normal edges
+```
+
+`goto` may target *any* node id — it does not need an edge — and
+`Command.STOP` ends the run. `Command(update=...)` without `goto` keeps the
+normal edge routing. See [Command routing](commands.md) and the
+[`command_routing` example](../examples.md).
+
 ## Concurrency
 
 ### `parallel(*branches)`
@@ -253,6 +274,7 @@ The result validates with `draf validate` and round-trips through
 | `default(node)` / `converge(node)` | fallback / rejoin | — |
 | `loop(key, until, ...)` | repeat-until cycle | [Durable](durable.md) |
 | `route(key, **agents)` | supervisor loop | [Supervisors](supervisors.md) |
+| `return Command(goto=...)` | dynamic per-node routing | [Command routing](commands.md) |
 | `parallel(*branches)` | concurrent branches | [State](state.md) |
 | `map(processor, ...)` | dynamic fan-out | [State](state.md) |
 | `interrupt(key, prompt, accept=...)` | human-in-the-loop | [Durable](durable.md) |

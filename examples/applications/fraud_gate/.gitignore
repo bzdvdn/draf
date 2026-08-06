@@ -1,0 +1,10 @@
+# Session state
+data/checkpoints/
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/

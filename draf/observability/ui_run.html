@@ -87,9 +87,13 @@
   .badge { display: inline-flex; align-items: center; gap: 7px; font-size: 12.5px; font-weight: 600; border-radius: 20px; padding: 3px 12px; }
   .badge.ok { background: var(--ok-soft); color: var(--ok); }
   .badge.err { background: var(--err-soft); color: var(--err); }
+  .badge.amber { background: var(--amber-soft); color: var(--amber); }
+  .badge.info { background: var(--info-soft); color: var(--info); }
   .badge .dot { width: 8px; height: 8px; border-radius: 50%; }
   .badge.ok .dot { background: var(--ok); }
   .badge.err .dot { background: var(--err); }
+  .badge.amber .dot { background: var(--amber); }
+  .badge.info .dot { background: var(--info); }
   .layout { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 20px; align-items: start; }
   @media (max-width: 960px) { .layout { grid-template-columns: 1fr; } }
   .main-col { min-width: 0; display: flex; flex-direction: column; gap: 20px; }
@@ -324,11 +328,11 @@ async function load() {
 
 function render() {
   const run = state.run;
-  const ok = run.status === 'ok';
+  const cls = run.status === 'ok' ? 'ok' : run.status === 'interrupted' ? 'amber' : 'err';
   document.title = `Run #${run.run_id} · draf traces`;
   document.getElementById('head').innerHTML =
     `<h1>#${run.run_id}</h1>` +
-    `<span class="badge ${ok ? 'ok' : 'err'}"><span class="dot"></span>${escapeHtml(run.status)}</span>`;
+    `<span class="badge ${cls}"><span class="dot"></span>${escapeHtml(run.status)}</span>`;
 
   document.getElementById('summary').innerHTML =
     meta('name', run.name, true) +

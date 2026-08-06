@@ -7,6 +7,7 @@ from draf.flow.sub_flow import SubFlow
 from draf.graph import Edge, Graph
 from draf.memory.context import MemoryConfig
 from draf.node.agent import ReActAgent
+from draf.node.command import Command
 from draf.node.llm import LLM
 from draf.node.map import Map
 from draf.node.node import Node
@@ -18,6 +19,10 @@ from draf.provider import ProviderRegistry
 
 if TYPE_CHECKING:
     from draf.node.ask import Ask
+
+#: A plain ``(ctx, state) -> dict | Command`` callable accepted by
+#: :meth:`Flow.step` (wrapped into a function node at runtime).
+FunctionNode = Callable[..., dict | Command]
 
 
 class Flow:
@@ -111,7 +116,7 @@ class Flow:
 
     def step(
         self,
-        node: Node,
+        node: Node | FunctionNode,
         id: str | None = None,
         *,
         when: str | Callable[[dict], bool] | None = None,

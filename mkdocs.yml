@@ -71,6 +71,7 @@ nav:
   - Guide:
       - YAML workflows: guide/yaml-workflows.md
       - Flow builder: guide/flow-builder.md
+      - Command routing: guide/commands.md
       - Agents: guide/agents.md
       - Multi-agent supervisors: guide/supervisors.md
       - Structured output: guide/structured-output.md

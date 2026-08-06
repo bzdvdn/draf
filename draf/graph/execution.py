@@ -331,7 +331,7 @@ async def _execute_impl(
                 else:
                     result = await node.execute(ctx, state)
             except GraphInterrupt as exc:
-                log.warning("interrupt key=%s prompt=%r", exc.key, exc.prompt)
+                log.info("interrupt key=%s prompt=%r", exc.key, exc.prompt)
                 if tracer is not None:
                     tracer.interrupt(current_id, exc.key, exc.prompt)
                 if emit is not None:
