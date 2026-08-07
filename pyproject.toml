@@ -1,13 +1,13 @@
 [project]
 name = "teff"
-version = "0.1.0-alpha"
+version = "0.1.0"
 description = "Workflow as data. Agents as graphs."
 readme = "README.md"
 requires-python = ">=3.11"
 license = { text = "MIT" }
 keywords = ["ai", "agents", "workflow", "llm", "graph", "orchestration", "rag"]
 classifiers = [
-    "Development Status :: 3 - Alpha",
+    "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
     "License :: OSI Approved :: MIT License",
     "Programming Language :: Python :: 3",

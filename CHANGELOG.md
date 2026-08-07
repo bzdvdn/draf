@@ -1,8 +1,15 @@
 # Changelog
 
-## Unreleased
+## 0.1.0 — first stable release
+
+Two alphas of development polish went into this line. From here the public
+API, YAML surface and CLI are considered stable: breaking changes now
+require a minor version bump and a CHANGELOG entry.
+
+Highlights:
 
 - Channels: `teff[channels]` ships HTTP/SSE, Telegram and generic webhook
+  adapters bound to one durable `Assistant` built from a `workflow.yaml`: `teff[channels]` ships HTTP/SSE, Telegram and generic webhook
   adapters bound to one durable `Assistant` built from a `workflow.yaml`:
   - `teff serve -f workflow.yaml` runs the HTTP/SSE service; `teff bot`
     runs a Telegram bot (polling or webhook); a `channels:` YAML block
