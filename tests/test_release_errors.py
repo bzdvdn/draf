@@ -7,10 +7,10 @@ class TestErrorHierarchy:
     def test_all_errors_derive_from_teff_error(self):
         from teff.errors import (
             ConfigError,
-            TeffError,
             InterruptError,
             LLMError,
             NodeError,
+            TeffError,
             WorkflowError,
         )
 

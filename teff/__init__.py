@@ -9,10 +9,10 @@ from teff._version import __version__
 from teff.assistant import Assistant
 from teff.errors import (
     ConfigError,
-    TeffError,
     InterruptError,
     LLMError,
     NodeError,
+    TeffError,
     WorkflowError,
     redact,
 )

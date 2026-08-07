@@ -66,10 +66,12 @@ nav:
   - Home: index.md
   - Getting started:
       - Install: getting-started/install.md
+      - Learning path: getting-started/learning-path.md
       - Quick start: getting-started/quickstart.md
       - Concepts: getting-started/concepts.md
   - Guide:
       - YAML workflows: guide/yaml-workflows.md
+      - Choosing your abstraction: guide/choosing-your-abstraction.md
       - Best practices: guide/best-practices.md
       - Flow builder: guide/flow-builder.md
       - Command routing: guide/commands.md
@@ -85,8 +87,15 @@ nav:
       - Evaluation: guide/evaluation.md
       - Streaming: guide/streaming.md
       - Logging: guide/logging.md
+      - Errors & resilience: guide/errors.md
       - Observability: guide/observability.md
       - Testing: guide/testing.md
+  - Recipes:
+      - Overview: recipes/index.md
+      - Fraud review: recipes/fraud-review.md
+      - Release approval: recipes/release-approval.md
+      - Support triage: recipes/support-triage.md
+      - Ops daemon: recipes/ops-daemon.md
   - Reference:
       - Overview: reference.md
       - Nodes: reference/nodes.md
