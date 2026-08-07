@@ -10,12 +10,16 @@ a runnable teff app from one of three templates:
   (``cli.py run`` / ``cli.py chat``), no HTTP server.
 * ``daemon`` — a background worker: producers drop jobs into ``data/queue/``,
   the worker polls, runs each as a durable turn and writes results.
+* ``channels`` — a YAML-first app: a plain ``workflow.yaml`` with a
+  ``channels:`` block (HTTP/SSE, Telegram, webhooks) and no Python.  Run
+  it with ``teff serve`` / ``teff bot`` (needs ``teff[channels]``).
 
 Each template shares a common core (``_common/`` — graph, nodes, tools,
 service, storage, wiring tests) overlaid with template-specific entry points,
-config, and API/queue layers.  Every module carries a ``HOW TO EXTEND``
-comment, so a template reads as a guide for growing your own app.  See
-``examples/simple_router/`` for the minimal ``route()`` example and
+config, and API/queue layers — except ``channels``, which is declarative-only
+(``common = false``) and needs no application code.  Every module carries a
+``HOW TO EXTEND`` comment, so a template reads as a guide for growing your own
+app.  See ``examples/simple_router/`` for the minimal ``route()`` example and
 ``examples/applications/repair-ai-chat/`` for a fully runnable, richer instance
 built on the same layout.
 
@@ -28,6 +32,9 @@ one per directory under ``variants/``:
   tools wired into the writer agent.
 * ``celery`` — a Celery worker + beat pair that re-embeds the catalog when
   the seed documents change.
+* ``channels`` — mounts the ``teff.channels`` adapters (Telegram bot,
+  generic webhooks) on top of the code-first ``Assistant``, so a scaffolded
+  app is reachable over every transport without rewriting its graph.
 
 ``teff new <name>`` copies the core + chosen template into a new directory,
 renames it, and renders the ``{{PROJECT_NAME}}`` / ``{{project_slug}}`` /
@@ -49,6 +56,7 @@ _TEMPLATE_DIRS = {
     "fastapi": _ROOT / "fastapi",
     "cli": _ROOT / "cli",
     "daemon": _ROOT / "daemon",
+    "channels": _ROOT / "channels",
 }
 _VARIANTS_DIR = _ROOT / "variants"
 
@@ -63,10 +71,14 @@ class TemplateManifest:
     """Metadata from a template's ``template.toml``.
 
     Attributes:
-        name: Template kind (``"fastapi"`` / ``"cli"`` / ``"daemon"``).
+        name: Template kind (``"fastapi"`` / ``"cli"`` / ``"daemon"`` /
+            ``"channels"``).
         description: One-line description shown in ``teff new --help``.
         entry: How to run the generated project (e.g. ``python main.py``).
         variants: Feature variants the template can combine with.
+        common: Whether the shared code-first core (``_common/``) is copied.
+            ``False`` for the YAML-first ``channels`` template, which is a
+            plain ``workflow.yaml`` + ``channels:`` block with no Python.
         path: The template's directory inside this package.
     """
 
@@ -75,6 +87,7 @@ class TemplateManifest:
     entry: str
     variants: tuple[str, ...]
     path: Path
+    common: bool = True
 
 
 def _load_manifest(name: str) -> TemplateManifest:
@@ -87,6 +100,7 @@ def _load_manifest(name: str) -> TemplateManifest:
         description=str(data.get("description", "")),
         entry=str(data.get("entry", "python main.py")),
         variants=tuple(str(v) for v in data.get("variants", [])),
+        common=bool(data.get("common", True)),
         path=path,
     )
 
@@ -235,7 +249,8 @@ def new_project(
         raise FileExistsError(f"destination already exists: {target}")
 
     target.mkdir(parents=True, exist_ok=True)
-    _copy_tree(_COMMON, target, project_name=name, slug=slug, pascal=pascal)
+    if manifest.common:
+        _copy_tree(_COMMON, target, project_name=name, slug=slug, pascal=pascal)
     _copy_tree(manifest.path, target, project_name=name, slug=slug, pascal=pascal)
     for variant in variants:
         _copy_tree(

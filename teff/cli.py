@@ -739,6 +739,136 @@ def new(
 
 
 @app.command()
+def serve(
+    file: str = typer.Argument(..., help="Path to workflow YAML file"),
+    host: str = typer.Option("127.0.0.1", "--host", help="Bind host"),
+    port: int = typer.Option(8000, "--port", "-p", help="Bind port"),
+) -> None:
+    """Serve a workflow over HTTP/SSE plus any configured webhook channels.
+
+    The ``channels:`` block of the workflow YAML is the source of truth:
+    ``server`` (host/port) is overridable via ``--host``/``--port``, and
+    every ``channels.webhook`` entry is mounted as a POST endpoint.  The
+    same compiled :class:`~teff.assistant.Assistant` serves all routes, so
+    checkpoints and interrupts behave identically everywhere.
+    """
+    try:
+        import uvicorn
+        from fastapi import Request
+    except ImportError:
+        typer.echo(
+            "error: serving over HTTP requires the fastapi extra: "
+            "uv sync --extra fastapi",
+            err=True,
+        )
+        raise typer.Exit(1)
+
+    from teff.channels import build_assistant, build_webhook, create_http_app
+    from teff.channels.factory import load_channels
+
+    try:
+        assistant = build_assistant(file)
+    except Exception as e:
+        typer.echo(f"error: failed to build workflow: {e}", err=True)
+        raise typer.Exit(1)
+
+    app = create_http_app(assistant)
+    channels = load_channels(file)
+    webhooks = channels.get("webhook") or []
+    for spec in webhooks:
+        hook = build_webhook(assistant, spec)
+
+        @app.post(hook.path)
+        async def _webhook_endpoint(request: Request) -> dict:
+            payload = await request.json()
+            return await hook.handle(payload, headers=dict(request.headers))
+
+    typer.echo(
+        f"serving {os.path.basename(file)} on http://{host}:{port}"
+        f" ({len(webhooks)} webhook route(s))"
+    )
+    uvicorn.run(app, host=host, port=port)
+
+
+@app.command()
+def bot(
+    file: str = typer.Argument(..., help="Path to workflow YAML file"),
+    token_env: str = typer.Option(
+        "TELEGRAM_BOT_TOKEN", "--token-env", help="Env var holding the bot token"
+    ),
+    mode: str = typer.Option(
+        "polling", "--mode", help="Transport: polling or webhook"
+    ),
+    once: bool = typer.Option(
+        False, "--once", help="Process pending updates and exit"
+    ),
+) -> None:
+    """Run a workflow as a Telegram bot (long-polling or webhook).
+
+    Reads the workflow's ``channels.telegram`` block for ``mode``/``url``
+    (CLI flags win), then binds the same compiled ``Assistant`` to every
+    chat: each chat is a durable session, so interrupts ask questions
+    in-chat and resume on the operator's answer.
+    """
+    from teff.channels import TelegramChannel, build_assistant
+    from teff.channels.factory import load_channels
+
+    try:
+        assistant = build_assistant(file)
+    except Exception as e:
+        typer.echo(f"error: failed to build workflow: {e}", err=True)
+        raise typer.Exit(1)
+
+    import os as _os
+
+    token = _os.environ.get(token_env, "")
+    if not token:
+        typer.echo(f"error: {token_env} is not set", err=True)
+        raise typer.Exit(1)
+
+    cfg = load_channels(file).get("telegram") or {}
+    effective_mode = mode if mode != "polling" else cfg.get("mode", "polling")
+    bot = TelegramChannel(assistant, token)
+
+    if effective_mode == "webhook":
+        url = cfg.get("url")
+        if not url:
+            typer.echo("error: webhook mode requires channels.telegram.url", err=True)
+            raise typer.Exit(1)
+        try:
+            import uvicorn
+            from fastapi import Request
+
+            from teff.channels import create_http_app
+        except ImportError:
+            typer.echo(
+                "error: webhook mode requires the fastapi extra: "
+                "uv sync --extra fastapi",
+                err=True,
+            )
+            raise typer.Exit(1)
+        app = create_http_app(assistant)
+
+        @app.post("/api/telegram")
+        async def _telegram_webhook(request: Request) -> dict:
+            update = await request.json()
+            await bot.handle_update(update)
+            return {"ok": True}
+
+        async def _main() -> None:
+            await bot.set_webhook(url)
+            await uvicorn.Server(
+                uvicorn.Config(app, host="127.0.0.1", port=8000)
+            ).serve()
+
+        asyncio.run(_main())
+        return
+
+    typer.echo(f"telegram bot polling (token env {token_env})")
+    asyncio.run(bot.run(once=once))
+
+
+@app.command()
 def version() -> None:
     """Print the teff version."""
     typer.echo(f"teff {__version__}")

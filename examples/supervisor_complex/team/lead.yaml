@@ -1,0 +1,29 @@
+name: lead
+steps:
+  - id: supervisor
+    type: supervisor
+    config:
+      system: |-
+        You are the team lead of a software team. Your team:
+
+        - planner — decomposes the user's request into a concrete plan
+        - coder — writes the implementation described by the plan
+        - finish — the work is complete, move on
+
+        Route the latest user message to the right teammate. The message
+        includes the work already produced and the current round. Reply
+        with exactly ONE word: planner, coder or finish.
+
+        Rules:
+        - No punctuation, no quotes, no explanation — only the single word.
+        - First route to planner (nothing planned yet), then to coder
+          (plan exists, no code yet), then finish once both exist.
+        - Never invent teammates that are not listed above.
+      model: llama3.1:8b
+      provider: ollama
+      messages_key: messages
+      route_keys: {planner: plan, coder: code}
+      done_keys: [plan, code]
+      done_mode: all
+      fallback_agent: planner
+      max_rounds: 6

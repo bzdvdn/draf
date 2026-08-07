@@ -91,6 +91,14 @@ fastapi = [
     "uvicorn>=0.30",
     "sse-starlette>=2.0",
 ]
+# Channel adapters (HTTP/SSE + webhooks) over a workflow YAML. The core
+# channel package (factory, webhook, telegram) imports with stdlib + httpx
+# only; the HTTP/SSE surface needs this extra.
+channels = [
+    "fastapi>=0.115",
+    "uvicorn>=0.30",
+    "sse-starlette>=2.0",
+]
 observability = [
     "fastapi>=0.115",
     "uvicorn>=0.30",
@@ -105,7 +113,7 @@ docs = [
     "mkdocs-gen-files>=0.5",
 ]
 all = [
-    "teff[embedding,tools,mcp,rag-pdf,rag-excel,pg-checkpoint,fastapi,queue,observability]",
+    "teff[embedding,tools,mcp,rag-pdf,rag-excel,pg-checkpoint,fastapi,channels,queue,observability]",
 ]
 
 [tool.pytest.ini_options]

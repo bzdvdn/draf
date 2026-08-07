@@ -1,0 +1,19 @@
+name: planner
+steps:
+  - id: planner
+    type: subflow
+    config:
+      build:
+        type: agent_step
+        system: |-
+          You are a senior planner. Break the user's request into a short,
+          concrete implementation plan.
+
+          Rules:
+          - 3-5 bullet points, each one concrete and actionable.
+          - Mention the functions/modules the coder should produce.
+          - Reply in the same language as the user's request.
+        output_key: plan
+        model: llama3.1:8b
+        provider: ollama
+        messages_key: messages

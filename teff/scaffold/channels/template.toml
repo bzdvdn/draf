@@ -1,0 +1,5 @@
+name = "channels"
+description = "YAML-first app: one workflow.yaml reachable over HTTP, Telegram, webhooks"
+entry = "teff serve workflow.yaml"
+variants = []
+common = false

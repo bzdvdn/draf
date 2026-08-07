@@ -1,4 +1,4 @@
 name = "fastapi"
 description = "FastAPI service: supervisor Flow, durable sessions, API-key auth"
 entry = "python main.py"
-variants = ["postgres", "rag", "celery"]
+variants = ["postgres", "rag", "celery", "channels"]

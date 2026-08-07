@@ -241,13 +241,42 @@ class TestNew:
     def test_templates_registry(self):
         from teff.scaffold import TEMPLATES, VARIANTS
 
-        assert set(TEMPLATES) == {"fastapi", "cli", "daemon"}
+        assert set(TEMPLATES) == {"fastapi", "cli", "daemon", "channels"}
         assert TEMPLATES["fastapi"].entry == "python main.py"
         assert TEMPLATES["cli"].entry == "python cli.py run"
         assert TEMPLATES["daemon"].entry == "python daemon.py --once"
+        assert TEMPLATES["channels"].entry == "teff serve workflow.yaml"
+        assert TEMPLATES["channels"].common is False
         for manifest in TEMPLATES.values():
+            if manifest.name == "channels":
+                assert manifest.variants == ()
+                continue
             assert {"postgres", "rag", "celery"} <= set(manifest.variants)
-        assert {"postgres", "rag", "celery"} <= set(VARIANTS)
+        assert {"postgres", "rag", "celery", "channels"} <= set(VARIANTS)
+
+    def test_new_channels_template_yaml_first(self, tmp_path):
+        dest = tmp_path / "channels_app"
+        result = runner.invoke(
+            app,
+            ["new", "Channels App", "--dest", str(dest), "--template", "channels"],
+        )
+        assert result.exit_code == 0, result.stderr
+        assert (dest / "workflow.yaml").is_file()
+        wf_text = (dest / "workflow.yaml").read_text()
+        assert "channels:" in wf_text
+        assert "{{project_slug}}" not in wf_text  # placeholders rendered
+        assert not (dest / "app.py").exists()
+        assert not (dest / "src").exists()
+        assert "teff[channels]" in (dest / "pyproject.toml").read_text()
+
+    def test_new_channels_variant_copies_bot_entry(self, tmp_path):
+        dest = tmp_path / "bot_app"
+        result = runner.invoke(
+            app, ["new", "Bot App", "--dest", str(dest), "--with", "channels"]
+        )
+        assert result.exit_code == 0, result.stderr
+        assert (dest / "bot.py").is_file()
+        assert "TelegramChannel" in (dest / "bot.py").read_text()
 
     def test_new_rag_project_builds_container(self, tmp_path):
         """The generated rag project builds a container offline (no LLM)."""
