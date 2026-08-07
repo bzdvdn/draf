@@ -487,7 +487,7 @@ class TestAsk:
         assert Ask(equals="да").strategy == "equals"
         assert Ask(any_of=["да", "ок"]).strategy == "any_of"
         assert Ask(regex=r"\d+").strategy == "regex"
-        assert Ask(system="s", schema={}).strategy == "model"
+        assert Ask(system="s", schema={}).strategy == "llm"
 
     def test_classmethod_constructors(self):
         from teff.node import Ask
@@ -497,16 +497,16 @@ class TestAsk:
         assert Ask.regex(r"\d+")._pattern == r"\d+"
         assert Ask.check(lambda v: True)._predicate is not None
         assert (
-            Ask.model(
+            Ask.llm(
                 system="s", user="u", schema={"x": 1}, model="m", provider="p"
             ).strategy
-            == "model"
+            == "llm"
         )
 
-    def test_model_ask_needs_classifier(self):
+    def test_llm_ask_needs_classifier(self):
         from teff.node import Ask
 
-        assert Ask.model(
+        assert Ask.llm(
             system="s", user="u", schema={}, model="m", provider="p"
         ).needs_classifier()
         assert not Ask.equals("да").needs_classifier()

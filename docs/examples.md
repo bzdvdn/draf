@@ -33,6 +33,7 @@ README for exact commands.
 | [release_features](https://github.com/bzdvdn/teff/tree/main/examples/release_features/) | Release API tour — validation, typed errors, `teff eval`, cost reports, response cache (mocked, no API key) |
 | [simple_router](https://github.com/bzdvdn/teff/tree/main/examples/simple_router/) | Minimal `Flow.route()` supervisor — two agents, a bounded loop (can't hang), offline tests |
 | [command_routing](https://github.com/bzdvdn/teff/tree/main/examples/command_routing/) | Dynamic per-node routing with `Command` — `update`+`goto`, `goto=Command.STOP`, edge bypass (offline, no API key) |
+| [yaml_compose](https://github.com/bzdvdn/teff/tree/main/examples/yaml_compose/) | Pure-YAML composition — `include:`, `loop`, `command` routing, new `transform` actions (offline, no API key) |
 | [fraud_gate](https://github.com/bzdvdn/teff/tree/main/examples/applications/fraud_gate/) | Production FastAPI payment gate — LLM scorer + `Command` routing (approve / mid-risk human review / deny-and-stop) |
 | [service_desk](https://github.com/bzdvdn/teff/tree/main/examples/applications/service_desk/) | Default `supervisor()` chat router — one-word dispatch, `done_keys`/`fallback_agent` guards, bounded loop and a human `Interrupt` deploy gate (Russian support desk) |
 | [repair-ai-chat](https://github.com/bzdvdn/teff/tree/main/examples/applications/repair-ai-chat/) | Full FastAPI app — one ReAct coordinator driving specialist *tools* (extract, plan, materials, estimate, QA), RAG, streaming (Russian repair workflow) |

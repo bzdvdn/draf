@@ -1,0 +1,32 @@
+name: Feature request
+description: Suggest an idea for Teff
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem are you trying to solve?
+      description: A clear and concise description of the pain point or the use case.
+    validations:
+      required: true
+  - type: textarea
+    id: solution
+    attributes:
+      label: Proposed solution
+      description: |
+        What you'd like Teff to do. Sketches of an API, a YAML shape, or a node
+        type are welcome — include code fences.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives you've considered
+      description: Workarounds, other frameworks, or doing nothing.
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Scope
+      options:
+        - label: I'd be willing to implement this (with help).
+          required: false

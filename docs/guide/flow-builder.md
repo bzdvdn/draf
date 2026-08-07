@@ -213,7 +213,7 @@ flow.interrupt_loop(
 )
 ```
 
-`Ask.model(...)` inserts an LLM classifier so free-form answers ("конечно",
+`Ask.llm(...)` inserts an LLM classifier so free-form answers ("конечно",
 "ок", "хорошо") all count as approval. See the
 [`ask_strategies` example](../examples.md) and the
 [`validate` reference](../reference/nodes.md#validate).

@@ -99,6 +99,8 @@ nav:
       - Fraud review: recipes/fraud-review.md
       - Release approval: recipes/release-approval.md
       - Support triage: recipes/support-triage.md
+      - KB assistant: recipes/kb-assistant.md
+      - Invoice processing: recipes/invoice-processing.md
       - Ops daemon: recipes/ops-daemon.md
   - Reference:
       - Overview: reference.md

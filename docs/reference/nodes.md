@@ -21,6 +21,8 @@ Every node is a `steps:` entry in YAML (`type: <name>`) and a class in the
 | `supervisor` | `Supervisor` | Ask a model "which agent next" + deterministic guards |
 | `gate` | `Gate` | Turn a verdict object into a loop decider + retry budget |
 | `validate` | `Validate` | Decode an interrupt answer (raw or verdict) into a loop decider; capture a value |
+| `command` | `CommandNode` | Declarative `goto`/`STOP` routing from state conditions |
+| `loop` | `Loop` | Repeat a body chain until a state condition holds |
 
 ## Wrapper nodes
 
@@ -47,20 +49,40 @@ Retries are recorded on the tracer (`tracer.retry(...)`) and surfaced in
 
 ## `transform`
 
-String transforms. Actions: `uppercase`, `lowercase`, `trim`, `count_lines`,
+String/data transforms. Actions: `uppercase`, `lowercase`, `trim`, `count_lines`,
 `value` (set a literal), `render` (render a `{key}` template into a scalar),
 `json_get` (extract a field from a dict), `append` (render a template and
 accumulate into a list).
+
+Pipeline-building actions for pure-YAML workflows:
+
+| Action | Reads | Writes to `output_key` |
+| ------ | ----- | ---------------------- |
+| `contains` | `input_key` (string) vs `value` (needle) | `"true"` / `"false"` |
+| `compare` | `input_key` vs `value` with `op` (`eq/ne/gt/ge/lt/le`) | `"true"` / `"false"` |
+| `split` | `input_key` (string) by `sep` (default `,`) | list |
+| `join` | `input_key` (list) by `sep` (default `,`) | string |
+| `replace` | `input_key`, `old` → `new` (default `""`) | string |
+| `coalesce` | `input_key`, falls back to `value` when empty | string |
+| `pick` | `field` out of a dict in `input_key` (like `json_get`) | value |
+| `to_int` / `to_float` | `input_key` (numeric string) | number as string |
+| `now` | — | current UTC ISO timestamp |
+
+`contains` and `compare` emit `"true"`/`"false"` strings so they drive
+`edges:` conditions directly (e.g. `condition: "has_refund=true"`).
 
 | Key | Type | Default | Description |
 | --- | ---- | ------- | ----------- |
 | `action` | str | — | One of the actions above |
 | `input_key` | str | `""` | State key to read from |
 | `output_key` | str | `""` | State key to write to |
-| `value` | str | `None` | Literal value (`action: value`, or `json_get` input) |
-| `field` | str | `None` | Field to extract with `action: json_get` |
+| `value` | str | `None` | Literal value (`action: value`, needle for `contains`, RHS of `compare`, `coalesce` fallback) |
+| `field` | str | `None` | Field to extract with `action: json_get` / `action: pick` |
 | `template` | str | `None` | `{key}` template for `action: render` / `action: append` |
-| `raw` | bool | `False` | Keep `json_get` values without stringifying |
+| `raw` | bool | `False` | Keep `json_get`/`pick` values without stringifying |
+| `sep` | str | `,` | Separator for `split` / `join` |
+| `op` | str | `eq` | Operator for `action: compare` |
+| `old` / `new` | str | — | Replacement pair for `action: replace` |
 
 ## `llm_chat`
 
@@ -134,6 +156,75 @@ Pauses raise `GraphInterrupt`; resume with the same `checkpoint_id` plus
 To validate the answer (instead of comparing it verbatim) and capture a
 value, pair the interrupt with an `Ask` strategy — see
 [`validate`](#validate) and [`Ask`](#ask) below.
+
+In YAML, a `strategy:` mapping on the interrupt step expands to the
+classifier + `validate` chain automatically (`{id}-classifier`,
+`{id}-validate`), the YAML counterpart of
+`flow.interrupt(key, prompt, accept=...)`:
+
+```yaml
+- id: gate
+  type: interrupt
+  config:
+    key: approved
+    prompt: "Approve the report? (yes / no)"
+    strategy: {equals: да}   # or any_of: [да, ок] | regex: "^[A-Z0-9]{4}$" | llm: {system, user, schema, model, provider}
+```
+
+The `llm` strategy requires `model` and `provider` in the strategy block.
+Edges that would have sourced from the interrupt now source from
+`{id}-validate`, where the decision key (`decision` by default) is written.
+
+## `command`
+
+Declarative `goto`/`STOP` routing from state — the YAML surface for
+`Command`. Returns a `Command` whose `goto` is the first matching route
+(`when` uses the same expression language as `edges:` conditions), falling
+back to `goto`; `update` merges state keys after routing.
+
+```yaml
+- id: route
+  type: command
+  config:
+    routes:
+      - {when: "score >= 0.8", goto: approve}
+      - {when: "score < 0.3", goto: reject}
+    goto: review
+    update: {routed: true}
+```
+
+| Key | Type | Default | Description |
+| --- | ---- | ------- | ----------- |
+| `routes` | list | `[]` | `{when, goto}` pairs; first match wins |
+| `goto` | str | — | Fallback target, or `STOP` to end the run |
+| `update` | dict | — | State keys merged after routing |
+
+## `loop`
+
+Repeat a `body` chain until `state[key]` equals `until` — the self-contained
+sibling of `flow.loop`, expressible entirely in YAML. Each round runs `body`
+(a node or list of nodes, given as inline `type: ...` specs like `map`'s
+processor), then checks `key=until` with the edges condition language
+(so `until: "да"` matches `"Да"` or `"да."`). `max_rounds` (default 10) bounds
+the repetition.
+
+```yaml
+- id: refine
+  type: loop
+  config:
+    key: approved
+    until: "да"
+    max_rounds: 3
+    body:
+      - {type: transform, config: {action: value, value: "нет", output_key: approved}}
+```
+
+| Key | Type | Default | Description |
+| --- | ---- | ------- | ----------- |
+| `body` | node/list | — | Chain run each round (inline `type: ...` specs) |
+| `key` | str | — | State key the condition reads |
+| `until` | str | — | Value of `key` that stops the loop |
+| `max_rounds` | int | `10` | Maximum body rounds before giving up |
 
 ## `parallel` / `map`
 
@@ -261,7 +352,7 @@ Ask.regex(r"^[A-Z]{2}-[0-9]{4}$", decision_key="code_ok", value_key="discount_co
 Ask.check(lambda v: len(v) >= 8, value_key="password")
 
 # LLM classifier normalizes free-form answers into {ok: bool, ...}
-Ask.model(
+Ask.llm(
     system="Ты классифицируешь ответ пользователя...",
     user="Ответ пользователя:\n{approved}\n\nОдобрил?",
     schema={"type": "object", "properties": {"ok": {"type": "boolean"}}},

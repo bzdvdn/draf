@@ -26,6 +26,28 @@ WORKFLOW_JSON_SCHEMA: dict[str, Any] = {
     "properties": {
         "name": {"type": "string"},
         "description": {"type": "string"},
+        "include": {
+            "oneOf": [
+                {"type": "string"},
+                {
+                    "type": "array",
+                    "items": {
+                        "oneOf": [
+                            {"type": "string"},
+                            {
+                                "type": "object",
+                                "required": ["path"],
+                                "properties": {
+                                    "path": {"type": "string"},
+                                    "prefix": {"type": "string"},
+                                },
+                                "additionalProperties": True,
+                            },
+                        ]
+                    },
+                },
+            ]
+        },
         "steps": {
             "type": "array",
             "items": {

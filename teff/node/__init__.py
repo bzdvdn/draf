@@ -3,6 +3,7 @@ from typing import TYPE_CHECKING
 from teff.node.agent import ReActAgent, ToolExec
 from teff.node.ask import Ask, Validate
 from teff.node.command import Command
+from teff.node.command_node import CommandNode
 from teff.node.extract import Extract, Fallback
 
 if TYPE_CHECKING:
@@ -16,6 +17,7 @@ from teff.node.context import (
 from teff.node.gate import Gate
 from teff.node.interrupt import GraphInterrupt, Interrupt
 from teff.node.llm import LLM, StructuredOutputError
+from teff.node.loop import Loop
 from teff.node.map import Map
 from teff.node.node import Node
 from teff.node.parallel import Parallel
@@ -41,6 +43,7 @@ default_registry.register("tool_exec", lambda cfg: ToolExec(cfg))
 default_registry.register("tool_call", lambda cfg: ToolCall(cfg))
 default_registry.register("interrupt", lambda cfg: Interrupt(cfg))
 default_registry.register("supervisor", lambda cfg: Supervisor(cfg))
+default_registry.register("command", lambda cfg: CommandNode(cfg))
 
 
 def _resolve_step(step) -> Node:
@@ -215,6 +218,18 @@ def _build_from_recipe(build: dict, cfg: dict) -> "SubFlow":
 
 
 default_registry.register("map", _map_factory)
+
+
+def _loop_factory(cfg: dict) -> Loop:
+    from teff.errors import ConfigError
+
+    body = cfg.get("body")
+    if body is None:
+        raise ConfigError("loop requires config.body (a node spec or list)")
+    return Loop(body, config=cfg)
+
+
+default_registry.register("loop", _loop_factory)
 default_registry.register("subflow", _subflow_factory)
 __all__ = [
     "Node",
@@ -227,6 +242,7 @@ __all__ = [
     "node",
     "Retry",
     "Transform",
+    "Loop",
     "LLM",
     "StructuredOutputError",
     "ReActAgent",
@@ -242,4 +258,5 @@ __all__ = [
     "Extract",
     "Fallback",
     "Command",
+    "CommandNode",
 ]

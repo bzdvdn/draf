@@ -533,7 +533,7 @@ class Flow:
         if accept.needs_classifier():
             if not accept.model_name or not accept.provider:
                 raise ValueError(
-                    "interrupt with a 'model' Ask strategy requires model and provider"
+                    "interrupt with a 'llm' Ask strategy requires model and provider"
                 )
             self.step(accept.classifier(), id=f"{prefix}classifier")
             input_key = accept.verdict_key

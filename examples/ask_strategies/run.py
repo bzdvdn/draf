@@ -135,7 +135,7 @@ def _model_gate() -> Flow:
     ).interrupt_loop(
         key="approved",
         prompt="Сумма 1000 руб. Одобрить? (можно своими словами)",
-        accept=Ask.model(
+        accept=Ask.llm(
             system=VERDICT_SYSTEM,
             user="Ответ пользователя:\n{approved}\n\nОдобрил ли пользователь?",
             schema=VERDICT_SCHEMA,

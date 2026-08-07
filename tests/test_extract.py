@@ -144,7 +144,7 @@ class TestExtractInFlow:
         ).interrupt_loop(
             key="approved",
             prompt="Одобрить план?",
-            accept=Ask.model(
+            accept=Ask.llm(
                 system="s",
                 user="Ответ: {approved}",
                 schema={"type": "object", "properties": {"ok": {"type": "boolean"}}},

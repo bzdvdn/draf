@@ -181,3 +181,90 @@ class TestCommandWithPlainFunctions:
 
         with pytest.raises(TypeError, match="must be a Node or function"):
             Flow("fn").step({"action": "uppercase"})  # type: ignore[arg-type]
+
+
+class TestCommandNodeDeclarative:
+    def _yaml(self, config: str) -> str:
+        return f"""\
+name: cmd
+steps:
+  - id: route
+    type: command
+    config: {config}
+  - id: approve
+    type: transform
+    config: {{action: value, value: APPROVED, output_key: verdict}}
+  - id: reject
+    type: transform
+    config: {{action: value, value: REJECTED, output_key: verdict}}
+  - id: review
+    type: transform
+    config: {{action: value, value: REVIEW, output_key: verdict}}
+"""
+
+    @pytest.mark.asyncio
+    async def test_routes_by_condition(self, tmp_path):
+        from teff.yaml import load_workflow
+
+        path = tmp_path / "wf.yaml"
+        path.write_text(
+            self._yaml(
+                "{routes: [{when: 'score >= 0.8', goto: approve}], goto: review}"
+            )
+        )
+        graph, _, _, _ = load_workflow(str(path))
+        r = await graph.run({"score": "0.92"}, max_iterations=20)
+        assert r["verdict"] == "APPROVED"
+
+    @pytest.mark.asyncio
+    async def test_falls_back_to_goto(self, tmp_path):
+        from teff.yaml import load_workflow
+
+        path = tmp_path / "wf.yaml"
+        path.write_text(
+            self._yaml(
+                "{routes: [{when: 'score >= 0.8', goto: approve}], goto: reject}"
+            )
+        )
+        graph, _, _, _ = load_workflow(str(path))
+        r = await graph.run({"score": "0.2"}, max_iterations=20)
+        assert r["verdict"] == "REJECTED"
+
+    @pytest.mark.asyncio
+    async def test_stop_terminates(self, tmp_path):
+        from teff.yaml import load_workflow
+
+        path = tmp_path / "wf.yaml"
+        path.write_text(self._yaml("{goto: STOP}"))
+        graph, _, _, _ = load_workflow(str(path))
+        r = await graph.run({"score": "0.5"}, max_iterations=20)
+        assert "verdict" not in r
+
+    @pytest.mark.asyncio
+    async def test_update_merges_state(self, tmp_path):
+        from teff.yaml import load_workflow
+
+        path = tmp_path / "wf.yaml"
+        path.write_text(self._yaml("{goto: review, update: {routed: true}}"))
+        graph, _, _, _ = load_workflow(str(path))
+        r = await graph.run({}, max_iterations=20)
+        assert r["routed"] is True
+        assert r["verdict"] == "REVIEW"
+
+    @pytest.mark.asyncio
+    async def test_unknown_goto_raises(self, tmp_path):
+        from teff.errors import WorkflowError
+        from teff.yaml import load_workflow
+
+        path = tmp_path / "wf.yaml"
+        path.write_text(self._yaml("{goto: missing}"))
+        graph, _, _, _ = load_workflow(str(path))
+        with pytest.raises(WorkflowError, match="unknown node"):
+            await graph.run({}, max_iterations=20)
+
+    def test_registered_in_registry(self):
+        from teff.node import default_registry
+
+        assert "command" in default_registry.list()
+        node = default_registry.create("command", {"goto": "STOP"})
+        assert node.type == "command"

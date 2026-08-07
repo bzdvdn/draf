@@ -256,6 +256,105 @@ or different provider endpoints.  Use `state.schema ... reducer: append`
 when branches should accumulate (e.g. collecting `messages`) instead of
 overwriting a key.
 
+## Composing workflows (`include:`)
+
+An `include:` block merges steps, edges, tools and state from other workflow
+files — recursively, since an included file may include others.  Paths are
+relative to the including file:
+
+```yaml
+name: composed
+include:
+  - path: ../shared/workflow.yaml
+    prefix: shared_
+  - path: ./retry.yaml
+```
+
+A `prefix:` (prepended to every included step id and edge endpoint) lets you
+compose the same file into several places without id collisions; it is also
+applied to `command` node `goto` targets.  Included steps run first, then the
+including workflow's own steps.  Without a prefix, ids must not collide.
+
+## Declarative routing (`command`)
+
+A `command` step routes the graph from state — dynamic `goto` / `STOP`
+without code.  The `when` expressions use the same language as `edges:`
+conditions, and the first match wins:
+
+```yaml
+steps:
+  - id: route
+    type: command
+    config:
+      routes:
+        - {when: "score >= 0.8", goto: approve}
+        - {when: "score < 0.3", goto: reject}
+      goto: review
+      update: {routed: true}
+```
+
+`goto: STOP` terminates the run.
+
+## Loops (`loop`)
+
+A `loop` step repeats a `body` chain until `state[key]` equals `until` —
+everything in one node, no decider edges.  `body` is a node or list of nodes
+given as inline `type: ...` specs (like `map`'s processor):
+
+```yaml
+steps:
+  - id: refine
+    type: loop
+    config:
+      key: approved
+      until: "да"
+      max_rounds: 3
+      body:
+        - {type: transform, config: {action: value, value: "нет", output_key: approved}}
+```
+
+`max_rounds` (default 10) bounds the repetition; the condition uses the edges
+expression language, so `until: "да"` matches `"Да"` or `"да."`.
+
+## Validated interrupts (`strategy:`)
+
+An `interrupt` step can validate the operator's answer with a `strategy:`
+mapping instead of comparing it verbatim.  The loader expands it into the
+classifier + `validate` chain (`{id}-validate`), the YAML counterpart of
+`flow.interrupt(key, prompt, accept=...)`:
+
+```yaml
+steps:
+  - id: gate
+    type: interrupt
+    config:
+      key: approved
+      prompt: "Approve the report? (yes / no)"
+      strategy: {equals: да}          # or: any_of: [да, ок] | regex: "^[A-Z0-9]{4}$"
+  - id: ship
+    type: transform
+    config: {action: value, value: shipped, output_key: status}
+edges:
+  - {from: gate, to: ship, condition: "decision=да"}
+```
+
+An `llm` strategy needs `model` and `provider`:
+
+```yaml
+      strategy:
+        llm:
+          system: Classify the answer as approval or rejection.
+          user: "Answer: {approved}"
+          schema:
+            type: object
+            properties: {ok: {type: boolean}}
+          model: llama3.1:8b
+          provider: ollama
+```
+
+Edges that would have sourced from the interrupt now source from
+`{id}-validate`, where the decision key (`decision` by default) is written.
+
 ## Durable runs (`checkpoint:`)
 
 A top-level `checkpoint:` block enables durable runs whose state is saved

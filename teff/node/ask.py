@@ -13,11 +13,11 @@ Strategies:
   whole match) is extracted.
 * ``check`` — a callable ``fn(value) -> bool`` or
   ``fn(value) -> (bool, extracted)``.
-* ``model`` — an :class:`~teff.node.LLM` turns the free-form answer into a
+* ``llm`` — an :class:`~teff.node.LLM` turns the free-form answer into a
   structured verdict (``{ok: bool, ...}``); ``value_field`` names the
   verdict field to capture.
 
-A ``model`` strategy can also declare a *third* outcome — "unclear, re-ask".
+A ``llm`` strategy can also declare a *third* outcome — "unclear, re-ask".
 When ``clear_field`` names a verdict boolean (e.g. ``clear``) that is
 ``False``, :class:`Validate` writes ``clarify_value`` instead of a pass/fail
 decision; :meth:`~teff.flow.Flow.interrupt_loop` then routes that value back
@@ -52,7 +52,7 @@ class Ask:
         Ask.any_of("да", "ок", "конечно")
         Ask.regex(r"^[A-Z0-9]{4,12}$", value_key="discount_code")
         Ask.check(lambda v: v.lower() in {"да", "ок"})
-        Ask.model(system=..., user=..., schema=..., model=..., provider=...)
+        Ask.llm(system=..., user=..., schema=..., model=..., provider=...)
 
     The strategy is auto-detected from the constructor kwargs, so plain
     ``Ask(equals="да", value_key="code")`` also works.
@@ -115,11 +115,11 @@ class Ask:
         if self._expected is not None:
             return "equals"
         if self.system or self.schema:
-            return "model"
+            return "llm"
         return ""
 
     def needs_classifier(self) -> bool:
-        return self.strategy == "model"
+        return self.strategy == "llm"
 
     @classmethod
     def equals(cls, value, **kwargs) -> "Ask":
@@ -138,7 +138,7 @@ class Ask:
         return cls(check=fn, **kwargs)
 
     @classmethod
-    def model(
+    def llm(
         cls,
         *,
         system: str,
@@ -157,8 +157,52 @@ class Ask:
             **kwargs,
         )
 
+    @classmethod
+    def from_mapping(cls, mapping: dict) -> "Ask":
+        """Build an :class:`Ask` from a declarative strategy mapping.
+
+        Mirrors the YAML shorthand on an ``interrupt`` step::
+
+            strategy:
+              equals: да
+            # or: any_of: [да, ок]  |  regex: "^[A-Z0-9]{4}$"
+            # or: llm: {system, user, schema, model, provider}
+
+        The mapping's other keys (``value_key``, ``decision_key``,
+        ``pass_value``, ``fail_value``, ``verdict_key``, ``ok_field``,
+        ``clear_field``, ``clarify_value``, ``rounds_key``, ``max_rounds``)
+        are passed through to the chosen strategy constructor.
+
+        Raises:
+            ValueError: When no known strategy key is present.
+        """
+        if "equals" in mapping:
+            spec = {k: v for k, v in mapping.items() if k != "equals"}
+            return cls(equals=mapping["equals"], **spec)
+        if "any_of" in mapping:
+            spec = {k: v for k, v in mapping.items() if k != "any_of"}
+            return cls(any_of=list(mapping["any_of"]), **spec)
+        if "regex" in mapping:
+            spec = {k: v for k, v in mapping.items() if k != "regex"}
+            return cls(regex=mapping["regex"], **spec)
+        if isinstance(mapping.get("llm"), dict):
+            llm_cfg = mapping["llm"]
+            spec = {k: v for k, v in mapping.items() if k != "llm"}
+            return cls(
+                system=llm_cfg.get("system", ""),
+                user=llm_cfg.get("user", ""),
+                schema=llm_cfg.get("schema"),
+                model=llm_cfg.get("model", ""),
+                provider=llm_cfg.get("provider", ""),
+                **spec,
+            )
+        raise ValueError(
+            "strategy requires one of equals / any_of / regex / llm, "
+            f"got {sorted(mapping)}"
+        )
+
     def classifier(self) -> LLM:
-        """Build the verdict classifier ``LLM`` for the ``"model"`` strategy."""
+        """Build the verdict classifier ``LLM`` for the ``"llm"`` strategy."""
         return LLM(
             system=self.system,
             prompt=self.user,

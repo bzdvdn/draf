@@ -1,0 +1,54 @@
+name: Bug report
+description: Report a bug in Teff
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report a bug. A minimal repro goes a long way.
+  - type: input
+    id: version
+    attributes:
+      label: Teff version
+      description: Output of `teff version` (or the git commit you're on).
+    validations:
+      required: true
+  - type: input
+    id: python
+    attributes:
+      label: Python version
+      description: e.g. 3.11, 3.12, 3.13
+    validations:
+      required: true
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: Also, what did you expect to happen?
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      description: |
+        A minimal YAML workflow or a short Python snippet is ideal. Markdown code
+        fences (\`\`\`yaml / \`\`\`python) are supported.
+      render: bash
+    validations:
+      required: true
+  - type: textarea
+    id: trace
+    attributes:
+      label: Trace / output
+      description: Paste the trace (`teff run --trace`), the exception, or the traceback here.
+      render: shell
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before submitting
+      options:
+        - label: I can reproduce this against the latest commit on `main`.
+          required: false
+        - label: I've searched existing issues for a duplicate.
+          required: true

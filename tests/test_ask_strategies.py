@@ -123,10 +123,10 @@ class TestAsk:
         assert Ask(equals="да").strategy == "equals"
         assert Ask(any_of=["да", "ок"]).strategy == "any_of"
         assert Ask(regex=r"\d+").strategy == "regex"
-        assert Ask(system="s", schema={}).strategy == "model"
+        assert Ask(system="s", schema={}).strategy == "llm"
 
-    def test_model_ask_needs_classifier(self):
-        assert Ask.model(
+    def test_llm_ask_needs_classifier(self):
+        assert Ask.llm(
             system="s", user="u", schema={}, model="m", provider="p"
         ).needs_classifier()
         assert not Ask.equals("да").needs_classifier()
@@ -141,7 +141,7 @@ class TestAsk:
         assert v.config["strategy"] == "regex"
 
     def test_model_ask_carries_clarify_config(self):
-        v = Ask.model(
+        v = Ask.llm(
             system="s",
             user="u",
             schema={},
@@ -234,7 +234,7 @@ class TestInterruptLoopModel:
         ).interrupt_loop(
             key="approved",
             prompt="Одобрить?",
-            accept=Ask.model(
+            accept=Ask.llm(
                 system="s",
                 user="Ответ: {approved}",
                 schema={"type": "object", "properties": {"ok": {"type": "boolean"}}},
@@ -292,7 +292,7 @@ class TestInterruptLoopModel:
         ).interrupt_loop(
             key="approved",
             prompt="Одобрить?",
-            accept=Ask.model(
+            accept=Ask.llm(
                 system="s",
                 user="Ответ: {approved}",
                 schema={
@@ -326,3 +326,130 @@ class TestInterruptLoopModel:
         )
         assert last["total"] == "да"
         assert body_calls == []  # the unclear reply only re-asked, no re-plan
+
+
+class TestAskFromMapping:
+    def test_equals(self):
+        a = Ask.from_mapping({"equals": "да", "value_key": "code"})
+        assert a.strategy == "equals"
+        assert a.value_key == "code"
+
+    def test_any_of(self):
+        a = Ask.from_mapping({"any_of": ["да", "ок"]})
+        assert a.strategy == "any_of"
+
+    def test_regex(self):
+        a = Ask.from_mapping({"regex": r"^[A-Z0-9]{4}$"})
+        assert a.strategy == "regex"
+
+    def test_llm(self):
+        a = Ask.from_mapping(
+            {
+                "llm": {
+                    "system": "s",
+                    "user": "u",
+                    "schema": {"type": "object"},
+                    "model": "m",
+                    "provider": "ollama",
+                }
+            }
+        )
+        assert a.strategy == "llm"
+        assert a.needs_classifier()
+
+    def test_unknown_strategy_raises(self):
+        with pytest.raises(ValueError, match="equals / any_of / regex / llm"):
+            Ask.from_mapping({"bogus": "x"})
+
+
+class TestInterruptStrategyShorthandYAML:
+    @pytest.mark.asyncio
+    async def test_expands_equals_strategy(self, tmp_path):
+        from teff.checkpoint import JSONFileCheckpointer
+        from teff.yaml import from_yaml
+
+        g = from_yaml(
+            """\
+name: ask-yaml
+steps:
+  - id: start
+    type: interrupt
+    config:
+      key: approved
+      prompt: ok?
+      strategy: {equals: да}
+  - id: ship
+    type: transform
+    config: {action: value, value: SHIPPED, output_key: final}
+edges:
+  - {from: start, to: ship, condition: "decision=да"}
+"""
+        )
+        assert "start-validate" in g.nodes
+        sources = {e.source_id for e in g.edges}
+        assert "start-validate" in sources  # edges re-point at the validate node
+
+        cp = JSONFileCheckpointer(str(tmp_path))
+        try:
+            await g.run(state={}, checkpointer=cp, checkpoint_id="y1")
+        except GraphInterrupt:
+            pass
+        last = await g.run(
+            state={}, checkpointer=cp, checkpoint_id="y1", resume={"approved": "да"}
+        )
+        assert last["final"] == "SHIPPED"
+
+    @pytest.mark.asyncio
+    async def test_rejected_answer_keeps_fail_value(self, tmp_path):
+        from teff.checkpoint import JSONFileCheckpointer
+        from teff.yaml import from_yaml
+
+        g = from_yaml(
+            """\
+name: ask-yaml
+steps:
+  - id: start
+    type: interrupt
+    config:
+      key: approved
+      prompt: ok?
+      strategy: {equals: да}
+  - id: ship
+    type: transform
+    config: {action: value, value: SHIPPED, output_key: final}
+  - id: stop
+    type: transform
+    config: {action: value, value: BLOCKED, output_key: final}
+edges:
+  - {from: start, to: ship, condition: "decision=да"}
+  - {from: start, to: stop, condition: "decision=нет"}
+"""
+        )
+        cp = JSONFileCheckpointer(str(tmp_path))
+        try:
+            await g.run(state={}, checkpointer=cp, checkpoint_id="y2")
+        except GraphInterrupt:
+            pass
+        last = await g.run(
+            state={}, checkpointer=cp, checkpoint_id="y2", resume={"approved": "нет"}
+        )
+        assert last["final"] == "BLOCKED"
+
+    def test_llm_strategy_requires_model_and_provider(self, tmp_path):
+        from teff.errors import ConfigError
+        from teff.yaml import from_yaml
+
+        with pytest.raises(ConfigError, match="model and provider"):
+            from_yaml(
+                """\
+name: ask-yaml
+steps:
+  - id: start
+    type: interrupt
+    config:
+      key: approved
+      prompt: ok?
+      strategy:
+        llm: {system: s, user: u, schema: {type: object}}
+"""
+            )

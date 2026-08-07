@@ -42,6 +42,228 @@ def _interpolate_env(value: typing.Any) -> typing.Any:
     return value
 
 
+def _load_workflow_document(path: str) -> dict:
+    """Read and parse a workflow YAML file into a dict (raises ``ConfigError``)."""
+    with open(path) as f:
+        data = _safe_load(f)
+    if data is None:
+        data = {}
+    if not isinstance(data, dict):
+        raise ConfigError(f"{path}: workflow must be a mapping")
+    return data
+
+
+def _resolve_includes(data: dict, base_dir: str) -> dict:
+    """Merge workflows referenced by an ``include:`` block into *data*.
+
+    ``include`` is a list of paths (relative to the including file) or
+    ``{path, prefix}`` mappings::
+
+        name: composed
+        include:
+          - path: ../shared/workflow.yaml
+            prefix: shared_
+          - path: ./retry.yaml
+
+    Each included file's steps, edges, and tools are merged into the
+    including workflow (recursively — includes may include).  A ``prefix``
+    is prepended to every included step id and edge endpoint so a file can
+    be composed into several places without id collisions; it is also
+    applied to ``command`` node ``goto`` targets and ``routes``.  Edges
+    inside the included file are rewritten to the prefixed ids.
+
+    The merge order is: included steps first, then the including workflow's
+    own steps; ``tools`` and ``state`` are appended/merged likewise.
+
+    Raises:
+        ConfigError: When an include path is missing, unparseable, or its
+            document is not a mapping.
+    """
+    includes = data.get("include")
+    if not includes:
+        return data
+    if isinstance(includes, (str, dict)):
+        includes = [includes]
+
+    merged_steps: list[dict] = []
+    merged_edges: list[dict] = []
+    merged_tools: list[dict] = []
+    merged_state = dict(data.get("state") or {})
+
+    for inc in includes:
+        if isinstance(inc, str):
+            path: str | None = inc
+            prefix: str = ""
+        elif isinstance(inc, dict):
+            path = inc.get("path")
+            prefix = str(inc.get("prefix") or "")
+        else:
+            raise ConfigError("include entries must be a path or a {path, prefix} mapping")
+        if not isinstance(path, str) or not path:
+            raise ConfigError("include entry requires a 'path'")
+        full = os.path.join(base_dir, path)
+        if not os.path.exists(full):
+            raise ConfigError(f"include: file not found: {full}")
+        sub = _load_workflow_document(full)
+        sub = _interpolate_env(sub)
+        sub = _expand_interrupt_strategy(sub)
+        sub = _resolve_includes(sub, os.path.dirname(full))
+
+        def prepend_id(sid: str) -> str:
+            return f"{prefix}{sid}" if prefix else sid
+
+        def rewrite_step(step: dict) -> dict:
+            if not isinstance(step, dict):
+                return step
+            step = dict(step)
+            if isinstance(step.get("id"), str):
+                step["id"] = prepend_id(step["id"])
+            cfg = step.get("config")
+            if isinstance(cfg, dict):
+                cfg = dict(cfg)
+                if isinstance(cfg.get("goto"), str):
+                    cfg["goto"] = _prefix_goto(cfg["goto"], prefix)
+                routes = cfg.get("routes")
+                if isinstance(routes, list):
+                    cfg["routes"] = [
+                        {**r, "goto": _prefix_goto(r["goto"], prefix)}
+                        if isinstance(r, dict) and isinstance(r.get("goto"), str)
+                        else r
+                        for r in routes
+                    ]
+                step["config"] = cfg
+            return step
+
+        def rewrite_edge(edge: dict) -> dict:
+            if not isinstance(edge, dict):
+                return edge
+            edge = dict(edge)
+            for key in ("from", "to"):
+                if isinstance(edge.get(key), str):
+                    edge[key] = prepend_id(edge[key])
+            return edge
+
+        merged_steps.extend(rewrite_step(s) for s in sub.get("steps", []) or [])
+        merged_edges.extend(rewrite_edge(e) for e in sub.get("edges", []) or [])
+        merged_tools.extend(sub.get("tools", []) or [])
+
+        sub_state = sub.get("state")
+        if isinstance(sub_state, dict):
+            schema = merged_state.get("schema") or {}
+            initial = merged_state.get("initial") or {}
+            sub_schema = sub_state.get("schema") or {}
+            sub_initial = sub_state.get("initial") or {}
+            if isinstance(schema, dict) and isinstance(sub_schema, dict):
+                schema = {**schema, **sub_schema}
+            elif sub_schema:
+                schema = sub_schema
+            if isinstance(initial, dict) and isinstance(sub_initial, dict):
+                initial = {**initial, **sub_initial}
+            elif sub_initial:
+                initial = sub_initial
+            merged_state = {"schema": schema, "initial": initial}
+
+    out = dict(data)
+    out.pop("include", None)
+    out["steps"] = merged_steps + list(data.get("steps", []) or [])
+    if merged_edges or data.get("edges"):
+        out["edges"] = merged_edges + list(data.get("edges", []) or [])
+    if merged_tools or data.get("tools"):
+        out["tools"] = list(data.get("tools", []) or []) + merged_tools
+    if merged_state or data.get("state"):
+        own_state = data.get("state") or {}
+        if isinstance(own_state, dict):
+            merged_state = {**merged_state, **own_state}
+        out["state"] = merged_state
+    return out
+
+
+def _prefix_goto(target: str, prefix: str) -> str:
+    """Prefixed a ``command`` ``goto`` target, leaving the ``STOP`` sentinel."""
+    if prefix and target != "STOP":
+        return f"{prefix}{target}"
+    return target
+
+
+def _expand_interrupt_strategy(data: dict) -> dict:
+    """Expand ``interrupt`` steps carrying a ``strategy:`` shorthand.
+
+    An ``interrupt`` step whose ``config.strategy`` names a validation
+    strategy (``equals`` / ``any_of`` / ``regex`` / ``llm``) is the YAML
+    counterpart of ``Flow.interrupt(key, prompt, accept=...)``.  It expands
+    into the same chain ``Flow._wire_ask`` builds:
+
+    * the ``interrupt`` step itself (unchanged);
+    * an ``llm_chat`` classifier step (``{id}-classifier``) when the
+      strategy is ``llm`` (requires ``model`` + ``provider``);
+    * a ``validate`` step (``{id}-validate``) that decodes the answer into
+      the decision key.
+
+    Auto-edges ``interrupt -> classifier -> validate`` keep resume routing
+    working (execution resolves the interrupt's outgoing edge after a
+    ``resume``), while user edges that sourced from the interrupt's id are
+    re-pointed at the ``validate`` step, because the decision key is written
+    there.
+    """
+    from teff.node.ask import Ask
+
+    steps = data.get("steps", []) or []
+    expanded: list[dict] = []
+    auto_edges: list[dict] = []
+    rewires: dict[str, str] = {}
+    for step in steps:
+        expanded.append(step)
+        if not isinstance(step, dict) or step.get("type") != "interrupt":
+            continue
+        cfg = step.get("config") or {}
+        if "strategy" not in cfg:
+            continue
+        sid = step.get("id")
+        if not isinstance(sid, str):
+            continue
+        prefix = f"{sid}-"
+        try:
+            accept = Ask.from_mapping(cfg["strategy"])
+        except ValueError as exc:
+            raise ConfigError(f"step {sid!r}: {exc}") from exc
+        input_key = cfg.get("key", "answer")
+        prev = sid
+        if accept.needs_classifier():
+            if not accept.model_name or not accept.provider:
+                raise ConfigError(
+                    f"step {sid!r}: interrupt with a 'llm' strategy requires "
+                    "model and provider"
+                )
+            classifier = accept.classifier()
+            expanded.append(
+                {
+                    "id": f"{prefix}classifier",
+                    "type": "llm_chat",
+                    "config": classifier.config,
+                }
+            )
+            auto_edges.append({"from": prev, "to": f"{prefix}classifier"})
+            prev = f"{prefix}classifier"
+            input_key = accept.verdict_key
+        validate = accept.validate_node(input_key=input_key)
+        expanded.append(
+            {"id": f"{prefix}validate", "type": "validate", "config": validate.config}
+        )
+        auto_edges.append({"from": prev, "to": f"{prefix}validate"})
+        rewires[sid] = f"{prefix}validate"
+
+    if not rewires:
+        return data
+    edges = list(data.get("edges", []) or [])
+    for edge in edges:
+        if isinstance(edge, dict) and edge.get("from") in rewires:
+            edge["from"] = rewires[edge["from"]]
+    out = dict(data)
+    out["steps"] = expanded
+    out["edges"] = auto_edges + edges
+    return out
+
+
 def _providers_from_data(data: typing.Any) -> typing.Any:
     """Build a :class:`ProviderRegistry` from a workflow's ``providers:`` block.
 
@@ -148,16 +370,22 @@ def from_yaml(source: str) -> Graph:
         A compiled ``Graph`` ready for execution.
     """
     if os.path.exists(source):
-        with open(source) as f:
-            data = _safe_load(f)
+        data = _load_workflow_document(source)
     else:
         data = _safe_load(source)
+        if data is None:
+            data = {}
+        if not isinstance(data, dict):
+            raise ConfigError("workflow must be a mapping")
 
-    if data is None:
-        data = {}
-    if not isinstance(data, dict):
-        raise ConfigError("workflow must be a mapping")
+    base_dir = (
+        os.path.dirname(os.path.abspath(source))
+        if os.path.exists(source)
+        else os.getcwd()
+    )
     data = _interpolate_env(data)
+    data = _resolve_includes(data, base_dir)
+    data = _expand_interrupt_strategy(data)
     label = source if os.path.exists(source) else "workflow"
     raise_for_validation(validate_workflow(data), source=label)
 
@@ -307,20 +535,17 @@ def load_workflow(path: str) -> tuple[Graph, list[Tool], dict, dict[str, Reducer
     Returns:
         A ``(Graph, tools_list, initial_state, reducers)`` tuple ready for ``graph.run()``.
     """
-    with open(path) as f:
-        data = _safe_load(f)
-
-    if data is None:
-        data = {}
-    if not isinstance(data, dict):
-        raise ConfigError("workflow must be a mapping")
+    data = _load_workflow_document(path)
 
     # Resolve ${ENV} references across the whole document (tools, steps,
     # state), then load plugins so custom node/tool types validate below.
+    base_dir = os.path.dirname(os.path.abspath(path))
     data = _interpolate_env(data)
+    data = _resolve_includes(data, base_dir)
+    data = _expand_interrupt_strategy(data)
     from teff.plugins import load_plugins_from_document
 
-    load_plugins_from_document(data, os.path.dirname(os.path.abspath(path)))
+    load_plugins_from_document(data, base_dir)
 
     import teff.rag  # noqa: F401 — registers the "rag" tool
     import teff.tool.builtin  # noqa: F401 — registers built-in tools

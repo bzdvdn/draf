@@ -22,10 +22,12 @@ reading abstract code.
 | [Release approval](release-approval.md) | Ship-gate with human sign-off | [`release_coordinator`](../../examples/release_coordinator/) | Supervisor + `route()` + `Map` + approval gate |
 | [Support triage](support-triage.md) | Customer-support SLA hub | [`simple_router`](../../examples/simple_router/) + [`repair-ai-chat`](../../examples/applications/repair-ai-chat/) | `route()` supervisor + RAG + HITL escalation |
 | [Ops daemon](ops-daemon.md) | Scheduled change-triage | [`repo-health`](../../examples/applications/repo-health/) | YAML-only agent-driven tick via CLI daemon |
+| [KB assistant](kb-assistant.md) | Grounded self-service Q&A | [`rag_search`](../../examples/rag_search/) + [`repair-ai-chat`](../../examples/applications/repair-ai-chat/) | RAG retrieval + confidence gate + human fallback |
+| [Invoice processing](invoice-processing.md) | AP automation with approval | [`structured_output`](../../examples/structured_output/) + [`agent_approval`](../../examples/agent_approval/) | `Extract`/`Fallback` + `Validate` + durable approval |
 
 ## Reading the pattern
 
-The four cases differ in *business*, but the *graph anatomy* repeats:
+The six cases differ in *business*, but the *graph anatomy* repeats:
 
 - **One entry point** — a node that builds context (ingest / reset / context
   builder).
