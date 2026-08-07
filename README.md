@@ -18,8 +18,8 @@ runtime magic.
 - **Durable** — checkpoint/resume across file, SQLite, and PostgreSQL backends.
 - **Embeddable** — a library, not a platform. You import us; we never import you.
 
-**Status:** 0.1.0-alpha — the API is live and the docs and tests are complete;
-expect refinements as it matures.
+**Status:** 0.1.0 — first stable release. The public API, YAML surface and CLI
+are stable; breaking changes require a minor version bump.
 
 Full documentation (guide, node/tool/provider references, and an auto-generated
 API reference) lives in [`docs/`](docs/). Build it locally with
