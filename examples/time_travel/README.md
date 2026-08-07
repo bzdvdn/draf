@@ -28,7 +28,7 @@ nodes with `action: append` — the "accumulate formatted text" pattern.
 | -------------- | -------------------------------------------------------------------------------- |
 | `graph.py`     | The four chapter steps wired by hand with the low-level `Graph` API              |
 | `flow.py`      | The same linear chain with the `Flow` builder — four `flow.step()` calls, no explicit edges |
-| `workflow.yaml`| The same story as pure YAML — four `transform` appends, runnable with `draf run` |
+| `workflow.yaml`| The same story as pure YAML — four `transform` appends, runnable with `teff run` |
 
 All three are fully self-contained, share the exact same
 checkpointing/time-travel logic (which comes entirely from the framework),
@@ -59,7 +59,7 @@ future rewritten (chapters 3-4): True
 timeline:
 
 ```bash
-draf run -f examples/time_travel/workflow.yaml \
+teff run -f examples/time_travel/workflow.yaml \
   --checkpoint '{"type":"sqlite_history","path":"cp.db"}' \
   --checkpoint-id story
 ```
@@ -70,13 +70,13 @@ rewind, edit, and replay — the same interaction shown in `graph.py`.
 ## Production
 
 `PGHistoryCheckpointer` provides the same time travel on PostgreSQL
-(`draf[pg-checkpoint]`), and the CLI can pick either via `--checkpoint`:
+(`teff[pg-checkpoint]`), and the CLI can pick either via `--checkpoint`:
 
 ```bash
 # SQLite history store
-draf run -f workflow.yaml --checkpoint '{"type":"sqlite_history","path":"cp.db"}'
+teff run -f workflow.yaml --checkpoint '{"type":"sqlite_history","path":"cp.db"}'
 # PostgreSQL history store
-draf run -f workflow.yaml --checkpoint '{"type":"pg_history","dsn":"postgresql://..."}'
+teff run -f workflow.yaml --checkpoint '{"type":"pg_history","dsn":"postgresql://..."}'
 ```
 
 The time-travel *interaction* (rewind, edit, replay) is Python-only —

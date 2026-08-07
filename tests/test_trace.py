@@ -2,11 +2,11 @@ import asyncio
 
 import pytest
 
-from draf.provider import ProviderRegistry
+from teff.provider import ProviderRegistry
 
 
 def _make_node(state_update):
-    from draf.node import Node
+    from teff.node import Node
 
     class Simple(Node):
         type = "simple"
@@ -21,8 +21,8 @@ def _make_node(state_update):
 class TestRunTracerBasics:
     @pytest.mark.asyncio
     async def test_records_run_and_node_events(self):
-        from draf.graph import Graph
-        from draf.trace import RunTracer
+        from teff.graph import Graph
+        from teff.trace import RunTracer
 
         g = Graph(nodes={"a": _make_node({"x": 1})}, edges=[], entry_point="a")
         tracer = RunTracer()
@@ -40,9 +40,9 @@ class TestRunTracerBasics:
 
     @pytest.mark.asyncio
     async def test_node_timing_measured(self):
-        from draf.graph import Graph
-        from draf.node import Node
-        from draf.trace import RunTracer
+        from teff.graph import Graph
+        from teff.node import Node
+        from teff.trace import RunTracer
 
         class Slow(Node):
             type = "slow"
@@ -61,9 +61,9 @@ class TestRunTracerBasics:
 
     @pytest.mark.asyncio
     async def test_summary_aggregates_nodes(self):
-        from draf.graph import Graph
-        from draf.node import Node
-        from draf.trace import RunTracer
+        from teff.graph import Graph
+        from teff.node import Node
+        from teff.trace import RunTracer
 
         class One(Node):
             type = "one"
@@ -88,7 +88,7 @@ class TestRunTracerBasics:
 
 
 def from_to(src, dst):
-    from draf.graph import Edge
+    from teff.graph import Edge
 
     return Edge(src, dst)
 
@@ -96,8 +96,8 @@ def from_to(src, dst):
 class TestRunTracerEdges:
     @pytest.mark.asyncio
     async def test_conditional_edge_recorded(self):
-        from draf.graph import Graph
-        from draf.trace import RunTracer
+        from teff.graph import Graph
+        from teff.trace import RunTracer
 
         g = Graph(
             nodes={
@@ -117,7 +117,7 @@ class TestRunTracerEdges:
 
 
 def from_to_cond(src, dst, cond):
-    from draf.graph import Edge
+    from teff.graph import Edge
 
     return Edge(src, dst, cond)
 
@@ -125,9 +125,9 @@ def from_to_cond(src, dst, cond):
 class TestRunTracerErrors:
     @pytest.mark.asyncio
     async def test_error_edge_records_node_error_and_fallback(self):
-        from draf.graph import Edge, Graph
-        from draf.node import Node
-        from draf.trace import RunTracer
+        from teff.graph import Edge, Graph
+        from teff.node import Node
+        from teff.trace import RunTracer
 
         class Crash(Node):
             type = "crash"
@@ -162,9 +162,9 @@ class TestRunTracerErrors:
 
     @pytest.mark.asyncio
     async def test_unhandled_error_marks_run_as_error(self):
-        from draf.graph import Graph
-        from draf.node import Node
-        from draf.trace import RunTracer
+        from teff.graph import Graph
+        from teff.node import Node
+        from teff.trace import RunTracer
 
         class Crash(Node):
             type = "crash"
@@ -186,9 +186,9 @@ class TestRunTracerErrors:
 class TestRunTracerCheckpoints:
     @pytest.mark.asyncio
     async def test_checkpoint_events_recorded(self, tmp_path):
-        from draf.checkpoint import JSONFileCheckpointer
-        from draf.graph import Graph
-        from draf.trace import RunTracer
+        from teff.checkpoint import JSONFileCheckpointer
+        from teff.graph import Graph
+        from teff.trace import RunTracer
 
         g = Graph(nodes={"a": _make_node({"x": 1})}, edges=[], entry_point="a")
         cp = JSONFileCheckpointer(str(tmp_path / "ckpt"))
@@ -202,9 +202,9 @@ class TestRunTracerCheckpoints:
 
     @pytest.mark.asyncio
     async def test_resume_records_load(self, tmp_path):
-        from draf.checkpoint import JSONFileCheckpointer
-        from draf.graph import Graph
-        from draf.trace import RunTracer
+        from teff.checkpoint import JSONFileCheckpointer
+        from teff.graph import Graph
+        from teff.trace import RunTracer
 
         g = Graph(nodes={"a": _make_node({"x": 1})}, edges=[], entry_point="a")
         cp = JSONFileCheckpointer(str(tmp_path / "ckpt"))
@@ -223,10 +223,10 @@ class TestRunTracerCheckpoints:
 class TestRunTracerRetry:
     @pytest.mark.asyncio
     async def test_retry_events_recorded(self):
-        from draf.graph import Graph
-        from draf.node import Node
-        from draf.node.retry import Retry
-        from draf.trace import RunTracer
+        from teff.graph import Graph
+        from teff.node import Node
+        from teff.node.retry import Retry
+        from teff.trace import RunTracer
 
         attempts = {"n": 0}
 
@@ -256,9 +256,9 @@ class TestRunTracerRetry:
 class TestRunTracerLLM:
     @pytest.mark.asyncio
     async def test_llm_usage_recorded(self, monkeypatch):
-        from draf.graph import Graph
-        from draf.node import LLM
-        from draf.trace import RunTracer
+        from teff.graph import Graph
+        from teff.node import LLM
+        from teff.trace import RunTracer
 
         monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
 
@@ -304,7 +304,7 @@ class TestRunTracerLLM:
 
     @pytest.mark.asyncio
     async def test_ollama_style_usage_extracted(self, monkeypatch):
-        from draf.node.llm import _extract_usage
+        from teff.node.llm import _extract_usage
 
         data = {"prompt_eval_count": 7, "eval_count": 3, "message": {"content": "x"}}
         assert _extract_usage(data) == (7, 3)
@@ -316,7 +316,7 @@ class TestRunTracerLLM:
 
     @pytest.mark.asyncio
     async def test_llm_without_tracer_is_noop(self, monkeypatch):
-        from draf.node import LLM, ExecContext
+        from teff.node import LLM, ExecContext
 
         monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
 
@@ -345,8 +345,8 @@ class TestRunTracerOutput:
     async def test_timeline_is_json_serializable(self):
         import json
 
-        from draf.graph import Graph
-        from draf.trace import RunTracer
+        from teff.graph import Graph
+        from teff.trace import RunTracer
 
         g = Graph(nodes={"a": _make_node({"x": 1})}, edges=[], entry_point="a")
         tracer = RunTracer()
@@ -360,8 +360,8 @@ class TestRunTracerOutput:
 
     @pytest.mark.asyncio
     async def test_tracer_reusable_across_runs(self):
-        from draf.graph import Graph
-        from draf.trace import RunTracer
+        from teff.graph import Graph
+        from teff.trace import RunTracer
 
         g = Graph(nodes={"a": _make_node({"x": 1})}, edges=[], entry_point="a")
         tracer = RunTracer()

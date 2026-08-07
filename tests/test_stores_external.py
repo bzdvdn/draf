@@ -1,6 +1,6 @@
 """Tests for the external vector-store backends.
 
-Every backend of ``draf[embedding]`` must be verified, not just the stdlib
+Every backend of ``teff[embedding]`` must be verified, not just the stdlib
 ones.  Engines that can run fully offline — FAISS, LanceDB, ChromaDB, and
 Qdrant's embedded ``:memory:`` mode — are exercised against the real
 library.  Managed/remote services (Milvus, Weaviate, Pinecone) and
@@ -14,7 +14,7 @@ import re
 
 import pytest
 
-from draf.rag.base import cosine_similarity
+from teff.rag.base import cosine_similarity
 
 DIM = 3
 
@@ -50,7 +50,7 @@ class TestFaissStore:
     @pytest.mark.asyncio
     async def test_roundtrip_ranked(self):
         pytest.importorskip("faiss")
-        from draf.rag.stores import FAISSVectorStore
+        from teff.rag.stores import FAISSVectorStore
 
         s = FAISSVectorStore(dim=DIM)
         await s.add(_feed())
@@ -61,7 +61,7 @@ class TestFaissStore:
     @pytest.mark.asyncio
     async def test_delete_and_entries(self):
         pytest.importorskip("faiss")
-        from draf.rag.stores import FAISSVectorStore
+        from teff.rag.stores import FAISSVectorStore
 
         s = FAISSVectorStore(dim=DIM)
         await s.add(_feed())
@@ -72,7 +72,7 @@ class TestFaissStore:
     @pytest.mark.asyncio
     async def test_dim_mismatch_raises(self):
         pytest.importorskip("faiss")
-        from draf.rag.stores import FAISSVectorStore
+        from teff.rag.stores import FAISSVectorStore
 
         s = FAISSVectorStore(dim=DIM)
         with pytest.raises(ValueError, match="dim"):
@@ -83,7 +83,7 @@ class TestLanceStore:
     @pytest.mark.asyncio
     async def test_roundtrip(self, tmp_path):
         pytest.importorskip("lancedb")
-        from draf.rag.stores import LanceVectorStore
+        from teff.rag.stores import LanceVectorStore
 
         s = LanceVectorStore(path=str(tmp_path / "l"), dim=DIM)
         await s.add(_feed())
@@ -94,7 +94,7 @@ class TestLanceStore:
     @pytest.mark.asyncio
     async def test_filter(self, tmp_path):
         pytest.importorskip("lancedb")
-        from draf.rag.stores import LanceVectorStore
+        from teff.rag.stores import LanceVectorStore
 
         s = LanceVectorStore(path=str(tmp_path / "l"), dim=DIM)
         await s.add(_feed())
@@ -105,9 +105,9 @@ class TestChromaStore:
     @pytest.mark.asyncio
     async def test_roundtrip(self, tmp_path):
         pytest.importorskip("chromadb")
-        from draf.rag.stores import ChromaVectorStore
+        from teff.rag.stores import ChromaVectorStore
 
-        s = ChromaVectorStore(path=str(tmp_path / "c"), collection="draf_coll")
+        s = ChromaVectorStore(path=str(tmp_path / "c"), collection="teff_coll")
         await s.add(_feed())
         assert await s.count() == 3
         _expect(await _search(s))
@@ -118,7 +118,7 @@ class TestQdrantStore:
     @pytest.mark.asyncio
     async def test_roundtrip_embedded(self):
         qc = pytest.importorskip("qdrant_client")
-        from draf.rag.stores import QdrantVectorStore
+        from teff.rag.stores import QdrantVectorStore
 
         s = QdrantVectorStore(client=qc.QdrantClient(":memory:"), collection="qd")
         await s.add(_feed())
@@ -128,7 +128,7 @@ class TestQdrantStore:
     @pytest.mark.asyncio
     async def test_delete(self):
         qc = pytest.importorskip("qdrant_client")
-        from draf.rag.stores import QdrantVectorStore
+        from teff.rag.stores import QdrantVectorStore
 
         s = QdrantVectorStore(client=qc.QdrantClient(":memory:"), collection="qd")
         await s.add(_feed())
@@ -236,7 +236,7 @@ class TestPinecone:
 
     @pytest.mark.asyncio
     async def test_roundtrip(self, pc):
-        from draf.rag.stores import PineconeVectorStore
+        from teff.rag.stores import PineconeVectorStore
 
         s = PineconeVectorStore(api_key="test", namespace="n")
         await s.add(_feed())
@@ -248,7 +248,7 @@ class TestPinecone:
 
     @pytest.mark.asyncio
     async def test_filter(self, pc):
-        from draf.rag.stores import PineconeVectorStore
+        from teff.rag.stores import PineconeVectorStore
 
         s = PineconeVectorStore(api_key="test", namespace="n")
         await s.add(_feed())
@@ -370,7 +370,7 @@ class TestMilvus:
             pymilvus, "DataType", type("Dt", (), {"VARCHAR": 1, "FLOAT_VECTOR": 2})
         )
 
-        from draf.rag.stores import MilvusVectorStore
+        from teff.rag.stores import MilvusVectorStore
 
         s = MilvusVectorStore(uri="./tmp/db", collection="coll", dim=DIM)
         await s.add(_feed())
@@ -490,7 +490,7 @@ class TestWeaviate:
     @pytest.mark.asyncio
     async def test_roundtrip(self):
         pytest.importorskip("weaviate")
-        from draf.rag.stores import WeaviateVectorStore
+        from teff.rag.stores import WeaviateVectorStore
 
         s = WeaviateVectorStore(client=FakeWeaviate(), collection="wcv")
         await s.add(_feed())
@@ -566,7 +566,7 @@ class TestPGVectorStore:
         monkeypatch.setattr(asyncpg, "connect", fake_connect)
         monkeypatch.setattr(pgvector.asyncpg, "register_vector", _noop)
 
-        from draf.rag.stores import PGVectorStore
+        from teff.rag.stores import PGVectorStore
 
         s = PGVectorStore(dsn="postgresql://mock/mock", dim=DIM)
         await s.add(_feed())

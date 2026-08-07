@@ -6,8 +6,8 @@ import pytest
 class TestEdgeConditions:
     @pytest.mark.asyncio
     async def test_equals(self):
-        from draf.graph import Edge, Graph
-        from draf.node import Node
+        from teff.graph import Edge, Graph
+        from teff.node import Node
 
         class PN(Node):
             type = "pn"
@@ -32,8 +32,8 @@ class TestEdgeConditions:
 
     @pytest.mark.asyncio
     async def test_not_equals(self):
-        from draf.graph import Edge, Graph
-        from draf.node import Node
+        from teff.graph import Edge, Graph
+        from teff.node import Node
 
         class PN(Node):
             type = "pn"
@@ -60,8 +60,8 @@ class TestEdgeConditions:
 
     @pytest.mark.asyncio
     async def test_comma_disjunction(self):
-        from draf.graph import Edge, Graph
-        from draf.node import Node
+        from teff.graph import Edge, Graph
+        from teff.node import Node
 
         class PN(Node):
             type = "pn"
@@ -90,8 +90,8 @@ class TestEdgeConditions:
 class TestErrorEdges:
     @pytest.mark.asyncio
     async def test_error_edge_catches_exception(self):
-        from draf.graph import Edge, Graph
-        from draf.node import Node
+        from teff.graph import Edge, Graph
+        from teff.node import Node
 
         class Crash(Node):
             type = "cr"
@@ -116,8 +116,8 @@ class TestErrorEdges:
 
     @pytest.mark.asyncio
     async def test_no_error_edge_re_raises(self):
-        from draf.graph import Edge, Graph
-        from draf.node import Node
+        from teff.graph import Edge, Graph
+        from teff.node import Node
 
         class Crash(Node):
             type = "cr"
@@ -141,8 +141,8 @@ class TestErrorEdges:
 
     @pytest.mark.asyncio
     async def test_error_edge_does_not_interfere_with_normal_routing(self):
-        from draf.graph import Edge, Graph
-        from draf.node import Node
+        from teff.graph import Edge, Graph
+        from teff.node import Node
 
         class Normal(Node):
             type = "n"
@@ -163,8 +163,8 @@ class TestErrorEdges:
 class TestHooks:
     @pytest.mark.asyncio
     async def test_on_node_start_called(self):
-        from draf.graph import Graph
-        from draf.node import Node
+        from teff.graph import Graph
+        from teff.node import Node
 
         class Simple(Node):
             type = "s"
@@ -182,8 +182,8 @@ class TestHooks:
 
     @pytest.mark.asyncio
     async def test_on_node_end_called(self):
-        from draf.graph import Graph
-        from draf.node import Node
+        from teff.graph import Graph
+        from teff.node import Node
 
         class Simple(Node):
             type = "s"
@@ -202,8 +202,8 @@ class TestHooks:
 
     @pytest.mark.asyncio
     async def test_on_node_end_sees_merged_state(self):
-        from draf.graph import Graph
-        from draf.node import Node
+        from teff.graph import Graph
+        from teff.node import Node
 
         class Simple(Node):
             type = "s"
@@ -220,8 +220,8 @@ class TestHooks:
 
     @pytest.mark.asyncio
     async def test_on_node_error_called_before_fallback(self):
-        from draf.graph import Edge, Graph
-        from draf.node import Node
+        from teff.graph import Edge, Graph
+        from teff.node import Node
 
         class Crash(Node):
             type = "cr"
@@ -251,8 +251,8 @@ class TestHooks:
 
     @pytest.mark.asyncio
     async def test_async_hooks_are_awaited(self):
-        from draf.graph import Edge, Graph
-        from draf.node import Node
+        from teff.graph import Edge, Graph
+        from teff.node import Node
 
         class Simple(Node):
             type = "s"
@@ -309,8 +309,8 @@ class TestHooks:
 class TestNodeTimeout:
     @pytest.mark.asyncio
     async def test_timeout_triggers_error_edge(self):
-        from draf.graph import Edge, Graph
-        from draf.node import Node
+        from teff.graph import Edge, Graph
+        from teff.node import Node
 
         class Slow(Node):
             type = "slow"
@@ -336,8 +336,8 @@ class TestNodeTimeout:
 
     @pytest.mark.asyncio
     async def test_timeout_raises_without_error_edge(self):
-        from draf.graph import Graph
-        from draf.node import Node
+        from teff.graph import Graph
+        from teff.node import Node
 
         class Slow(Node):
             type = "slow"
@@ -356,8 +356,8 @@ class TestNodeTimeout:
 
     @pytest.mark.asyncio
     async def test_no_timeout_completes_normally(self):
-        from draf.graph import Graph
-        from draf.node import Node
+        from teff.graph import Graph
+        from teff.node import Node
 
         class Fast(Node):
             type = "fast"
@@ -376,8 +376,8 @@ class TestNodeTimeout:
 
     @pytest.mark.asyncio
     async def test_timeout_hook_called(self):
-        from draf.graph import Graph
-        from draf.node import Node
+        from teff.graph import Graph
+        from teff.node import Node
 
         class Slow(Node):
             type = "slow"
@@ -407,8 +407,8 @@ class TestNodeTimeout:
 
 class TestYAML:
     def test_round_trip(self):
-        from draf.graph import Graph
-        from draf.node import Node
+        from teff.graph import Graph
+        from teff.node import Node
 
         class TN(Node):
             type = "tn"
@@ -425,8 +425,8 @@ class TestYAML:
 
 class TestMermaid:
     def test_renders_nodes_edges_conditions(self):
-        from draf.graph import Edge, Graph
-        from draf.node import Node
+        from teff.graph import Edge, Graph
+        from teff.node import Node
 
         class PN(Node):
             type = "pn"
@@ -453,8 +453,8 @@ class TestMermaid:
         assert 'class "s" entry;' in mermaid
 
     def test_hides_conditions_when_disabled(self):
-        from draf.graph import Edge, Graph
-        from draf.node import Node
+        from teff.graph import Edge, Graph
+        from teff.node import Node
 
         class PN(Node):
             type = "pn"
@@ -472,8 +472,8 @@ class TestMermaid:
         assert '"s" --> "t"' in mermaid
 
     def test_escapes_special_characters(self):
-        from draf.graph import Edge, Graph
-        from draf.node import Node
+        from teff.graph import Edge, Graph
+        from teff.node import Node
 
         class PN(Node):
             type = "pn"

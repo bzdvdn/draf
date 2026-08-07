@@ -9,8 +9,8 @@ Usage:
 
 import asyncio
 
-from draf.flow import Flow
-from draf.node import Transform
+from teff.flow import Flow
+from teff.node import Transform
 
 
 async def main():

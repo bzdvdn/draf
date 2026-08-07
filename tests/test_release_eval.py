@@ -1,4 +1,4 @@
-"""Tests for the evaluation harness (draf eval)."""
+"""Tests for the evaluation harness (teff eval)."""
 
 import asyncio
 import json
@@ -20,7 +20,7 @@ def _mock_response(data: dict):
 
 class TestDatasetLoading:
     def test_jsonl(self, tmp_path):
-        from draf.eval import load_dataset
+        from teff.eval import load_dataset
 
         path = tmp_path / "d.jsonl"
         path.write_text(
@@ -30,14 +30,14 @@ class TestDatasetLoading:
         assert [i["id"] for i in items] == ["a", "b"]
 
     def test_json_list(self, tmp_path):
-        from draf.eval import load_dataset
+        from teff.eval import load_dataset
 
         path = tmp_path / "d.json"
         path.write_text(json.dumps([{"id": "a"}, {"id": "b"}]))
         assert len(load_dataset(str(path))) == 2
 
     def test_csv(self, tmp_path):
-        from draf.eval import load_dataset
+        from teff.eval import load_dataset
 
         path = tmp_path / "d.csv"
         path.write_text("id,input,expected\na,hello,HELLO\nb,hi,HI\n")
@@ -45,13 +45,13 @@ class TestDatasetLoading:
         assert items[0]["expected"] == "HELLO"
 
     def test_missing_file(self, tmp_path):
-        from draf.eval import load_dataset
+        from teff.eval import load_dataset
 
         with pytest.raises(FileNotFoundError):
             load_dataset(str(tmp_path / "nope.jsonl"))
 
     def test_item_state_excludes_metadata(self):
-        from draf.eval import item_state
+        from teff.eval import item_state
 
         assert item_state({"id": "a", "query": "q", "expected": "e"}) == {"query": "q"}
 
@@ -72,8 +72,8 @@ class _MockTransport:
 
 
 def _simple_graph():
-    from draf.graph import Graph
-    from draf.node import Transform
+    from teff.graph import Graph
+    from teff.node import Transform
 
     return Graph(
         nodes={
@@ -89,7 +89,7 @@ def _simple_graph():
 class TestRunEval:
     @pytest.mark.asyncio
     async def test_exact_match(self):
-        from draf.eval import run_eval
+        from teff.eval import run_eval
 
         graph = _simple_graph()
         report = await run_eval(
@@ -107,7 +107,7 @@ class TestRunEval:
 
     @pytest.mark.asyncio
     async def test_llm_judge(self, monkeypatch):
-        from draf.eval import run_eval
+        from teff.eval import run_eval
 
         monkeypatch.setattr(
             httpx.AsyncClient, "post", _MockTransport("PASS close enough")
@@ -124,7 +124,7 @@ class TestRunEval:
 
     @pytest.mark.asyncio
     async def test_llm_judge_fail(self, monkeypatch):
-        from draf.eval import run_eval
+        from teff.eval import run_eval
 
         monkeypatch.setattr(httpx.AsyncClient, "post", _MockTransport("FAIL wrong"))
         graph = _simple_graph()
@@ -138,7 +138,7 @@ class TestRunEval:
 
     @pytest.mark.asyncio
     async def test_output_key_override(self):
-        from draf.eval import run_eval
+        from teff.eval import run_eval
 
         graph = _simple_graph()
         report = await run_eval(
@@ -151,7 +151,7 @@ class TestRunEval:
 
     @pytest.mark.asyncio
     async def test_max_examples(self):
-        from draf.eval import run_eval
+        from teff.eval import run_eval
 
         graph = _simple_graph()
         report = await run_eval(
@@ -164,7 +164,7 @@ class TestRunEval:
 
     @pytest.mark.asyncio
     async def test_unscored_without_expected(self):
-        from draf.eval import run_eval
+        from teff.eval import run_eval
 
         graph = _simple_graph()
         report = await run_eval((graph, [], {}, {}), [{"id": "a", "text": "hello"}])
@@ -173,9 +173,9 @@ class TestRunEval:
 
     @pytest.mark.asyncio
     async def test_case_error_is_collected(self):
-        from draf.eval import run_eval
-        from draf.graph import Graph
-        from draf.node.node import Node
+        from teff.eval import run_eval
+        from teff.graph import Graph
+        from teff.node.node import Node
 
         class Boom(Node):
             type = "boom"
@@ -191,7 +191,7 @@ class TestRunEval:
         assert report["cases"][0]["status"] == "error"
 
     def test_format_report(self):
-        from draf.eval import format_report
+        from teff.eval import format_report
 
         report = {
             "total": 1,
@@ -212,7 +212,7 @@ class TestCLIEval:
     def test_eval_command(self, tmp_path, monkeypatch):
         from typer.testing import CliRunner
 
-        from draf.cli import app
+        from teff.cli import app
 
         runner = CliRunner()
         wf = tmp_path / "wf.yaml"
@@ -234,7 +234,7 @@ class TestCLIEval:
     def test_validate_command_ok(self, tmp_path):
         from typer.testing import CliRunner
 
-        from draf.cli import app
+        from teff.cli import app
 
         runner = CliRunner()
         wf = tmp_path / "wf.yaml"
@@ -248,7 +248,7 @@ class TestCLIEval:
     def test_validate_command_fails(self, tmp_path):
         from typer.testing import CliRunner
 
-        from draf.cli import app
+        from teff.cli import app
 
         runner = CliRunner()
         wf = tmp_path / "wf.yaml"
@@ -260,18 +260,18 @@ class TestCLIEval:
     def test_version_command(self):
         from typer.testing import CliRunner
 
-        from draf.cli import app
+        from teff.cli import app
 
         result = CliRunner().invoke(app, ["version"])
         assert result.exit_code == 0
-        assert "draf" in result.stdout
+        assert "teff" in result.stdout
 
     def test_inspect_command(self, tmp_path):
 
         from typer.testing import CliRunner
 
-        from draf.checkpoint import Checkpoint, JSONFileCheckpointer
-        from draf.cli import app
+        from teff.checkpoint import Checkpoint, JSONFileCheckpointer
+        from teff.cli import app
 
         cp_dir = tmp_path / "cps"
         cp = JSONFileCheckpointer(str(cp_dir))

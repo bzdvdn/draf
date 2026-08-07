@@ -5,7 +5,7 @@ class TestTypedState:
     def test_reducers_from_typeddict_extracts_annotated(self):
         from typing import Annotated, TypedDict
 
-        from draf.state import reducers_from_typeddict
+        from teff.state import reducers_from_typeddict
 
         def dummy_reducer(old, new):
             return new
@@ -23,7 +23,7 @@ class TestTypedState:
     def test_reducers_from_typeddict_no_annotations_returns_empty(self):
         from typing import TypedDict
 
-        from draf.state import reducers_from_typeddict
+        from teff.state import reducers_from_typeddict
 
         class Plain(TypedDict):
             x: str
@@ -31,28 +31,28 @@ class TestTypedState:
         assert reducers_from_typeddict(Plain) == {}
 
     def test_apply_override(self):
-        from draf.state import apply_reducers
+        from teff.state import apply_reducers
 
         state = {"a": 1}
         apply_reducers(state, {"a": 2}, {"a": "override"})
         assert state["a"] == 2
 
     def test_apply_append(self):
-        from draf.state import apply_reducers
+        from teff.state import apply_reducers
 
         state = {"msgs": ["hello"]}
         apply_reducers(state, {"msgs": ["world"]}, {"msgs": "append"})
         assert state["msgs"] == ["hello", "world"]
 
     def test_apply_append_new_key(self):
-        from draf.state import apply_reducers
+        from teff.state import apply_reducers
 
         state = {}
         apply_reducers(state, {"msgs": ["hello"]}, {"msgs": "append"})
         assert state["msgs"] == ["hello"]
 
     def test_apply_append_non_list_value(self):
-        from draf.state import apply_reducers
+        from teff.state import apply_reducers
 
         state = {"msgs": ["hello"]}
         apply_reducers(
@@ -61,7 +61,7 @@ class TestTypedState:
         assert state["msgs"] == ["hello", {"role": "assistant", "content": "hi"}]
 
     def test_reducer_appends_classification(self):
-        from draf.state import reducer_appends
+        from teff.state import reducer_appends
 
         def callable_reducer(old, new):
             return old + new
@@ -73,21 +73,21 @@ class TestTypedState:
         assert reducer_appends("keep") is False
 
     def test_apply_keep_existing(self):
-        from draf.state import apply_reducers
+        from teff.state import apply_reducers
 
         state = {"x": "first"}
         apply_reducers(state, {"x": "second"}, {"x": "keep"})
         assert state["x"] == "first"
 
     def test_apply_keep_new(self):
-        from draf.state import apply_reducers
+        from teff.state import apply_reducers
 
         state = {}
         apply_reducers(state, {"x": "first"}, {"x": "keep"})
         assert state["x"] == "first"
 
     def test_apply_callable_reducer(self):
-        from draf.state import apply_reducers
+        from teff.state import apply_reducers
 
         def sum_counter(old, new):
             return (old or 0) + new
@@ -97,7 +97,7 @@ class TestTypedState:
         assert state["count"] == 8
 
     def test_apply_callable_first_time(self):
-        from draf.state import apply_reducers
+        from teff.state import apply_reducers
 
         def sum_counter(old, new):
             return (old or 0) + new
@@ -107,7 +107,7 @@ class TestTypedState:
         assert state["count"] == 3
 
     def test_reducers_from_yaml_schema_with_dict_values(self):
-        from draf.state import reducers_from_yaml_schema
+        from teff.state import reducers_from_yaml_schema
 
         schema = {
             "messages": {"reducer": "append", "type": "list"},
@@ -120,7 +120,7 @@ class TestTypedState:
         assert reducers["count"] == "override"
 
     def test_reducers_from_yaml_schema_defaults_to_override(self):
-        from draf.state import reducers_from_yaml_schema
+        from teff.state import reducers_from_yaml_schema
 
         schema = {"x": {}, "y": {"reducer": "append"}}
         reducers = reducers_from_yaml_schema(schema)
@@ -128,7 +128,7 @@ class TestTypedState:
         assert reducers["y"] == "append"
 
     def test_reducers_from_yaml_schema_ignores_invalid_reducer(self):
-        from draf.state import reducers_from_yaml_schema
+        from teff.state import reducers_from_yaml_schema
 
         schema = {"x": {"reducer": "invalid"}, "y": {"reducer": "append"}}
         reducers = reducers_from_yaml_schema(schema)
@@ -136,25 +136,25 @@ class TestTypedState:
         assert reducers["y"] == "append"
 
     def test_reducers_from_yaml_schema_empty(self):
-        from draf.state import reducers_from_yaml_schema
+        from teff.state import reducers_from_yaml_schema
 
         assert reducers_from_yaml_schema({}) == {}
 
     def test_reducers_from_yaml_schema_with_non_dict(self):
-        from draf.state import reducers_from_yaml_schema
+        from teff.state import reducers_from_yaml_schema
 
         schema = {"a": 42}
         assert reducers_from_yaml_schema(schema) == {}
 
     def test_no_reducer_falls_back_to_override(self):
-        from draf.state import apply_reducers
+        from teff.state import apply_reducers
 
         state = {"x": 1}
         apply_reducers(state, {"x": 2}, {})
         assert state["x"] == 2
 
     def test_unrelated_keys_untouched(self):
-        from draf.state import apply_reducers
+        from teff.state import apply_reducers
 
         state = {"keep": "me"}
         apply_reducers(state, {"x": 1}, {"x": "override"})
@@ -162,8 +162,8 @@ class TestTypedState:
 
     @pytest.mark.asyncio
     async def test_graph_run_with_reducers(self):
-        from draf.graph import Edge, Graph
-        from draf.node import Node
+        from teff.graph import Edge, Graph
+        from teff.node import Node
 
         class AppendOne(Node):
             type = "ao"
@@ -187,8 +187,8 @@ class TestTypedState:
 
     @pytest.mark.asyncio
     async def test_graph_run_without_reducers_backward_compat(self):
-        from draf.graph import Edge, Graph
-        from draf.node import Node
+        from teff.graph import Edge, Graph
+        from teff.node import Node
 
         class WriteX(Node):
             type = "wx"
@@ -214,9 +214,9 @@ class TestTypedState:
     async def test_reducers_via_typeddict(self):
         from typing import Annotated, TypedDict
 
-        from draf.graph import Edge, Graph
-        from draf.node import Node
-        from draf.state import reducers_from_typeddict
+        from teff.graph import Edge, Graph
+        from teff.node import Node
+        from teff.state import reducers_from_typeddict
 
         class ChatState(TypedDict):
             msgs: Annotated[list, "append"]
@@ -247,7 +247,7 @@ class TestStateClass:
     def test_construct_and_access(self):
         from typing import TypedDict
 
-        from draf.state import State
+        from teff.state import State
 
         class S(TypedDict):
             name: str
@@ -262,7 +262,7 @@ class TestStateClass:
     def test_merge_with_reducers(self):
         from typing import Annotated, TypedDict
 
-        from draf.state import State
+        from teff.state import State
 
         class S(TypedDict):
             msgs: Annotated[list, "append"]
@@ -276,7 +276,7 @@ class TestStateClass:
     def test_merge_keep(self):
         from typing import Annotated, TypedDict
 
-        from draf.state import State
+        from teff.state import State
 
         class S(TypedDict):
             first: Annotated[str, "keep"]
@@ -288,7 +288,7 @@ class TestStateClass:
     def test_merge_callable_reducer(self):
         from typing import Annotated, TypedDict
 
-        from draf.state import State
+        from teff.state import State
 
         def add(old, new):
             return (old or 0) + new
@@ -303,7 +303,7 @@ class TestStateClass:
     def test_setitem_direct(self):
         from typing import Annotated, TypedDict
 
-        from draf.state import State
+        from teff.state import State
 
         class S(TypedDict):
             x: Annotated[str, "keep"]
@@ -315,7 +315,7 @@ class TestStateClass:
     def test_dict_methods(self):
         from typing import TypedDict
 
-        from draf.state import State
+        from teff.state import State
 
         class S(TypedDict):
             a: str
@@ -329,7 +329,7 @@ class TestStateClass:
     def test_get_with_default(self):
         from typing import TypedDict
 
-        from draf.state import State
+        from teff.state import State
 
         class S(TypedDict):
             a: str
@@ -341,7 +341,7 @@ class TestStateClass:
     def test_copy_returns_dict(self):
         from typing import TypedDict
 
-        from draf.state import State
+        from teff.state import State
 
         class S(TypedDict):
             a: str
@@ -354,7 +354,7 @@ class TestStateClass:
     def test_repr(self):
         from typing import TypedDict
 
-        from draf.state import State
+        from teff.state import State
 
         class S(TypedDict):
             x: str
@@ -386,7 +386,7 @@ edges: []
             f.write(yaml_content)
             path = f.name
         try:
-            from draf.yaml import load_workflow
+            from teff.yaml import load_workflow
 
             graph, tools, initial, reducers = load_workflow(path)
             assert initial == {"status": "active"}
@@ -410,7 +410,7 @@ edges: []
             f.write(yaml_content)
             path = f.name
         try:
-            from draf.yaml import load_workflow
+            from teff.yaml import load_workflow
 
             graph, tools, initial, reducers = load_workflow(path)
             assert initial == {}
@@ -421,9 +421,9 @@ edges: []
     def test_roundtrip_via_graph(self):
         from typing import Annotated, TypedDict
 
-        from draf.graph import Edge, Graph
-        from draf.node import Node
-        from draf.state import State
+        from teff.graph import Edge, Graph
+        from teff.node import Node
+        from teff.state import State
 
         class S(TypedDict):
             msgs: Annotated[list, "append"]
@@ -455,7 +455,7 @@ edges: []
 
 class TestStateSchema:
     def test_schema_to_jsonschema_string(self):
-        from draf.state import state_schema_to_jsonschema
+        from teff.state import state_schema_to_jsonschema
 
         schema = state_schema_to_jsonschema({"status": "string", "count": "integer"})
         assert schema["type"] == "object"
@@ -463,7 +463,7 @@ class TestStateSchema:
         assert schema["properties"]["count"] == {"type": "integer"}
 
     def test_schema_to_jsonschema_dict_spec(self):
-        from draf.state import state_schema_to_jsonschema
+        from teff.state import state_schema_to_jsonschema
 
         schema = state_schema_to_jsonschema(
             {"count": {"type": "integer", "minimum": 0}}
@@ -474,13 +474,13 @@ class TestStateSchema:
         }
 
     def test_schema_to_jsonschema_list(self):
-        from draf.state import state_schema_to_jsonschema
+        from teff.state import state_schema_to_jsonschema
 
         schema = state_schema_to_jsonschema({"tags": "list"})
         assert schema["properties"]["tags"] == {"type": "array"}
 
     def test_schema_to_jsonschema_required(self):
-        from draf.state import state_schema_to_jsonschema
+        from teff.state import state_schema_to_jsonschema
 
         schema = state_schema_to_jsonschema(
             {"status": {"type": "string", "required": True}}
@@ -488,13 +488,13 @@ class TestStateSchema:
         assert schema["required"] == ["status"]
 
     def test_schema_to_jsonschema_unknown_type_unconstrained(self):
-        from draf.state import state_schema_to_jsonschema
+        from teff.state import state_schema_to_jsonschema
 
         schema = state_schema_to_jsonschema({"x": "custom_thing"})
         assert schema["properties"]["x"] == {}
 
     def test_validate_state_passes(self):
-        from draf.state import validate_state
+        from teff.state import validate_state
 
         errors = validate_state(
             {"status": "active", "count": 3},
@@ -503,7 +503,7 @@ class TestStateSchema:
         assert errors == []
 
     def test_validate_state_reports_type_mismatch(self):
-        from draf.state import validate_state
+        from teff.state import validate_state
 
         errors = validate_state(
             {"count": "not-an-int"},
@@ -514,7 +514,7 @@ class TestStateSchema:
         assert "integer" in errors[0]
 
     def test_validate_state_reports_missing_required(self):
-        from draf.state import validate_state
+        from teff.state import validate_state
 
         errors = validate_state(
             {"status": "active"},
@@ -527,7 +527,7 @@ class TestStateSchema:
         assert "count" in errors[0]
 
     def test_validate_state_ignores_reducer_keys(self):
-        from draf.state import validate_state
+        from teff.state import validate_state
 
         errors = validate_state(
             {"messages": ["a"]},
@@ -537,8 +537,8 @@ class TestStateSchema:
 
     @pytest.mark.asyncio
     async def test_graph_run_state_schema_passes(self):
-        from draf.graph import Graph
-        from draf.node import Node
+        from teff.graph import Graph
+        from teff.node import Node
 
         class NoOp(Node):
             type = "noop"
@@ -552,9 +552,9 @@ class TestStateSchema:
 
     @pytest.mark.asyncio
     async def test_graph_run_state_schema_rejects(self):
-        from draf.errors import ConfigError
-        from draf.graph import Graph
-        from draf.node import Node
+        from teff.errors import ConfigError
+        from teff.graph import Graph
+        from teff.node import Node
 
         class NoOp(Node):
             type = "noop"
@@ -571,7 +571,7 @@ class TestStateSchema:
         import os
         import tempfile
 
-        from draf.errors import ConfigError
+        from teff.errors import ConfigError
 
         yaml_content = """
 name: test
@@ -590,7 +590,7 @@ edges: []
             f.write(yaml_content)
             path = f.name
         try:
-            from draf.yaml import load_workflow
+            from teff.yaml import load_workflow
 
             with pytest.raises(ConfigError) as excinfo:
                 load_workflow(path)

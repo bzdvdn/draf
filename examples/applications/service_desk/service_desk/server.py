@@ -18,9 +18,6 @@ from pathlib import Path
 
 from fastapi import FastAPI
 
-from draf import Assistant
-from draf.observability import SQLiteExporter, topology_from_graph
-from draf.observability.api import attach_dashboard
 from service_desk.api.auth.router import require_api_key
 from service_desk.api.router import api_router
 from service_desk.config.config import Settings, get_settings
@@ -28,6 +25,9 @@ from service_desk.core.deps import build_deps
 from service_desk.graphs.build import build_flow
 from service_desk.graphs.state import STATE_REDUCERS, initial_state
 from service_desk.storage import TRANSIENT_KEYS, build_checkpointer
+from teff import Assistant
+from teff.observability import SQLiteExporter, topology_from_graph
+from teff.observability.api import attach_dashboard
 
 
 def create_app(

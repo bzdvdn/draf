@@ -52,16 +52,16 @@ status: ok  llm_calls: 8
 ```
 
 To run against a real model and the real DuckDuckGo search + URL fetch
-tools, start Ollama with `llama3.1:8b` and set `DRAF_LIVE=1`:
+tools, start Ollama with `llama3.1:8b` and set `TEFF_LIVE=1`:
 
 ```bash
 ollama pull llama3.1:8b
-DRAF_LIVE=1 uv run python examples/deep_research/graph.py
+TEFF_LIVE=1 uv run python examples/deep_research/graph.py
 ```
 
 The YAML workflow runs against real Ollama and real web tools too:
 
 ```bash
 ollama pull llama3.1:8b
-uv run draf run examples/deep_research/workflow.yaml
+uv run teff run examples/deep_research/workflow.yaml
 ```

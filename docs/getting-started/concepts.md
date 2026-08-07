@@ -7,7 +7,7 @@
 - **Graph** — nodes + edges, including conditional edges, branches, and
   `__error__` fallbacks. The graph owns routing and resilience.
 - **Tools** — implement `Tool` or use the `@tool` decorator; shareable across
-  nodes. A set of built-in tools ships in `draf[tools]`.
+  nodes. A set of built-in tools ships in `teff[tools]`.
 - **RAG** — `RAGTool` over pluggable vector stores (`InMemoryVectorStore`,
   `SQLite`, `Chroma`, `Qdrant`, `PGVector`, …).
 
@@ -26,7 +26,7 @@ async def my_node(ctx, state):
 
 A node in YAML is an entry in `steps:` with an `id`, a registered `type`, and
 a `config`. In the `Flow` API you instantiate node objects and chain them.
-Beyond plain functions, draf ships built-in node types: `transform`, `llm_chat`
+Beyond plain functions, teff ships built-in node types: `transform`, `llm_chat`
 (`LLM`), `react_agent` (`ReActAgent`/`Harness`), `tool_exec`, `interrupt`,
 `parallel`, `map`.
 

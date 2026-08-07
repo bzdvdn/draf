@@ -1,11 +1,11 @@
-# Evaluation (`draf eval`)
+# Evaluation (`teff eval`)
 
 Score a workflow against a dataset of examples — exact-match by default, or
 an LLM judge for open-ended answers.
 
 ```
 dataset.jsonl   # one JSON object per line
-{"id": "q1", "query": "What is the mascot of Draf?", "expected": "a rocket"}
+{"id": "q1", "query": "What is the mascot of Teff?", "expected": "a rocket"}
 ```
 
 Every key except `id` / `expected` is merged into the workflow state as an
@@ -15,15 +15,15 @@ initial override (on top of the workflow's own `state.initial`). `.json` and
 ## CLI
 
 ```bash
-draf eval workflow.yaml --data dataset.jsonl --exact
-draf eval workflow.yaml --data dataset.jsonl --judge-model gpt-4o --output report.json
+teff eval workflow.yaml --data dataset.jsonl --exact
+teff eval workflow.yaml --data dataset.jsonl --judge-model gpt-4o --output report.json
 ```
 
 ## Python
 
 ```python
-from draf.yaml import load_workflow
-from draf.eval import load_dataset, run_eval, format_report
+from teff.yaml import load_workflow
+from teff.eval import load_dataset, run_eval, format_report
 
 workflow = load_workflow("workflow.yaml")
 dataset = load_dataset("dataset.jsonl")
@@ -36,6 +36,6 @@ print(format_report(report))  # total=… passed=… failed=… unscored=… err
 `--output-key` names the state key holding the answer (a heuristic looks
 through common keys first), `--max-examples` caps the run.
 
-The same heuristic lives in `draf.eval.extract_output(state, output_key=None)`
+The same heuristic lives in `teff.eval.extract_output(state, output_key=None)`
 — pick the answer from the final state, falling back to common answer keys and
 finally the whole state as JSON.

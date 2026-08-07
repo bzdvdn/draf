@@ -19,7 +19,7 @@ Two variants of the same workflow:
 2. **Low-level Graph** — the same loop with explicit ``ReActAgent`` +
    ``ToolExec`` nodes, exactly what ``flow.harness()`` expands to.
 
-Set ``DRAF_LIVE=1`` to hit a real OpenAI-compatible endpoint instead (e.g.
+Set ``TEFF_LIVE=1`` to hit a real OpenAI-compatible endpoint instead (e.g.
 Ollama on ``LLM_BASE_URL``); that path uses the Flow API against a real
 model.
 
@@ -30,9 +30,9 @@ Usage:
 import asyncio
 import os
 
-from draf.flow import Flow
-from draf.provider import ProviderRegistry
-from draf.tool import Tool
+from teff.flow import Flow
+from teff.provider import ProviderRegistry
+from teff.tool import Tool
 
 
 class Echo(Tool):
@@ -112,8 +112,8 @@ def run_flow() -> None:
 
 def run_graph() -> None:
     """Low-level equivalent — the exact wiring ``flow.harness()`` builds."""
-    from draf.graph import Edge, Graph
-    from draf.node.agent import ReActAgent, ToolExec
+    from teff.graph import Edge, Graph
+    from teff.node.agent import ReActAgent, ToolExec
 
     os.environ["OPENAI_API_KEY"] = "sk-mock"
     calls = {"n": 0}
@@ -166,7 +166,7 @@ def run_live() -> None:
 
 
 def main():
-    if os.environ.get("DRAF_LIVE"):
+    if os.environ.get("TEFF_LIVE"):
         run_live()
         return
 

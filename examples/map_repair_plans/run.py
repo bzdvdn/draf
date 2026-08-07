@@ -3,7 +3,7 @@
 Fans out a list of repair jobs into parallel LLM calls.  Each LLM call
 reads *two* state keys (``type``, ``summ``) into one prompt via the
 ``{key}`` template, and the results are collected into the ``plans``
-list.  State is a typed :class:`~draf.state.State` (TypedDict), not a
+list.  State is a typed :class:`~teff.state.State` (TypedDict), not a
 bare dict.
 
 Requires Ollama running locally with llama3.1:8b.
@@ -11,17 +11,17 @@ Requires Ollama running locally with llama3.1:8b.
 Usage:
     python examples/map_repair_plans/run.py
     # or the YAML workflow (plain dict + schema reducers):
-    draf -f examples/map_repair_plans/workflow.yaml
+    teff -f examples/map_repair_plans/workflow.yaml
 """
 
 import asyncio
 from typing import Annotated, TypedDict
 
-from draf.flow import Flow
-from draf.node import LLM
-from draf.provider import ProviderRegistry
-from draf.state import State
-from draf.trace import RunTracer
+from teff.flow import Flow
+from teff.node import LLM
+from teff.provider import ProviderRegistry
+from teff.state import State
+from teff.trace import RunTracer
 
 SYSTEM = (
     "Ты инженер по ремонту. Составь краткий план работ по заданию "

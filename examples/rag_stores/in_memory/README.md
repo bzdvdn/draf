@@ -1,10 +1,10 @@
 # RAG store: in-memory
 
-RAG agent over the Draf knowledge base using the `in_memory` vector store.
+RAG agent over the Teff knowledge base using the `in_memory` vector store.
 
 ## Dependencies
 
-- Nothing to install — core `draf` (httpx + pyyaml) is enough.
+- Nothing to install — core `teff` (httpx + pyyaml) is enough.
 - Ollama must be running locally with:
   - `llama3.1:8b` (chat model)
   - `nomic-embed-text` (embedding model)

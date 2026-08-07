@@ -22,25 +22,25 @@ Usage:
 import asyncio
 import os
 
-from draf.flow import Flow
-from draf.node import LLM, Node
-from draf.provider import ProviderRegistry
-from draf.rag import Embedder, RAGTool
-from draf.rag.stores import InMemoryVectorStore
-from draf.trace import RunTracer
+from teff.flow import Flow
+from teff.node import LLM, Node
+from teff.provider import ProviderRegistry
+from teff.rag import Embedder, RAGTool
+from teff.rag.stores import InMemoryVectorStore
+from teff.trace import RunTracer
 
 REPORT_PATH = os.path.join(os.path.dirname(__file__), "rag_report.md")
 
-# Two fictional knowledge bases about "Draf".
+# Two fictional knowledge bases about "Teff".
 KB_CONSTITUTION = [
     (
-        "The Draf constitution: the graph owns behaviour, nodes transform "
+        "The Teff constitution: the graph owns behaviour, nodes transform "
         "state, conditions live on edges, and a workflow is YAML data that "
         "compiles into a graph.",
         {"id": "const_1", "topic": "constitution"},
     ),
     (
-        "Draf state is a flat dict. Nodes receive state and return state. "
+        "Teff state is a flat dict. Nodes receive state and return state. "
         "Branching decisions read from state keys, never from hidden logic.",
         {"id": "const_2", "topic": "state"},
     ),
@@ -48,13 +48,13 @@ KB_CONSTITUTION = [
 
 KB_RAG = [
     (
-        "Draf RAG combines a vector store, an embedder, and a chunker into "
+        "Teff RAG combines a vector store, an embedder, and a chunker into "
         "a single 'rag' tool. Stores: in-memory, sqlite, chroma, qdrant, "
         "pgvector.",
         {"id": "rag_1", "topic": "rag"},
     ),
     (
-        "Draf runs parallel branches concurrently with asyncio.gather. "
+        "Teff runs parallel branches concurrently with asyncio.gather. "
         "Each branch reads an isolated copy of state; per-key reducers "
         "merge the results back.",
         {"id": "rag_2", "topic": "parallel"},
@@ -116,16 +116,16 @@ SYNTH_SYSTEM = (
 
 REPORT_SYSTEM = (
     "You are a report writer. Write a concise markdown report titled "
-    "'Draf at a glance' that merges BOTH sections below into one coherent "
+    "'Teff at a glance' that merges BOTH sections below into one coherent "
     "overview. The report MUST explicitly mention these three topics by "
-    "name: (1) the Draf constitution, (2) parallel branches, (3) the RAG "
+    "name: (1) the Teff constitution, (2) parallel branches, (3) the RAG "
     "tool. Preserve concrete facts. Use 3-5 bullet points."
 )
 
 REVIEW_SYSTEM = (
     "You are a strict reviewer. Read the report below. Reply on the first "
     "line with 'VERDICT: pass' if the report explicitly mentions all three "
-    "of these topics: (1) the Draf constitution, (2) parallel branches, "
+    "of these topics: (1) the Teff constitution, (2) parallel branches, "
     "(3) the RAG tool. Otherwise reply 'VERDICT: fail'. Then add one short "
     "sentence of feedback."
 )
@@ -169,7 +169,7 @@ async def main():
         ],
         [
             RagSearch(
-                "rag_b", "How does parallel execution work in Draf?", "context_b"
+                "rag_b", "How does parallel execution work in Teff?", "context_b"
             ),
             LLM(
                 model="llama3.1:8b",

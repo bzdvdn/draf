@@ -13,7 +13,7 @@ A repository health / change-triage daemon.  One tick:
 7. send_telegram — one summary.
 8. lock release daemon:tick.
 
-The graph is built with :class:`draf.flow.Flow` — ``context_builder``,
+The graph is built with :class:`teff.flow.Flow` — ``context_builder``,
 then a ReAct loop (``react_agent`` + ``tool_exec``) with all tools scoped
 in.  It is the programmatic twin of ``workflow.yaml`` in this directory.
 
@@ -23,16 +23,16 @@ Run one tick (needs Ollama + REDIS_URL + Telegram tokens exported):
 
 Or run the identical workflow as a daemon via YAML:
 
-    draf daemon -f examples/applications/repo-health/workflow.yaml --interval 300
+    teff daemon -f examples/applications/repo-health/workflow.yaml --interval 300
 """
 
 import asyncio
 import os
 
-from draf.flow import Flow
-from draf.node import ContextBuilder
-from draf.provider import ProviderRegistry
-from draf.tool.builtin import (
+from teff.flow import Flow
+from teff.node import ContextBuilder
+from teff.provider import ProviderRegistry
+from teff.tool.builtin import (
     CsvQueryTool,
     GitTool,
     LockTool,

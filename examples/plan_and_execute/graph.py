@@ -25,7 +25,7 @@ accepts them or sends control back to the planner for a revised plan:
 
 By default the run goes against a mocked HTTP transport (planner's first
 plan is rejected once, then accepted) — no API key, no Ollama.  Set
-``DRAF_LIVE=1`` to hit a real Ollama instance.
+``TEFF_LIVE=1`` to hit a real Ollama instance.
 
 Usage:
     python examples/plan_and_execute/graph.py
@@ -40,11 +40,11 @@ from typing import TypedDict
 
 import httpx
 
-from draf.graph import Edge, Graph
-from draf.logging import configure_logging
-from draf.node import LLM, Map, Transform
-from draf.provider import ProviderRegistry
-from draf.trace import RunTracer
+from teff.graph import Edge, Graph
+from teff.logging import configure_logging
+from teff.node import LLM, Map, Transform
+from teff.provider import ProviderRegistry
+from teff.trace import RunTracer
 
 MODEL = "llama3.1:8b"
 GOAL = "launch a blog about Python"
@@ -239,7 +239,7 @@ def build_graph(model: str) -> Graph:
 
 
 async def main() -> None:
-    live = os.environ.get("DRAF_LIVE") == "1"
+    live = os.environ.get("TEFF_LIVE") == "1"
     calls = {"plans": 0, "reviews": 0}
     if not live:
         patch_transport(calls)

@@ -1,13 +1,13 @@
 import pytest
 
-from draf.provider import ProviderRegistry
+from teff.provider import ProviderRegistry
 
 
 class TestFakeLLM:
     @pytest.mark.asyncio
     async def test_returns_canned_content(self):
-        from draf.node import ExecContext
-        from draf.testing import FakeLLM
+        from teff.node import ExecContext
+        from teff.testing import FakeLLM
 
         node = FakeLLM({"output_key": "reply", "content": "hello"})
         ctx = ExecContext(state={}, tools={})
@@ -16,8 +16,8 @@ class TestFakeLLM:
 
     @pytest.mark.asyncio
     async def test_renders_template_from_state(self):
-        from draf.node import ExecContext
-        from draf.testing import FakeLLM
+        from teff.node import ExecContext
+        from teff.testing import FakeLLM
 
         node = FakeLLM({"prompt": "greet {name}", "content": "hello {name}"})
         ctx = ExecContext(state={}, tools={})
@@ -26,8 +26,8 @@ class TestFakeLLM:
 
     @pytest.mark.asyncio
     async def test_missing_prompt_key_raises(self):
-        from draf.node import ExecContext
-        from draf.testing import FakeLLM
+        from teff.node import ExecContext
+        from teff.testing import FakeLLM
 
         node = FakeLLM({"prompt": "greet {name}"})
         ctx = ExecContext(state={}, tools={})
@@ -36,8 +36,8 @@ class TestFakeLLM:
 
     @pytest.mark.asyncio
     async def test_works_inside_graph(self):
-        from draf.graph import Graph
-        from draf.testing import FakeLLM
+        from teff.graph import Graph
+        from teff.testing import FakeLLM
 
         g = Graph(
             nodes={"a": FakeLLM({"content": "hi"})},
@@ -49,8 +49,8 @@ class TestFakeLLM:
 
     @pytest.mark.asyncio
     async def test_default_output_key_and_content(self):
-        from draf.node import ExecContext
-        from draf.testing import FakeLLM
+        from teff.node import ExecContext
+        from teff.testing import FakeLLM
 
         node = FakeLLM({})
         ctx = ExecContext(state={}, tools={})
@@ -60,7 +60,7 @@ class TestFakeLLM:
 class TestMockLLM:
     @pytest.mark.asyncio
     async def test_mock_llm_fixture_patches_harness(self, mock_llm):
-        from draf.node import LLM, ExecContext
+        from teff.node import LLM, ExecContext
 
         mock_llm.content = "42"
 
@@ -80,7 +80,7 @@ class TestMockLLM:
 
     @pytest.mark.asyncio
     async def test_records_prompt_messages(self, mock_llm):
-        from draf.node import LLM, ExecContext
+        from teff.node import LLM, ExecContext
 
         node = LLM(
             {"model": "gpt-4", "system": "sys", "prompt": "ask", "provider": "openai"}
@@ -95,8 +95,8 @@ class TestMockLLM:
 
     @pytest.mark.asyncio
     async def test_structured_output_parses_canned_json(self, mock_llm):
-        from draf.node import LLM, ExecContext
-        from draf.testing import canned_json
+        from teff.node import LLM, ExecContext
+        from teff.testing import canned_json
 
         mock_llm.content = canned_json({"answer": 42, "ok": True})
 
@@ -114,8 +114,8 @@ class TestMockLLM:
 
     @pytest.mark.asyncio
     async def test_react_agent_runs_offline(self, mock_llm):
-        from draf.graph import Graph
-        from draf.node import ReActAgent
+        from teff.graph import Graph
+        from teff.node import ReActAgent
 
         g = Graph(
             nodes={
@@ -138,8 +138,8 @@ class TestMockLLM:
 
     @pytest.mark.asyncio
     async def test_mock_llm_no_network(self, mock_llm):
-        from draf.graph import Graph
-        from draf.node import LLM
+        from teff.graph import Graph
+        from teff.node import LLM
 
         g = Graph(
             nodes={"a": LLM({"model": "gpt-4", "prompt": "hi", "provider": "openai"})},

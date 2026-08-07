@@ -952,7 +952,7 @@ wheels = [
 ]
 
 [[package]]
-name = "draf"
+name = "teff"
 version = "0.1.0a0"
 source = { editable = "." }
 dependencies = [
@@ -1080,8 +1080,8 @@ requires-dist = [
     { name = "boto3", marker = "extra == 'tools'", specifier = ">=1.34" },
     { name = "celery", extras = ["redis"], marker = "extra == 'queue'", specifier = ">=5.4" },
     { name = "chromadb", marker = "extra == 'stores-chroma'", specifier = ">=0.5" },
-    { name = "draf", extras = ["embedding", "tools", "mcp", "rag-pdf", "rag-excel", "pg-checkpoint", "fastapi", "queue", "observability"], marker = "extra == 'all'" },
-    { name = "draf", extras = ["stores-qdrant", "stores-chroma", "stores-pgvector", "stores-faiss", "stores-lance", "stores-milvus", "stores-weaviate", "stores-pinecone"], marker = "extra == 'embedding'" },
+    { name = "teff", extras = ["embedding", "tools", "mcp", "rag-pdf", "rag-excel", "pg-checkpoint", "fastapi", "queue", "observability"], marker = "extra == 'all'" },
+    { name = "teff", extras = ["stores-qdrant", "stores-chroma", "stores-pgvector", "stores-faiss", "stores-lance", "stores-milvus", "stores-weaviate", "stores-pinecone"], marker = "extra == 'embedding'" },
     { name = "faiss-cpu", marker = "extra == 'stores-faiss'", specifier = ">=1.7" },
     { name = "fastapi", marker = "extra == 'fastapi'", specifier = ">=0.115" },
     { name = "fastapi", marker = "extra == 'observability'", specifier = ">=0.115" },

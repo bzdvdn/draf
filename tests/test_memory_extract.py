@@ -2,7 +2,7 @@ import math
 
 import pytest
 
-from draf.harness.loop import ModelReply
+from teff.harness.loop import ModelReply
 
 
 class _FakeHarness:
@@ -33,7 +33,7 @@ class _TokenEmbedder:
 class TestMemoryExtractor:
     @pytest.mark.asyncio
     async def test_extract_plain_json(self):
-        from draf.memory import MemoryExtractor
+        from teff.memory import MemoryExtractor
 
         harness = _FakeHarness(
             '[{"text": "user prefers email"}, {"text": "user likes sushi"}]'
@@ -44,7 +44,7 @@ class TestMemoryExtractor:
 
     @pytest.mark.asyncio
     async def test_extract_uses_custom_system_prompt(self):
-        from draf.memory import MemoryExtractor
+        from teff.memory import MemoryExtractor
 
         harness = _FakeHarness('[{"text": "custom fact"}]')
         custom = "Extract ONLY colors mentioned."
@@ -54,7 +54,7 @@ class TestMemoryExtractor:
 
     @pytest.mark.asyncio
     async def test_extract_tolerates_fence_and_prose(self):
-        from draf.memory import MemoryExtractor
+        from teff.memory import MemoryExtractor
 
         harness = _FakeHarness(
             'Here you go:\n```json\n[{"text": "works remotely"}]\n```\nDone.'
@@ -64,7 +64,7 @@ class TestMemoryExtractor:
 
     @pytest.mark.asyncio
     async def test_extract_handles_string_items_and_empty(self):
-        from draf.memory import MemoryExtractor
+        from teff.memory import MemoryExtractor
 
         h1 = _FakeHarness('["prefers dark mode"]')
         assert await MemoryExtractor(h1).extract([]) == ["prefers dark mode"]
@@ -74,14 +74,14 @@ class TestMemoryExtractor:
 
     @pytest.mark.asyncio
     async def test_extract_invalid_json_returns_empty(self):
-        from draf.memory import MemoryExtractor
+        from teff.memory import MemoryExtractor
 
         harness = _FakeHarness("I could not find any facts.")
         assert await MemoryExtractor(harness).extract([]) == []
 
     @pytest.mark.asyncio
     async def test_extract_builds_transcript(self):
-        from draf.memory import MemoryExtractor
+        from teff.memory import MemoryExtractor
 
         harness = _FakeHarness("[]")
         await MemoryExtractor(harness).extract(
@@ -96,15 +96,15 @@ class TestMemoryExtractor:
 
     @pytest.mark.asyncio
     async def test_requires_model_or_harness(self):
-        from draf.memory import MemoryExtractor
+        from teff.memory import MemoryExtractor
 
         with pytest.raises(ValueError, match="harness|model"):
             MemoryExtractor()
 
     @pytest.mark.asyncio
     async def test_save_writes_stable_facts(self):
-        from draf.memory import MemoryExtractor, MemoryStore
-        from draf.rag.stores import InMemoryVectorStore
+        from teff.memory import MemoryExtractor, MemoryStore
+        from teff.rag.stores import InMemoryVectorStore
 
         embedder = _TokenEmbedder()
         mem = MemoryStore(InMemoryVectorStore(dim=16), embedder)
@@ -122,8 +122,8 @@ class TestMemoryExtractor:
 class TestMemoryContext:
     @pytest.mark.asyncio
     async def test_memory_context_formats_block(self):
-        from draf.memory import MemoryStore, memory_context
-        from draf.rag.stores import InMemoryVectorStore
+        from teff.memory import MemoryStore, memory_context
+        from teff.rag.stores import InMemoryVectorStore
 
         embedder = _TokenEmbedder()
         mem = MemoryStore(InMemoryVectorStore(dim=16), embedder)
@@ -136,8 +136,8 @@ class TestMemoryContext:
 
     @pytest.mark.asyncio
     async def test_memory_context_empty_without_match(self):
-        from draf.memory import MemoryStore, memory_context
-        from draf.rag.stores import InMemoryVectorStore
+        from teff.memory import MemoryStore, memory_context
+        from teff.rag.stores import InMemoryVectorStore
 
         mem = MemoryStore(InMemoryVectorStore(dim=16), _TokenEmbedder())
         block = await memory_context(mem, "anything")
@@ -145,7 +145,7 @@ class TestMemoryContext:
 
     @pytest.mark.asyncio
     async def test_memory_context_blank_query_is_empty(self):
-        from draf.memory import memory_context
+        from teff.memory import memory_context
 
         class _Null:
             async def search(self, *a, **k):
@@ -154,7 +154,7 @@ class TestMemoryContext:
         assert await memory_context(_Null(), "   ") == ""
 
     def test_last_user_text(self):
-        from draf.memory import last_user_text
+        from teff.memory import last_user_text
 
         msgs = [
             {"role": "user", "content": ""},
@@ -168,14 +168,14 @@ class TestMemoryContext:
 class TestMemoryContextFromConfig:
     @pytest.mark.asyncio
     async def test_disabled_returns_empty(self):
-        from draf.memory import memory_context_from_config
+        from teff.memory import memory_context_from_config
 
         assert await memory_context_from_config({}, state={}, ctx=None) == ""
 
     @pytest.mark.asyncio
     async def test_object_store_recalls_block(self):
-        from draf.memory import MemoryStore, memory_context_from_config
-        from draf.rag.stores import InMemoryVectorStore
+        from teff.memory import MemoryStore, memory_context_from_config
+        from teff.rag.stores import InMemoryVectorStore
 
         embedder = _TokenEmbedder()
         mem = MemoryStore(InMemoryVectorStore(dim=16), embedder)
@@ -193,7 +193,7 @@ class TestMemoryContextFromConfig:
 
     @pytest.mark.asyncio
     async def test_dict_store_without_embeddings_is_empty(self):
-        from draf.memory import memory_context_from_config
+        from teff.memory import memory_context_from_config
 
         state = {}
         block = await memory_context_from_config(
@@ -214,8 +214,8 @@ class TestMemoryContextFromConfig:
 
     @pytest.mark.asyncio
     async def test_memory_config_object(self):
-        from draf.memory import MemoryConfig, MemoryStore, memory_context_from_config
-        from draf.rag.stores import InMemoryVectorStore
+        from teff.memory import MemoryConfig, MemoryStore, memory_context_from_config
+        from teff.rag.stores import InMemoryVectorStore
 
         embedder = _TokenEmbedder()
         mem = MemoryStore(InMemoryVectorStore(dim=16), embedder)
@@ -229,7 +229,7 @@ class TestMemoryContextFromConfig:
         assert "loves hiking" in block
 
     def test_memory_config_to_dict(self):
-        from draf.memory import MemoryConfig
+        from teff.memory import MemoryConfig
 
         c = MemoryConfig(store="x", namespace=("u",), k=3, header="Mem:")
         assert c.to_dict() == {
@@ -241,8 +241,8 @@ class TestMemoryContextFromConfig:
 
     @pytest.mark.asyncio
     async def test_namespace_interpolates_owner_from_ctx(self):
-        from draf.memory import MemoryStore, memory_context_from_config
-        from draf.rag.stores import InMemoryVectorStore
+        from teff.memory import MemoryStore, memory_context_from_config
+        from teff.rag.stores import InMemoryVectorStore
 
         mem = MemoryStore(InMemoryVectorStore(dim=16), _TokenEmbedder())
         await mem.put(("users", "ana"), "prefs", {"text": "prefers email"})
@@ -270,8 +270,8 @@ class TestMemoryContextFromConfig:
 
     @pytest.mark.asyncio
     async def test_namespace_interpolates_owner_from_env(self, monkeypatch):
-        from draf.memory import MemoryStore, memory_context_from_config
-        from draf.rag.stores import InMemoryVectorStore
+        from teff.memory import MemoryStore, memory_context_from_config
+        from teff.rag.stores import InMemoryVectorStore
 
         mem = MemoryStore(InMemoryVectorStore(dim=16), _TokenEmbedder())
         await mem.put(("users", "bob"), "prefs", {"text": "wants chat"})
@@ -295,7 +295,7 @@ class TestMemoryContextFromConfig:
 class TestMemoryFromConfig:
     @pytest.mark.asyncio
     async def test_builds_in_memory_store(self):
-        from draf.memory.tool import memory_from_config
+        from teff.memory.tool import memory_from_config
 
         mem = memory_from_config({})
         assert mem is not None
@@ -303,7 +303,7 @@ class TestMemoryFromConfig:
 
     @pytest.mark.asyncio
     async def test_uses_ttl_default(self):
-        from draf.memory.tool import memory_from_config
+        from teff.memory.tool import memory_from_config
 
         mem = memory_from_config({"ttl": 60})
         assert mem._ttl == 60

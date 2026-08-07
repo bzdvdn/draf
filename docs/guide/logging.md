@@ -1,6 +1,6 @@
 # Logging
 
-Draf ships an operational log stream on top of the standard `logging`
+Teff ships an operational log stream on top of the standard `logging`
 module. At `INFO` it shows the **whole run skeleton** — which nodes ran,
 how they routed, which tools fired, and the LLM calls (model + token
 counts, no text). Prompt/response **content** is an opt-in `DEBUG`
@@ -10,10 +10,10 @@ without leaking secrets into your console.
 ## Quick start
 
 ```python
-from draf import configure_logging
-from draf.flow import Flow
-from draf.node import LLM
-from draf.provider import ProviderRegistry
+from teff import configure_logging
+from teff.flow import Flow
+from teff.node import LLM
+from teff.provider import ProviderRegistry
 import asyncio
 
 configure_logging()  # INFO -> stderr, text
@@ -31,10 +31,10 @@ asyncio.run(graph.run({}, checkpoint_id="thread-42"))
 ```
 
 ```
-2026-08-03 23:06:13,249 INFO  draf.graph.execution [run=bde23c10 session=thread-42] run_start
-2026-08-03 23:06:13,251 INFO  draf.graph.execution [run=bde23c10 session=thread-42 node=start type=log_smoke_hi] node_start
-2026-08-03 23:06:13,252 INFO  draf.graph.execution [run=bde23c10 session=thread-42 node=start type=log_smoke_hi] node_end duration_ms=5.3
-2026-08-03 23:06:13,252 INFO  draf.graph.execution [run=bde23c10 session=thread-42] run_end status=ok
+2026-08-03 23:06:13,249 INFO  teff.graph.execution [run=bde23c10 session=thread-42] run_start
+2026-08-03 23:06:13,251 INFO  teff.graph.execution [run=bde23c10 session=thread-42 node=start type=log_smoke_hi] node_start
+2026-08-03 23:06:13,252 INFO  teff.graph.execution [run=bde23c10 session=thread-42 node=start type=log_smoke_hi] node_end duration_ms=5.3
+2026-08-03 23:06:13,252 INFO  teff.graph.execution [run=bde23c10 session=thread-42] run_end status=ok
 ```
 
 ## Levels
@@ -53,7 +53,7 @@ answers stay out of the picture. Flip to `DEBUG` to add the content.
 ## Configuring
 
 ```python
-from draf import configure_logging
+from teff import configure_logging
 
 configure_logging()  # INFO, text
 configure_logging("debug")  # + prompt/answer content
@@ -66,14 +66,14 @@ to stderr), each carrying `run_id`, `session_id`, `node_id`,
 `node_type`, `logger`, `level`, `event`, and the per-event fields:
 
 ```json
-{"timestamp": "2026-08-03T23:06:13", "level": "INFO", "logger": "draf.graph.execution",
+{"timestamp": "2026-08-03T23:06:13", "level": "INFO", "logger": "teff.graph.execution",
  "event": "node_start", "run_id": "bde23c10", "session_id": "thread-42",
  "node_id": "start", "node_type": "log_smoke_hi"}
 ```
 
-When `level` is omitted it is read from the `DRAF_LOG_LEVEL` environment
+When `level` is omitted it is read from the `TEFF_LOG_LEVEL` environment
 variable (default `INFO`). The LLM content cap is set with
-`DRAF_LOG_LLM_CHARS` (default `2000` characters, `0` disables
+`TEFF_LOG_LLM_CHARS` (default `2000` characters, `0` disables
 truncation). `configure_logging` is idempotent — calling it again just
 switches the level/formatter of the existing handler.
 
@@ -87,7 +87,7 @@ come from the run itself: `graph.run()`/`graph.stream()` generate a
 Log your own events inside a run and they inherit the same ids:
 
 ```python
-from draf import get_logger
+from teff import get_logger
 
 log = get_logger(__name__)
 
@@ -99,7 +99,7 @@ async def check_stock(ctx, state):
 ```
 
 `get_logger` never attaches handlers — that is solely the job of
-`configure_logging`. It simply prefixes `draf.` to your name so the
+`configure_logging`. It simply prefixes `teff.` to your name so the
 default filters pick the record up.
 
 ## Versus RunTracer
@@ -121,4 +121,4 @@ uv run python daemon.py --log-level info --log-format text
 uv run python cli.py run "Hello" --log-level debug
 ```
 
-Without `--log-level` the `DRAF_LOG_LEVEL` env var (or `INFO`) applies.
+Without `--log-level` the `TEFF_LOG_LEVEL` env var (or `INFO`) applies.

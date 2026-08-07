@@ -11,10 +11,10 @@ Requires Ollama running locally with llama3.1:8b:
 
 from __future__ import annotations
 
-from draf.flow import Flow
-from draf.graph import Graph
-from draf.provider import ProviderRegistry
-from draf.tool import Tool
+from teff.flow import Flow
+from teff.graph import Graph
+from teff.provider import ProviderRegistry
+from teff.tool import Tool
 
 DEFAULT_MODEL = "llama3.1:8b"
 

@@ -6,9 +6,9 @@ result of `flow.compile()` is a `Graph` you can run or stream, and
 `flow.to_yaml()` exports it as a deployable workflow.
 
 ```python
-from draf.flow import Flow, Case
-from draf.node import LLM, Transform
-from draf.provider import ProviderRegistry
+from teff.flow import Flow, Case
+from teff.node import LLM, Transform
+from teff.provider import ProviderRegistry
 
 flow = Flow(
     "my-flow",  # optional name
@@ -134,7 +134,7 @@ Edges are static — but any node can **pick its own successor at runtime** by
 returning a `Command` with an explicit `goto`:
 
 ```python
-from draf.node import Command
+from teff.node import Command
 
 
 async def classify(ctx, state):
@@ -200,7 +200,7 @@ single answer; `flow.interrupt_loop(key, accept=Ask(...), body=..., done=...)`
 re-asks until it passes:
 
 ```python
-from draf.node import Ask
+from teff.node import Ask
 
 flow.interrupt_loop(
     key="code",
@@ -247,9 +247,9 @@ Export the compiled flow as a `workflow.yaml` document — including the ReAct
 loop wiring. `Flow` does not track tools/state, so pass them explicitly:
 
 ```python
-from draf.flow import Flow
-from draf.provider import ProviderRegistry
-from draf.tool.builtin.git import GitTool
+from teff.flow import Flow
+from teff.provider import ProviderRegistry
+from teff.tool.builtin.git import GitTool
 
 yaml_text = (
     Flow(
@@ -263,8 +263,8 @@ yaml_text = (
 )
 ```
 
-The result validates with `draf validate` and round-trips through
-`draf.yaml.load_workflow`.
+The result validates with `teff validate` and round-trips through
+`teff.yaml.load_workflow`.
 
 ## Quick reference
 

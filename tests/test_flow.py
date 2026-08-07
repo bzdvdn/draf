@@ -5,8 +5,8 @@ class TestFlow:
     def test_compile_linear(self):
         import asyncio
 
-        from draf.flow import Flow
-        from draf.node import Transform
+        from teff.flow import Flow
+        from teff.node import Transform
 
         flow = Flow("test")
         flow.step(
@@ -18,7 +18,7 @@ class TestFlow:
         assert r["out"] == "HELLO"
 
     def test_empty_flow_raises(self):
-        from draf.flow import Flow
+        from teff.flow import Flow
 
         with pytest.raises(ValueError, match="no nodes"):
             Flow("x").compile()
@@ -26,8 +26,8 @@ class TestFlow:
     def test_branch_routing(self):
         import asyncio
 
-        from draf.flow import Case, Flow
-        from draf.node import Node
+        from teff.flow import Case, Flow
+        from teff.node import Node
 
         class CN(Node):
             type = "cn"
@@ -51,8 +51,8 @@ class TestFlow:
     def test_default_fallback(self):
         import asyncio
 
-        from draf.flow import Case, Flow
-        from draf.node import Node
+        from teff.flow import Case, Flow
+        from teff.node import Node
 
         class CN(Node):
             type = "cn"
@@ -87,8 +87,8 @@ class TestStep:
     def test_step_accepts_node_instance(self):
         import asyncio
 
-        from draf.flow import Flow
-        from draf.node import Node
+        from teff.flow import Flow
+        from teff.node import Node
 
         class MyNode(Node):
             type = "my"
@@ -103,14 +103,14 @@ class TestStep:
         assert r["x"] == 42
 
     def test_step_rejects_string(self):
-        from draf.flow import Flow
+        from teff.flow import Flow
 
         flow = Flow("test")
         with pytest.raises(TypeError, match="must be a Node or function"):
             flow.step("transform")  # type: ignore[arg-type]
 
     def test_step_rejects_non_node(self):
-        from draf.flow import Flow
+        from teff.flow import Flow
 
         flow = Flow("test")
         with pytest.raises(TypeError, match="must be a Node or function"):
@@ -119,8 +119,8 @@ class TestStep:
     def test_step_with_transform_node(self):
         import asyncio
 
-        from draf.flow import Flow
-        from draf.node import Transform
+        from teff.flow import Flow
+        from teff.node import Transform
 
         flow = Flow("default").step(
             Transform(action="uppercase", input_key="text", output_key="out")
@@ -132,8 +132,8 @@ class TestStep:
     def test_step_chaining(self):
         import asyncio
 
-        from draf.flow import Flow
-        from draf.node import Transform
+        from teff.flow import Flow
+        from teff.node import Transform
 
         flow = (
             Flow("chain")
@@ -147,8 +147,8 @@ class TestStep:
 
 class TestFlowLLM:
     def test_llm_accepts_config(self):
-        from draf.flow import Flow
-        from draf.node import LLM
+        from teff.flow import Flow
+        from teff.node import LLM
 
         flow = Flow("t").llm(model="gpt-4", system="s", output_key="answer")
         g = flow.compile()
@@ -159,8 +159,8 @@ class TestFlowLLM:
         assert node.config["output_key"] == "answer"
 
     def test_llm_accepts_instance(self):
-        from draf.flow import Flow
-        from draf.node import LLM
+        from teff.flow import Flow
+        from teff.node import LLM
 
         node = LLM(model="gpt-4", output_key="answer")
         flow = Flow("t").llm(node)
@@ -168,14 +168,14 @@ class TestFlowLLM:
         assert g.nodes["llm_chat_1"] is node
 
     def test_llm_rejects_non_llm(self):
-        from draf.flow import Flow
+        from teff.flow import Flow
 
         with pytest.raises(TypeError, match="LLM instance"):
             Flow("t").llm("gpt-4")  # type: ignore[arg-type]
 
     def test_llm_rejects_instance_plus_config(self):
-        from draf.flow import Flow
-        from draf.node import LLM
+        from teff.flow import Flow
+        from teff.node import LLM
 
         with pytest.raises(TypeError, match="not both"):
             Flow("t").llm(LLM(model="gpt-4"), output_key="x")
@@ -183,8 +183,8 @@ class TestFlowLLM:
 
 class TestFlowTransform:
     def test_transform_accepts_config(self):
-        from draf.flow import Flow
-        from draf.node import Transform
+        from teff.flow import Flow
+        from teff.node import Transform
 
         flow = Flow("t").transform(action="uppercase", input_key="t", output_key="out")
         g = flow.compile()
@@ -192,8 +192,8 @@ class TestFlowTransform:
         assert isinstance(g.nodes["transform_1"], Transform)
 
     def test_transform_accepts_instance(self):
-        from draf.flow import Flow
-        from draf.node import Transform
+        from teff.flow import Flow
+        from teff.node import Transform
 
         node = Transform(action="uppercase", input_key="t", output_key="out")
         flow = Flow("t").transform(node)
@@ -201,14 +201,14 @@ class TestFlowTransform:
         assert g.nodes["transform_1"] is node
 
     def test_transform_rejects_non_transform(self):
-        from draf.flow import Flow
+        from teff.flow import Flow
 
         with pytest.raises(TypeError, match="Transform instance"):
             Flow("t").transform("uppercase")  # type: ignore[arg-type]
 
     def test_transform_rejects_instance_plus_config(self):
-        from draf.flow import Flow
-        from draf.node import Transform
+        from teff.flow import Flow
+        from teff.node import Transform
 
         with pytest.raises(TypeError, match="not both"):
             Flow("t").transform(Transform(action="uppercase"), action="lowercase")
@@ -216,7 +216,7 @@ class TestFlowTransform:
     def test_transform_runs(self):
         import asyncio
 
-        from draf.flow import Flow
+        from teff.flow import Flow
 
         flow = (
             Flow("t")
@@ -230,8 +230,8 @@ class TestFlowTransform:
 
 class TestReActAgentOverride:
     def test_react_accepts_agent_instance(self):
-        from draf.flow import Flow
-        from draf.node.agent import ReActAgent
+        from teff.flow import Flow
+        from teff.node.agent import ReActAgent
 
         agent = ReActAgent(model="gpt-4", system="custom")
         flow = Flow("t").react(agent=agent)
@@ -239,8 +239,8 @@ class TestReActAgentOverride:
         assert g.nodes[g.entry_point] is agent
 
     def test_react_accepts_agent_subclass(self):
-        from draf.flow import Flow
-        from draf.node.agent import ReActAgent
+        from teff.flow import Flow
+        from teff.node.agent import ReActAgent
 
         class MyAgent(ReActAgent):
             pass
@@ -253,8 +253,8 @@ class TestReActAgentOverride:
         assert node.config["system"] == ""
 
     def test_react_agent_instance_ignores_model(self):
-        from draf.flow import Flow
-        from draf.node.agent import ReActAgent
+        from teff.flow import Flow
+        from teff.node.agent import ReActAgent
 
         agent = ReActAgent(model="llama3.1:8b")
         flow = Flow("t").react(agent=agent, model="gpt-4")  # type: ignore[arg-type]
@@ -263,14 +263,14 @@ class TestReActAgentOverride:
         assert agent.config["model"] == "llama3.1:8b"
 
     def test_react_requires_model_without_agent(self):
-        from draf.flow import Flow
+        from teff.flow import Flow
 
         with pytest.raises(TypeError, match="requires a model"):
             Flow("t").react()
 
     def test_react_rejects_wrong_agent_type(self):
-        from draf.flow import Flow
-        from draf.node import LLM
+        from teff.flow import Flow
+        from teff.node import LLM
 
         with pytest.raises(TypeError, match="ReActAgent"):
             Flow("t").react(agent=LLM(model="gpt-4"))
@@ -278,8 +278,8 @@ class TestReActAgentOverride:
             Flow("t").react(agent=dict)  # type: ignore[arg-type]
 
     def test_react_agent_keeps_tool_exec_cycle(self):
-        from draf.flow import Flow
-        from draf.node.agent import ReActAgent
+        from teff.flow import Flow
+        from teff.node.agent import ReActAgent
 
         flow = Flow("t").react(model="gpt-4", agent=ReActAgent(model="gpt-4"))
         g = flow.compile()
@@ -292,8 +292,8 @@ class TestSubFlow:
     def test_subflow_basic(self):
         import asyncio
 
-        from draf.flow import Flow
-        from draf.node import Node
+        from teff.flow import Flow
+        from teff.node import Node
 
         class AddOne(Node):
             type = "ao"
@@ -314,8 +314,8 @@ class TestSubFlow:
     def test_subflow_propagates_append_reducers(self):
         import asyncio
 
-        from draf.flow import Flow
-        from draf.node import Node
+        from teff.flow import Flow
+        from teff.node import Node
 
         class AppendMsg(Node):
             type = "am"
@@ -336,8 +336,8 @@ class TestSubFlow:
     def test_subflow_appends_into_existing_list_once(self):
         import asyncio
 
-        from draf.flow import Flow
-        from draf.node import Node
+        from teff.flow import Flow
+        from teff.node import Node
 
         class AppendMsg(Node):
             type = "am2"
@@ -363,8 +363,8 @@ class TestSubFlow:
     def test_subflow_runs_twice_accumulates_once(self):
         import asyncio
 
-        from draf.flow import Flow
-        from draf.node import Node
+        from teff.flow import Flow
+        from teff.node import Node
 
         class AppendMsg(Node):
             type = "am3"
@@ -389,8 +389,8 @@ class TestSubFlow:
     def test_subflow_with_maps(self):
         import asyncio
 
-        from draf.flow import Flow
-        from draf.node import Transform
+        from teff.flow import Flow
+        from teff.node import Transform
 
         sub = Flow("inner")
         sub.step(
@@ -407,8 +407,8 @@ class TestSubFlow:
     def test_subflow_state_isolation(self):
         import asyncio
 
-        from draf.flow import Flow
-        from draf.node import Node
+        from teff.flow import Flow
+        from teff.node import Node
 
         class SetFoo(Node):
             type = "sf"
@@ -427,8 +427,8 @@ class TestSubFlow:
 
     @pytest.mark.asyncio
     async def test_stream_forwards_subflow_events(self):
-        from draf.flow import Flow
-        from draf.node import Transform
+        from teff.flow import Flow
+        from teff.node import Transform
 
         sub = Flow("inner").transform(action="uppercase", input_key="x", output_key="y")
         parent = Flow("outer")
@@ -462,8 +462,8 @@ class TestSubFlow:
 class TestCyclicGraph:
     @pytest.mark.asyncio
     async def test_simple_cycle_terminates_by_condition(self):
-        from draf.graph import Edge, Graph
-        from draf.node import Node
+        from teff.graph import Edge, Graph
+        from teff.node import Node
 
         class Counter(Node):
             type = "ct"
@@ -494,8 +494,8 @@ class TestCyclicGraph:
 
     @pytest.mark.asyncio
     async def test_max_iterations_raises(self):
-        from draf.graph import Edge, Graph
-        from draf.node import Node
+        from teff.graph import Edge, Graph
+        from teff.node import Node
 
         class InfLoop(Node):
             type = "il"
@@ -515,8 +515,8 @@ class TestCyclicGraph:
 
     @pytest.mark.asyncio
     async def test_max_iterations_linear_completes(self):
-        from draf.graph import Edge, Graph
-        from draf.node import Node
+        from teff.graph import Edge, Graph
+        from teff.node import Node
 
         class AddOne(Node):
             type = "ao"
@@ -538,8 +538,8 @@ class TestRoute:
     def test_route_basic_loop(self):
         import asyncio
 
-        from draf.flow import Flow
-        from draf.node import Node
+        from teff.flow import Flow
+        from teff.node import Node
 
         class Decider(Node):
             type = "decider"
@@ -577,8 +577,8 @@ class TestRoute:
     def test_route_multiple_agents(self):
         import asyncio
 
-        from draf.flow import Flow
-        from draf.node import Node
+        from teff.flow import Flow
+        from teff.node import Node
 
         class Decider(Node):
             type = "decider"
@@ -619,8 +619,8 @@ class TestRoute:
         assert r["log"] == ["planned", "estimated", "final"]
 
     def test_route_wiring(self):
-        from draf.flow import Flow
-        from draf.node import Node
+        from teff.flow import Flow
+        from teff.node import Node
 
         class Decider(Node):
             type = "decider"
@@ -656,8 +656,8 @@ class TestRoute:
     def test_route_loops_back_to_decider(self):
         import asyncio
 
-        from draf.flow import Flow
-        from draf.node import Node
+        from teff.flow import Flow
+        from teff.node import Node
 
         class Decider(Node):
             type = "decider"
@@ -694,8 +694,8 @@ class TestRoute:
     def test_route_finish_none_terminates(self):
         import asyncio
 
-        from draf.flow import Flow
-        from draf.node import Node
+        from teff.flow import Flow
+        from teff.node import Node
 
         class Decider(Node):
             type = "decider"
@@ -717,8 +717,8 @@ class TestRoute:
         assert "log" not in r
 
     def test_route_requires_decider(self):
-        from draf.flow import Flow
-        from draf.node import Node
+        from teff.flow import Flow
+        from teff.node import Node
 
         class Mark(Node):
             type = "mark"
@@ -730,8 +730,8 @@ class TestRoute:
             Flow("x").route("next_agent", planner=Mark({}))
 
     def test_route_requires_agents(self):
-        from draf.flow import Flow
-        from draf.node import Node
+        from teff.flow import Flow
+        from teff.node import Node
 
         class Decider(Node):
             type = "decider"
@@ -745,8 +745,8 @@ class TestRoute:
     def test_route_finish_chain_continues(self):
         import asyncio
 
-        from draf.flow import Flow
-        from draf.node import Node
+        from teff.flow import Flow
+        from teff.node import Node
 
         class Decider(Node):
             type = "decider"
@@ -793,8 +793,8 @@ class TestRoute:
         assert ("mark_2", "after_4", None) in edges
 
     def test_route_finish_none_blocks_chaining(self):
-        from draf.flow import Flow
-        from draf.node import Node
+        from teff.flow import Flow
+        from teff.node import Node
 
         class Decider(Node):
             type = "decider"
@@ -815,8 +815,8 @@ class TestRoute:
     def test_route_accepts_chains(self):
         import asyncio
 
-        from draf.flow import Flow
-        from draf.node import Node
+        from teff.flow import Flow
+        from teff.node import Node
 
         class Decider(Node):
             type = "decider"
@@ -858,10 +858,10 @@ class TestRoute:
 
 class TestFlowToYaml:
     def test_react_flow_exports_and_round_trips(self, tmp_path):
-        from draf.flow import Flow
-        from draf.node import Transform
-        from draf.yaml import load_workflow
-        from draf.yaml_schema import validate_workflow_file
+        from teff.flow import Flow
+        from teff.node import Transform
+        from teff.yaml import load_workflow
+        from teff.yaml_schema import validate_workflow_file
 
         flow = Flow("demo")
         flow.step(Transform(action="uppercase", input_key="t", output_key="u"))
@@ -880,12 +880,12 @@ class TestFlowToYaml:
         assert graph.entry_point.startswith("transform_")
 
     def test_workflow_to_yaml_includes_tools_and_state(self, tmp_path):
-        from draf.flow import Flow
-        from draf.node import Transform
-        from draf.state.state import reducers_from_yaml_schema
-        from draf.tool.registry import default_tool_registry
-        from draf.yaml import load_workflow, workflow_to_yaml
-        from draf.yaml_schema import validate_workflow_file
+        from teff.flow import Flow
+        from teff.node import Transform
+        from teff.state.state import reducers_from_yaml_schema
+        from teff.tool.registry import default_tool_registry
+        from teff.yaml import load_workflow, workflow_to_yaml
+        from teff.yaml_schema import validate_workflow_file
 
         flow = Flow("wf")
         flow.step(Transform(action="uppercase", input_key="t", output_key="u"))
@@ -910,9 +910,9 @@ class TestFlowToYaml:
         }
 
     def test_graph_to_yaml_back_compat(self):
-        from draf.flow import Flow
-        from draf.node import Transform
-        from draf.yaml import graph_to_yaml
+        from teff.flow import Flow
+        from teff.node import Transform
+        from teff.yaml import graph_to_yaml
 
         flow = Flow()
         flow.step(Transform(action="trim", input_key="x", output_key="y"))
@@ -926,7 +926,7 @@ class TestNodeIds:
     """User-supplied node ids (``id=``) across the Flow helpers."""
 
     def test_step_llm_transform_ids(self):
-        from draf.flow import Flow
+        from teff.flow import Flow
 
         flow = Flow()
         flow.llm(model="m", system="s", output_key="sent", id="classify")
@@ -938,8 +938,8 @@ class TestNodeIds:
         assert list(g.nodes) == ["classify", "shout"]
 
     def test_branch_case_converge_ids(self):
-        from draf.flow import Case, Flow
-        from draf.node import Transform
+        from teff.flow import Case, Flow
+        from teff.node import Transform
 
         flow = Flow()
         flow.step(Transform(action="value", value="0", output_key="k"), id="start")
@@ -964,7 +964,7 @@ class TestNodeIds:
         assert list(g.nodes) == ["start", "on_a", "on_b", "merge"]
 
     def test_harness_id_prefixes_agent_and_tool(self):
-        from draf.flow import Flow
+        from teff.flow import Flow
 
         flow = Flow()
         flow.harness(model="m", output_key="answer", id="assistant")
@@ -974,7 +974,7 @@ class TestNodeIds:
         assert ("assistant/agent", "assistant/tool", "_tool_call_name!=") in edges
 
     def test_harness_uses_custom_tool_call_key_in_edge(self):
-        from draf.flow import Flow
+        from teff.flow import Flow
 
         flow = Flow()
         flow.harness(
@@ -985,8 +985,8 @@ class TestNodeIds:
         assert any(cond == "_my_call!=" for _, _, cond in edges)
 
     def test_route_subflow_named_by_prefix(self):
-        from draf.flow import Flow, agent_step
-        from draf.node import LLM, Node
+        from teff.flow import Flow, agent_step
+        from teff.node import LLM, Node
 
         class Decider(Node):
             type = "decider"
@@ -1010,8 +1010,8 @@ class TestNodeIds:
         assert sub._graph.entry_point == "planner/context_builder_1"
 
     def test_duplicate_id_raises(self):
-        from draf.flow import Flow
-        from draf.node import Transform
+        from teff.flow import Flow
+        from teff.node import Transform
 
         flow = Flow()
         flow.step(Transform(action="value", value="1", output_key="a"), id="dup")
@@ -1019,8 +1019,8 @@ class TestNodeIds:
             flow.step(Transform(action="value", value="2", output_key="b"), id="dup")
 
     def test_auto_ids_still_work_without_id(self):
-        from draf.flow import Flow
-        from draf.node import Transform
+        from teff.flow import Flow
+        from teff.node import Transform
 
         flow = Flow()
         flow.step(Transform(action="value", value="1", output_key="a"))
@@ -1030,8 +1030,8 @@ class TestNodeIds:
         assert list(g.nodes) == ["transform_1", "transform_2"]
 
     def test_map_and_parallel_accept_id(self):
-        from draf.flow import Flow
-        from draf.node import Transform
+        from teff.flow import Flow
+        from teff.node import Transform
 
         flow = Flow()
         flow.step(Transform(action="value", value="x", output_key="items"), id="seed")

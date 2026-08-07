@@ -16,10 +16,10 @@ Here ``UppercaseNode`` calls the class-based ``UpperTool`` through
 ``ctx.tools`` and reads its config from ``self.config``.
 """
 
-from draf.node.node import Node
-from draf.node.registry import default_registry
-from draf.tool.registry import default_tool_registry
-from draf.tool.tool import Tool
+from teff.node.node import Node
+from teff.node.registry import default_registry
+from teff.tool.registry import default_tool_registry
+from teff.tool.tool import Tool
 
 
 class UpperTool(Tool):

@@ -15,9 +15,9 @@ import asyncio
 import os
 import sys
 
-from draf.flow import Flow
-from draf.provider import ProviderRegistry
-from draf.rag import RAGTool
+from teff.flow import Flow
+from teff.provider import ProviderRegistry
+from teff.rag import RAGTool
 
 _HERE = os.path.dirname(os.path.abspath(__file__))
 DOCS_CSV = os.path.join(_HERE, "docs.csv")
@@ -32,18 +32,18 @@ STORE_CONFIGS = {
     "chroma": {
         "type": "chroma",
         "path": os.path.join(_HERE, "chroma", "chroma_db"),
-        "collection": "draf",
+        "collection": "teff",
     },
     "qdrant": {
         "type": "qdrant",
         "host": "localhost",
         "port": 6333,
-        "collection": "draf",
+        "collection": "teff",
     },
     "pgvector": {
         "type": "pgvector",
         "dsn": "postgresql://postgres:postgres@localhost:5433/postgres",
-        "table": "draf_vectors",
+        "table": "teff_vectors",
     },
     "faiss": {
         "type": "faiss",
@@ -59,19 +59,19 @@ STORE_CONFIGS = {
     "milvus": {
         "type": "milvus",
         "uri": os.path.join(_HERE, "milvus", "milvus.db"),
-        "collection": "draf",
+        "collection": "teff",
         "dim": 768,
     },
     "weaviate": {
         "type": "weaviate",
-        "collection": "draf",
+        "collection": "teff",
         "embedded": True,
         "dim": 768,
     },
     "pinecone": {
-        # Set PINECONE_API_KEY and create an index named "draf" first.
+        # Set PINECONE_API_KEY and create an index named "teff" first.
         "type": "pinecone",
-        "index_name": "draf",
+        "index_name": "teff",
         "namespace": "",
         "dim": 768,
     },
@@ -100,7 +100,7 @@ async def main(store: str):
     flow.react(
         model="llama3.1:8b",
         system=(
-            "You are a RAG assistant over the Draf knowledge base. Always call "
+            "You are a RAG assistant over the Teff knowledge base. Always call "
             "the 'rag' tool to search before answering, and answer strictly "
             "from the retrieved snippets."
         ),
@@ -110,7 +110,7 @@ async def main(store: str):
 
     graph = flow.compile()
     result = await graph.run(
-        state={"query": "What is the mascot of Draf, and what does it ride?"},
+        state={"query": "What is the mascot of Teff, and what does it ride?"},
         tools=[rag],
         max_iterations=10,
     )

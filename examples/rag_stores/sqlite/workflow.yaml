@@ -1,6 +1,6 @@
 name: rag-sqlite
 description: >
-  RAG over the Draf knowledge base (docs.csv) using the SQLite store.
+  RAG over the Teff knowledge base (docs.csv) using the SQLite store.
   File persistence, no extra dependencies.
 
 tools:
@@ -19,7 +19,7 @@ tools:
 
 state:
   initial:
-    query: What is the mascot of Draf, and what does it ride?
+    query: What is the mascot of Teff, and what does it ride?
 
 providers:
   - name: ollama
@@ -33,7 +33,7 @@ steps:
       provider: ollama
       model: llama3.1:8b
       system: >
-        You are a RAG assistant over the Draf knowledge base. Always call
+        You are a RAG assistant over the Teff knowledge base. Always call
         the 'rag' tool to search before answering, and answer strictly
         from the retrieved snippets.
       input_key: query

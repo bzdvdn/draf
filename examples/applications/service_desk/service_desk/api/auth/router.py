@@ -2,8 +2,8 @@
 
 The example ships with a single shared key from ``settings.api_key``.
 Auth is **fail-closed**: with no key configured every protected route
-returns ``401`` with a hint to set ``DRAF_API_KEY`` (or ``api_key`` in
-``.env``).  Set the key via ``DRAF_API_KEY``; the chat, run and
+returns ``401`` with a hint to set ``TEFF_API_KEY`` (or ``api_key`` in
+``.env``).  Set the key via ``TEFF_API_KEY``; the chat, run and
 trace-dashboard routes then require the ``X-API-Key`` header.  Swap this
 dependency for a JWT/cookie flow later without touching the route handlers.
 """
@@ -30,7 +30,7 @@ def require_api_key(
     if not api_key:
         raise HTTPException(
             status_code=401,
-            detail="API key not configured; set DRAF_API_KEY (or api_key in .env)",
+            detail="API key not configured; set TEFF_API_KEY (or api_key in .env)",
         )
     if x_api_key is None or not hmac.compare_digest(x_api_key, api_key):
         raise HTTPException(status_code=401, detail="invalid API key")

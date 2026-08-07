@@ -1,6 +1,6 @@
 """Ask strategies — validate an interrupt answer beyond a single word.
 
-``interrupt_loop`` with an :class:`~draf.node.ask.Ask` strategy decides
+``interrupt_loop`` with an :class:`~teff.node.ask.Ask` strategy decides
 whether the operator's answer passes, and can *capture a value* (a
 discount code, a date, …) alongside the pass/fail decision.  This example
 builds three variants of the same checkout flow:
@@ -27,11 +27,11 @@ from __future__ import annotations
 import asyncio
 from typing import TypedDict
 
-from draf.checkpoint import JSONFileCheckpointer
-from draf.flow import Flow
-from draf.node import Ask, Transform
-from draf.node.interrupt import GraphInterrupt
-from draf.provider import ProviderRegistry
+from teff.checkpoint import JSONFileCheckpointer
+from teff.flow import Flow
+from teff.node import Ask, Transform
+from teff.node.interrupt import GraphInterrupt
+from teff.provider import ProviderRegistry
 
 MODEL = "llama3.1:8b"
 PROVIDER = "ollama"

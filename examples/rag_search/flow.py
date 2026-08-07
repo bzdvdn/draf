@@ -1,6 +1,6 @@
 """Real RAG: local Ollama embeddings + vector search + LLM answer.
 
-A small knowledge base about "Draf" is embedded with ``nomic-embed-text``
+A small knowledge base about "Teff" is embedded with ``nomic-embed-text``
 into an in-memory vector store. The chat model has never seen this
 content, so it MUST retrieve the relevant snippet via the ``rag`` tool
 before it can answer.
@@ -17,32 +17,32 @@ Usage:
 
 import asyncio
 
-from draf.flow import Flow
-from draf.provider import ProviderRegistry
-from draf.rag import Embedder, RAGTool
-from draf.rag.stores import InMemoryVectorStore
+from teff.flow import Flow
+from teff.provider import ProviderRegistry
+from teff.rag import Embedder, RAGTool
+from teff.rag.stores import InMemoryVectorStore
 
 # Fictional knowledge base — the model cannot know any of this.
 DOCUMENTS = [
     (
-        "Draf is a Python framework for building AI agent workflows as data. "
+        "Teff is a Python framework for building AI agent workflows as data. "
         "Workflows are graphs: nodes transform state, edges carry conditions, "
         "and the graph owns all behaviour.",
         {"id": "doc_1", "topic": "intro"},
     ),
     (
-        "The Draf constitution: the graph owns behaviour, nodes transform "
+        "The Teff constitution: the graph owns behaviour, nodes transform "
         "state, conditions live on edges, and a workflow is YAML data that "
         "compiles into a graph.",
         {"id": "doc_2", "topic": "constitution"},
     ),
     (
-        "Draf ships built-in nodes: Transform, LLM, ReActAgent, ToolExec, "
+        "Teff ships built-in nodes: Transform, LLM, ReActAgent, ToolExec, "
         "and Retry. Tools and RAG primitives are first-class citizens.",
         {"id": "doc_3", "topic": "nodes"},
     ),
     (
-        "The official mascot of Draf is a river otter named Flux. "
+        "The official mascot of Teff is a river otter named Flux. "
         "Flux rides the graph edges and never gets lost in a cycle.",
         {"id": "doc_4", "topic": "mascot"},
     ),
@@ -63,7 +63,7 @@ async def main():
     flow.react(
         model="llama3.1:8b",
         system=(
-            "You are a RAG assistant over the Draf knowledge base. "
+            "You are a RAG assistant over the Teff knowledge base. "
             "Always call the 'rag' tool to search before answering, and "
             "answer strictly from the retrieved snippets."
         ),
@@ -72,7 +72,7 @@ async def main():
     )
 
     graph = flow.compile()
-    query = "What is the mascot of Draf, and what does it ride?"
+    query = "What is the mascot of Teff, and what does it ride?"
     result = await graph.run(
         state={"query": query},
         tools=[rag],

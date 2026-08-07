@@ -54,7 +54,7 @@ class TestGitLabTools:
         self._make_client = make_client
 
     async def test_list_open_mrs(self):
-        from draf.tool.builtin import GitLabListOpenMRsTool
+        from teff.tool.builtin import GitLabListOpenMRsTool
 
         self._make_client(
             [
@@ -78,7 +78,7 @@ class TestGitLabTools:
         assert "/projects/group%2Frepo/merge_requests" in self._calls[0]["url"]
 
     async def test_list_open_mrs_numeric_project_id(self):
-        from draf.tool.builtin import GitLabListOpenMRsTool
+        from teff.tool.builtin import GitLabListOpenMRsTool
 
         self._make_client([[]])
         tool = GitLabListOpenMRsTool(
@@ -89,7 +89,7 @@ class TestGitLabTools:
         assert "/projects/42/merge_requests" in self._calls[0]["url"]
 
     async def test_get_mr_changes(self):
-        from draf.tool.builtin import GitLabGetMRChangesTool
+        from teff.tool.builtin import GitLabGetMRChangesTool
 
         self._make_client(
             [
@@ -118,7 +118,7 @@ class TestGitLabTools:
         assert "/merge_requests/5/changes" in self._calls[0]["url"]
 
     async def test_post_note(self):
-        from draf.tool.builtin import GitLabPostNoteTool
+        from teff.tool.builtin import GitLabPostNoteTool
 
         self._make_client([{"id": 99}])
         tool = GitLabPostNoteTool({"url": "https://gitlab.example.com", "token": "tok"})
@@ -128,7 +128,7 @@ class TestGitLabTools:
         assert self._calls[0]["json"] == {"body": "Please fix this"}
 
     async def test_approve(self):
-        from draf.tool.builtin import GitLabApproveTool
+        from teff.tool.builtin import GitLabApproveTool
 
         self._make_client([{}])
         tool = GitLabApproveTool({"url": "https://gitlab.example.com", "token": "tok"})
@@ -138,19 +138,19 @@ class TestGitLabTools:
         assert self._calls[0]["url"].endswith("/merge_requests/5/approve")
 
     async def test_requires_url(self):
-        from draf.tool.builtin import GitLabListOpenMRsTool
+        from teff.tool.builtin import GitLabListOpenMRsTool
 
         with pytest.raises(ValueError, match="url"):
             await GitLabListOpenMRsTool({"token": "tok"}).arun(project="g/r")
 
     async def test_requires_token(self):
-        from draf.tool.builtin import GitLabListOpenMRsTool
+        from teff.tool.builtin import GitLabListOpenMRsTool
 
         with pytest.raises(ValueError, match="token"):
             await GitLabListOpenMRsTool({"url": "https://x"}).arun(project="g/r")
 
     async def test_requires_project(self):
-        from draf.tool.builtin import GitLabListOpenMRsTool
+        from teff.tool.builtin import GitLabListOpenMRsTool
 
         with pytest.raises(ValueError, match="project"):
             await GitLabListOpenMRsTool({"url": "https://x", "token": "tok"}).arun(
@@ -160,7 +160,7 @@ class TestGitLabTools:
     async def test_http_error_surfaces(self, monkeypatch):
         import httpx
 
-        from draf.tool.builtin import GitLabListOpenMRsTool
+        from teff.tool.builtin import GitLabListOpenMRsTool
 
         class FakeResponse:
             status_code = 500
@@ -185,8 +185,8 @@ class TestGitLabTools:
             await tool.arun(project="g/r")
 
     async def test_ascii_schema_required_args(self):
-        from draf.harness import tool_to_schema
-        from draf.tool.builtin import (
+        from teff.harness import tool_to_schema
+        from teff.tool.builtin import (
             GitLabApproveTool,
             GitLabGetMRChangesTool,
             GitLabListOpenMRsTool,

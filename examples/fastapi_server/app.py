@@ -42,17 +42,17 @@ from graphs import (
 from pydantic import BaseModel
 from sse_starlette.sse import EventSourceResponse
 
-from draf.checkpoint import DEFAULT_OWNER, Checkpoint, JSONFileCheckpointer
-from draf.graph import Graph
-from draf.node.interrupt import GraphInterrupt
-from draf.tool import Tool
+from teff.checkpoint import DEFAULT_OWNER, Checkpoint, JSONFileCheckpointer
+from teff.graph import Graph
+from teff.node.interrupt import GraphInterrupt
+from teff.tool import Tool
 
 app = FastAPI(title="DRAFTFLOW FastAPI server", version="0.1")
 
 _HERE = os.path.dirname(os.path.abspath(__file__))
 _checkpoint_dir = Path(
     os.environ.get(
-        "DRAF_CHAT_CHECKPOINT_DIR", os.path.join(_HERE, "data", "checkpoints")
+        "TEFF_CHAT_CHECKPOINT_DIR", os.path.join(_HERE, "data", "checkpoints")
     )
 )
 checkpointer = JSONFileCheckpointer(str(_checkpoint_dir))

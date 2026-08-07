@@ -18,9 +18,6 @@ from pathlib import Path
 
 from fastapi import FastAPI
 
-from draf import Assistant
-from draf.observability import SQLiteExporter, topology_from_graph
-from draf.observability.api import attach_dashboard
 from fraud_gate.api.auth.router import require_api_key
 from fraud_gate.api.router import api_router
 from fraud_gate.config.config import Settings, get_settings
@@ -28,6 +25,9 @@ from fraud_gate.domain.review_service import ReviewService
 from fraud_gate.graphs.build import build_flow
 from fraud_gate.graphs.state import STATE_REDUCERS, initial_state
 from fraud_gate.storage import TRANSIENT_KEYS, build_checkpointer
+from teff import Assistant
+from teff.observability import SQLiteExporter, topology_from_graph
+from teff.observability.api import attach_dashboard
 
 
 def create_app(

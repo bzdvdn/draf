@@ -17,8 +17,8 @@ Usage:
 
 import asyncio
 
-from draf.flow import Flow
-from draf.provider import ProviderRegistry
+from teff.flow import Flow
+from teff.provider import ProviderRegistry
 
 SYSTEM = "Ты инженер по ремонту."
 

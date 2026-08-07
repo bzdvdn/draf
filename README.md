@@ -1,8 +1,8 @@
-# Draf
+# Teff
 
 **Workflow as data. Agents as graphs.**
 
-Draf is a Python framework for building durable AI agents and workflows —
+Teff is a Python framework for building durable AI agents and workflows —
 an embeddable async library. Inspired by LangGraph and LangChain, it brings
 graph-based, stateful agents to Python with minimal dependencies and zero
 runtime magic.
@@ -19,23 +19,23 @@ API reference) lives in [`docs/`](docs/). Build it locally with
 ## Install
 
 ```bash
-pip install draf
-# extras: draf[stores-qdrant] etc. for one RAG store, draf[embedding] for all,
-# draf[pg-checkpoint] for PostgreSQL
-# checkpoints, draf[mcp] for MCP tool bridging, draf[tools] for built-in tools
+pip install teff
+# extras: teff[stores-qdrant] etc. for one RAG store, teff[embedding] for all,
+# teff[pg-checkpoint] for PostgreSQL
+# checkpoints, teff[mcp] for MCP tool bridging, teff[tools] for built-in tools
 # (web fetch, PDF, S3, Slack, SQL,
-# email, Telegram, …); draf[all] for everything except docs
+# email, Telegram, …); teff[all] for everything except docs
 ```
 
 Python >= 3.11. Core runtime depends only on `httpx`, `jsonschema`, `pyyaml`,
-and `typer`; MCP support is an optional extra (`draf[mcp]`, imported lazily).
+and `typer`; MCP support is an optional extra (`teff[mcp]`, imported lazily).
 
-The `draf` CLI ships with the package. Prefer uv? The same command works — uv
+The `teff` CLI ships with the package. Prefer uv? The same command works — uv
 installs the package **and** the CLI in one go:
 
 ```bash
-uv tool install draf         # global `draf` CLI
-uvx draf -f workflow.yaml    # run on the fly without installing anything
+uv tool install teff         # global `teff` CLI
+uvx teff -f workflow.yaml    # run on the fly without installing anything
 ```
 
 ## Quick start
@@ -68,7 +68,7 @@ edges:
 
 ```python
 import asyncio
-from draf.yaml import load_workflow
+from teff.yaml import load_workflow
 
 
 async def main():
@@ -84,9 +84,9 @@ asyncio.run(main())
 
 ```python
 import asyncio
-from draf.flow import Flow, Case
-from draf.node import LLM, Transform
-from draf.provider import ProviderRegistry
+from teff.flow import Flow, Case
+from teff.node import LLM, Transform
+from teff.provider import ProviderRegistry
 
 
 async def main():
@@ -128,7 +128,7 @@ asyncio.run(main())
 - **Graph** — nodes + edges, including conditional edges, branches, and
   `__error__` fallbacks. The graph owns routing and resilience.
 - **Tools** — implement `Tool` or use the `@tool` decorator; shareable across nodes.
-  A set of built-in tools ships in `draf[tools]` (see [Built-in tools](#built-in-tools)).
+  A set of built-in tools ships in `teff[tools]` (see [Built-in tools](#built-in-tools)).
 - **RAG** — `RAGTool` over pluggable vector stores (`InMemoryVectorStore`,
   `SQLite`, `Chroma`, `Qdrant`, `PGVector`).
 
@@ -139,9 +139,9 @@ written **before** every node, so a crash or error resumes from the last safe
 point instead of starting over.
 
 ```python
-from draf import Graph
-from draf.checkpoint import SQLiteCheckpointer
-from draf.node import Transform
+from teff import Graph
+from teff.checkpoint import SQLiteCheckpointer
+from teff.node import Transform
 
 nodes = {"shout": Transform(action="uppercase", input_key="text", output_key="loud")}
 graph = Graph(nodes, edges=[], entry_point="shout")
@@ -155,7 +155,7 @@ await graph.run(state, checkpointer=cp, checkpoint_id="demo-run")
 ```
 
 Backends: `JSONFileCheckpointer` (core), `SQLiteCheckpointer` (core),
-`PGCheckpointer` (`draf[pg-checkpoint]`, needs PostgreSQL). On resume the saved
+`PGCheckpointer` (`teff[pg-checkpoint]`, needs PostgreSQL). On resume the saved
 state wins over the passed-in state; a `State` instance keeps its schema and
 reducers.
 
@@ -179,9 +179,9 @@ land in an `owner/` subdirectory, SQLite/PG store a composite
 automatically).
 
 When `owner` is omitted, runs fall under the default owner `"default"`
-(`draf.checkpoint.DEFAULT_OWNER`) — so single-tenant callers work unchanged,
+(`teff.checkpoint.DEFAULT_OWNER`) — so single-tenant callers work unchanged,
 and you can still list them with `cp.list()`. The CLI exposes the same knob:
-`--checkpoint-owner` on `draf run` and `draf inspect` (defaults to `default`).
+`--checkpoint-owner` on `teff run` and `teff inspect` (defaults to `default`).
 
 ## Parallel branches
 
@@ -191,8 +191,8 @@ per-key reducers merge updates back so `append` branches accumulate instead
 of overwriting each other.
 
 ```python
-from draf.flow import Flow
-from draf.node import Transform
+from teff.flow import Flow
+from teff.node import Transform
 
 flow = (
     Flow("p")
@@ -233,7 +233,7 @@ node = LLM(
 ```
 
 Values are stringified; a placeholder referencing a missing state key raises
-`KeyError`. The underlying helper is `draf.prompt.render_template`.
+`KeyError`. The underlying helper is `teff.prompt.render_template`.
 
 ## Dynamic fan-out (Map)
 
@@ -268,7 +268,7 @@ result = await flow.compile().run(
 `chunk_size` batches items per branch, `max_concurrency` caps simultaneous
 branches, and `result_key` overrides which per-item key to collect. Full demo:
 `examples/map_repair_plans/` (Python with typed `State`, plus the same
-workflow as YAML for `draf -f workflow.yaml`).
+workflow as YAML for `teff -f workflow.yaml`).
 
 ## Human-in-the-loop (interrupts)
 
@@ -277,11 +277,11 @@ execution reaches it, `graph.run()` raises `GraphInterrupt`; resume with
 the same `checkpoint_id` plus a `resume` dict::
 
 ```python
-from draf.checkpoint import JSONFileCheckpointer
-from draf.node.interrupt import GraphInterrupt
-from draf.flow import Flow
-from draf.node import LLM
-from draf.provider import ProviderRegistry
+from teff.checkpoint import JSONFileCheckpointer
+from teff.node.interrupt import GraphInterrupt
+from teff.flow import Flow
+from teff.node import LLM
+from teff.provider import ProviderRegistry
 
 flow = Flow(
     "approval",
@@ -357,9 +357,9 @@ progress before the run finishes. Build the graph with the `Flow` API (or
 directly with `Graph`) and stream it:
 
 ```python
-from draf.flow import Flow
-from draf.node import LLM
-from draf.provider import ProviderRegistry
+from teff.flow import Flow
+from teff.node import LLM
+from teff.provider import ProviderRegistry
 
 flow = Flow(
     "chat",
@@ -396,9 +396,9 @@ text. Pass a JSON Schema (`json_schema`) or a Python type spec
 
 ```python
 from typing import TypedDict
-from draf.flow import Flow
-from draf.node import LLM
-from draf.provider import ProviderRegistry
+from teff.flow import Flow
+from teff.node import LLM
+from teff.provider import ProviderRegistry
 
 
 class Weather(TypedDict):
@@ -457,10 +457,10 @@ executor stay visible as graph topology, so the loop is inspectable and can
 be followed by more nodes:
 
 ```python
-from draf.flow import Flow
-from draf.node import Transform
-from draf.provider import ProviderRegistry
-from draf.tool import Tool
+from teff.flow import Flow
+from teff.node import Transform
+from teff.provider import ProviderRegistry
+from teff.tool import Tool
 
 
 class Search(Tool):
@@ -481,7 +481,7 @@ flow.react(system="Answer using tools.", input_key="query", output_key="answer")
 flow.step(Transform(action="uppercase", input_key="answer", output_key="result"))
 
 graph = flow.compile()
-result = await graph.run({"query": "draf"}, tools=[Search()], max_iterations=10)
+result = await graph.run({"query": "teff"}, tools=[Search()], max_iterations=10)
 ```
 
 The agent calls the model; if it requests tools, the executor runs them
@@ -551,9 +551,9 @@ You are a city guide. When asked to compare cities, call BOTH
 Mount it on any LLM-capable call — the `LLM` node or `react()`/`harness()`:
 
 ```python
-from draf.flow import Flow
-from draf.node import LLM
-from draf.provider import ProviderRegistry
+from teff.flow import Flow
+from teff.node import LLM
+from teff.provider import ProviderRegistry
 
 flow = Flow(
     "city-bot",
@@ -585,9 +585,9 @@ without skills: `True` (all), `False` (none), or a list of names.
 
 ## Built-in tools
 
-A library of ready-made `Tool` subclasses registers itself when `draf.tool.builtin`
+A library of ready-made `Tool` subclasses registers itself when `teff.tool.builtin`
 is imported (the `load_workflow` YAML helper and the examples do this for you).
-Most are dependency-free; the marked ones need `pip install draf[tools]`.
+Most are dependency-free; the marked ones need `pip install teff[tools]`.
 
 | Tool              | Name              | Dependencies        | What it does                                          |
 | ----------------- | ----------------- | ------------------- | ----------------------------------------------------- |
@@ -636,7 +636,7 @@ tools:
 ```
 
 ```python
-from draf.tool.registry import default_tool_registry
+from teff.tool.registry import default_tool_registry
 
 sql = default_tool_registry.create("sql_query", {"db_type": "sqlite", "path": "./v.db"})
 shell = default_tool_registry.create(
@@ -657,13 +657,13 @@ Connect any [Model Context Protocol](https://modelcontextprotocol.io) server
 and use its tools anywhere built-in tools work — LLM nodes, the ReAct agent,
 registries. Tools are fetched from the server (schema included) and wrapped
 as ordinary `Tool` instances, so `graph.run(state, tools=tools)` needs no
-changes. The `mcp` SDK is an optional extra (`pip install draf[mcp]`) imported
+changes. The `mcp` SDK is an optional extra (`pip install teff[mcp]`) imported
 lazily.
 
 ```python
-from draf.flow import Flow
-from draf.provider import ProviderRegistry
-from draf.tool import mcp_tools
+from teff.flow import Flow
+from teff.provider import ProviderRegistry
+from teff.tool import mcp_tools
 
 flow = Flow(
     "agent",
@@ -696,12 +696,12 @@ store (`InMemoryVectorStore`, `SQLite`, `Chroma`, `Qdrant`, `PGVector`,
 `FAISS`, `Lance`, `Milvus`, `Weaviate`, `Pinecone`) using raw HTTP embeddings
 (`Embedder`: OpenAI, Ollama, Mistral, Voyage, Jina, Together, Groq, or any
 OpenAI-compatible `/v1/embeddings` endpoint). Documents load
-from CSV, TXT (glob), PDF (`draf[rag-pdf]`), and Excel (`draf[rag-excel]`).
-Each vector store is installed via its own extra (`draf[stores-qdrant]`,
-`draf[stores-chroma]`, …); `draf[embedding]` installs every store at once.
+from CSV, TXT (glob), PDF (`teff[rag-pdf]`), and Excel (`teff[rag-excel]`).
+Each vector store is installed via its own extra (`teff[stores-qdrant]`,
+`teff[stores-chroma]`, …); `teff[embedding]` installs every store at once.
 
 ```python
-from draf import RAGTool
+from teff import RAGTool
 
 rag = RAGTool(
     {
@@ -785,7 +785,7 @@ node start/end with latency, edge routing, checkpoints, retries, and LLM token
 usage. Fold it into a summary afterwards.
 
 ```python
-from draf import Graph, RunTracer
+from teff import Graph, RunTracer
 
 tracer = RunTracer()
 await graph.run(state, tracer=tracer)
@@ -794,7 +794,7 @@ print(tracer.to_json())  # {"summary": {...}, "events": [...]}
 print(tracer.summary())  # RunSummary(status, total_ms, nodes, tokens, ...)
 ```
 
-The CLI exposes the same report: `draf -f workflow.yaml --trace`.
+The CLI exposes the same report: `teff -f workflow.yaml --trace`.
 
 ### Trace dashboard
 
@@ -807,7 +807,7 @@ timeline** per node (1 llm → 2 tool → 3 llm → …) — wrap the run in a
 ![Trace dashboard](docs/assets/observability/runs-dark.png)
 
 ```python
-from draf.observability import GraphObserver, SQLiteExporter, topology_from_graph
+from teff.observability import GraphObserver, SQLiteExporter, topology_from_graph
 
 observer = GraphObserver(
     "repair-agent",
@@ -825,12 +825,12 @@ observer.export()
 Browse it in the browser:
 
 ```bash
-draf obs-server --db ./data/traces.db --port 8001
+teff obs-server --db ./data/traces.db --port 8001
 # open http://localhost:8001/obs/ui
 ```
 
 `workflow.yaml` workflows get the same tracing with **no code** — a top-level
-`observability:` block that `draf run` / `draf daemon` pick up automatically:
+`observability:` block that `teff run` / `teff daemon` pick up automatically:
 
 ```yaml
 observability:
@@ -846,49 +846,49 @@ observability:
 
 Pushes happen in a background thread with retries — a slow remote sink never
 blocks or crashes the workflow. Centralise traces from cron jobs, daemons and
-serverless functions into one `draf obs-server` collector, or run the image:
+serverless functions into one `teff obs-server` collector, or run the image:
 
 ```bash
-docker run -d -p 8001:8001 -v draf-traces:/data \
-  bzdvdn/draf-obs:latest --db /data/traces.db --host 0.0.0.0
+docker run -d -p 8001:8001 -v teff-traces:/data \
+  bzdvdn/teff-obs:latest --db /data/traces.db --host 0.0.0.0
 ```
 
 See [Observability](docs/guide/observability.md) for the full guide.
 
 ## CLI
 
-`draf` runs YAML workflows, validates them, and reports on runs and evals:
+`teff` runs YAML workflows, validates them, and reports on runs and evals:
 
 ```bash
-draf -f workflow.yaml                      # run (the default command)
-draf -f workflow.yaml --trace              # run + JSON trace to stderr
-draf validate workflow.yaml                # validate without running
-draf daemon -f workflow.yaml --once        # run one tick of a poll loop
-draf daemon -f workflow.yaml --interval 60 # run forever, 60s between ticks
-draf eval workflow.yaml --data dataset.jsonl --exact
-draf inspect --checkpoint '{"type":"sqlite","path":"cp.db"}' --checkpoint-id run-1
-draf new support-ai                        # scaffold a FastAPI app (default)
-draf new support-cli --template cli        # scaffold a terminal-only app
-draf new support-worker --template daemon  # scaffold a background worker
-draf new support-chat --template fastapi --with postgres,rag,celery  # + variants
-draf obs-server --db traces.db --port 8001  # trace dashboard + ingest
-draf version
+teff -f workflow.yaml                      # run (the default command)
+teff -f workflow.yaml --trace              # run + JSON trace to stderr
+teff validate workflow.yaml                # validate without running
+teff daemon -f workflow.yaml --once        # run one tick of a poll loop
+teff daemon -f workflow.yaml --interval 60 # run forever, 60s between ticks
+teff eval workflow.yaml --data dataset.jsonl --exact
+teff inspect --checkpoint '{"type":"sqlite","path":"cp.db"}' --checkpoint-id run-1
+teff new support-ai                        # scaffold a FastAPI app (default)
+teff new support-cli --template cli        # scaffold a terminal-only app
+teff new support-worker --template daemon  # scaffold a background worker
+teff new support-chat --template fastapi --with postgres,rag,celery  # + variants
+teff obs-server --db traces.db --port 8001  # trace dashboard + ingest
+teff version
 ```
 
-`draf daemon` re-runs a workflow on a poll interval (e.g. a GitLab reviewer),
+`teff daemon` re-runs a workflow on a poll interval (e.g. a GitLab reviewer),
 carrying state between ticks via `--checkpoint '{"type":"file","path":"data/cp"}'`.
 
-`draf new` renders a runnable project from one of three templates — `fastapi`
+`teff new` renders a runnable project from one of three templates — `fastapi`
 (a service with API-key auth and durable sessions), `cli` (the same supervisor
 graph driven from the terminal), or `daemon` (a worker polling a job queue).
 Every generated module carries `HOW TO EXTEND` comments and the project's
 tests run offline with no API keys.
 
 Feature **variants** are additive overlays enabled with `--with` (comma-separated,
-any subset output by `draf new --help`):
+any subset output by `teff new --help`):
 
 - `postgres` — adds a pgvector `deploy/compose.yaml` + `.env.example`; the DSN
-  (`DRAF_DATABASE_URL`) points durable sessions (and RAG vectors) at Postgres.
+  (`TEFF_DATABASE_URL`) points durable sessions (and RAG vectors) at Postgres.
 - `rag` — a document catalog over `data/documents/` with RAG search tools wired
   into the writer agent (embedded lazily on the first search, so tests stay
   offline).
@@ -906,12 +906,12 @@ six variants — pick the one that matches how you deploy:
 
 | Image                 | Contents                  | Runs                                            |
 | --------------------- | ------------------------- | ----------------------------------------------- |
-| `bzdvdn/draf`         | core + `draf[tools]`      | the `draf` CLI — run/validate/inspect workflows |
-| `bzdvdn/draf-fastapi` | core + `draf[fastapi]`    | `uvicorn` — a FastAPI server app                |
-| `bzdvdn/draf-worker`  | core + `draf[queue]`      | `celery` — background workers / beat            |
-| `bzdvdn/draf-obs`     | core + `draf[observability]` | `draf obs-server` — trace dashboard + ingest |
-| `bzdvdn/draf-rag`     | core + `draf[stores-qdrant,tools,rag-pdf]` | the `draf` CLI, slim RAG build     |
-| `bzdvdn/draf-all`     | every extra except `docs` | the `draf` CLI with the full optional surface   |
+| `bzdvdn/teff`         | core + `teff[tools]`      | the `teff` CLI — run/validate/inspect workflows |
+| `bzdvdn/teff-fastapi` | core + `teff[fastapi]`    | `uvicorn` — a FastAPI server app                |
+| `bzdvdn/teff-worker`  | core + `teff[queue]`      | `celery` — background workers / beat            |
+| `bzdvdn/teff-obs`     | core + `teff[observability]` | `teff obs-server` — trace dashboard + ingest |
+| `bzdvdn/teff-rag`     | core + `teff[stores-qdrant,tools,rag-pdf]` | the `teff` CLI, slim RAG build     |
+| `bzdvdn/teff-all`     | every extra except `docs` | the `teff` CLI with the full optional surface   |
 
 Run a workflow from a mounted `workflow.yaml` (plus an optional `plugins/`
 folder) in one shot — plugins are plain Python files loaded at runtime, so a
@@ -919,7 +919,7 @@ container isolates untrusted workflow code:
 
 ```bash
 docker run --rm -v "$PWD:/workflow" \
-  bzdvdn/draf:latest run -f /workflow/workflow.yaml
+  bzdvdn/teff:latest run -f /workflow/workflow.yaml
 ```
 
 Interactive mode, with durable checkpoints:
@@ -928,8 +928,8 @@ Interactive mode, with durable checkpoints:
 docker run --rm -it \
   -v "$PWD/workflow.yaml:/workflow/workflow.yaml" \
   -v "$PWD/plugins:/workflow/plugins" \
-  -v draf-checkpoints:/data/checkpoints \
-  bzdvdn/draf:latest run -f /workflow/workflow.yaml --interactive
+  -v teff-checkpoints:/data/checkpoints \
+  bzdvdn/teff:latest run -f /workflow/workflow.yaml --interactive
 ```
 
 Every image runs as a non-root user (UID 65534) with checkpoints under
@@ -939,8 +939,8 @@ command:
 
 ```bash
 docker run -p 8000:8000 -v "$PWD/app:/app" \
-  bzdvdn/draf-fastapi:latest main:app
-docker run -v "$PWD:/app" bzdvdn/draf-worker:latest -A src.celery_app worker
+  bzdvdn/teff-fastapi:latest main:app
+docker run -v "$PWD:/app" bzdvdn/teff-worker:latest -A src.celery_app worker
 ```
 
 All CLI subcommands (`run`, `daemon`, `validate`, `graph`, `eval`, `inspect`,
@@ -956,7 +956,7 @@ prefix match; unknown and local models cost $0). Secrets are redacted
 from every reported value, so API keys never leak into logs or the CLI.
 
 ```python
-from draf import RunTracer
+from teff import RunTracer
 
 tracer = RunTracer()
 await graph.run(state, tracer=tracer)
@@ -976,7 +976,7 @@ Kilo, vLLM, …) that keep their **own** rates and use their **own** model names
 it takes precedence over the built-in table:
 
 ```python
-from draf import set_model_pricing, set_provider_pricing, model_pricing
+from teff import set_model_pricing, set_provider_pricing, model_pricing
 
 set_model_pricing("openrouter", "openai/gpt-4o", 3.0, 12.0)
 set_provider_pricing("kilo", 0.1, 0.4)  # whole-provider default
@@ -1041,8 +1041,8 @@ If neither is set, the node raises `ConfigError`. The resolved provider must
 be _declared_ in the `providers=` map / `providers:` block:
 
 ```python
-from draf.flow import Flow
-from draf.provider import ProviderRegistry
+from teff.flow import Flow
+from teff.provider import ProviderRegistry
 
 flow = Flow(
     "repair",
@@ -1063,9 +1063,9 @@ self-hosted Ollama), declare a `Provider` — a lightweight value object that
 picks the wire protocol and the endpoint:
 
 ```python
-from draf import Provider
-from draf.graph import Graph
-from draf.node import LLM
+from teff import Provider
+from teff.graph import Graph
+from teff.node import LLM
 
 providers = {
     "vllm": Provider(base_url="http://vllm:8000/v1"),  # openai_compatible
@@ -1091,7 +1091,7 @@ A bare harness (no `providers=` map) still works against the built-in
 presets:
 
 ```python
-from draf.harness import Harness
+from teff.harness import Harness
 
 harness = Harness(
     model="claude-3-5-sonnet-latest",
@@ -1132,7 +1132,7 @@ past provider rate limits. The explicit limit is authoritative over a
 per-harness `max_parallel`.
 
 ```python
-from draf.harness import set_provider_concurrency
+from teff.harness import set_provider_concurrency
 
 set_provider_concurrency("openai", 8)  # global cap
 set_provider_concurrency("openai", 0)  # remove the cap
@@ -1144,7 +1144,7 @@ Validate a workflow YAML **before** running it — schema checks plus a check
 that every node/tool type is registered and every edge target exists.
 
 ```python
-from draf.yaml_schema import validate_workflow_file, format_errors
+from teff.yaml_schema import validate_workflow_file, format_errors
 
 errors = validate_workflow_file("workflow.yaml")
 if errors:
@@ -1152,15 +1152,15 @@ if errors:
 ```
 
 ```bash
-draf validate workflow.yaml    # exits non-zero on errors
+teff validate workflow.yaml    # exits non-zero on errors
 ```
 
 Loading a broken workflow raises typed errors from a public hierarchy rooted
-at `draf.DrafError`, so `except draf.DrafError` catches any library failure.
+at `teff.TeffError`, so `except teff.TeffError` catches any library failure.
 The subclasses multiple-inherit from builtins for back-compat:
 
 ```
-DrafError
+TeffError
 ├── ConfigError             (also KeyError)      — invalid config / unknown types
 ├── WorkflowError           (also RuntimeError)  — workflow-level failures
 │   ├── NodeError                                 — a node raised (carries node_id/type)
@@ -1172,8 +1172,8 @@ DrafError
 
 ```python
 try:
-    graph = draf.from_yaml("name: bad\nsteps:\n  - id: s1\n    type: react_agnt\n")
-except draf.ConfigError as exc:  # also catchable as KeyError
+    graph = teff.from_yaml("name: bad\nsteps:\n  - id: s1\n    type: react_agnt\n")
+except teff.ConfigError as exc:  # also catchable as KeyError
     print(exc)
 ```
 
@@ -1181,14 +1181,14 @@ Transport-level failures (timeouts, HTTP status errors) still propagate as
 the underlying `httpx` exceptions so existing `except httpx.XError` handlers
 keep working.
 
-## Evaluating workflows (`draf eval`)
+## Evaluating workflows (`teff eval`)
 
 Score a workflow against a dataset of examples — exact-match by default,
 or an LLM judge for open-ended answers.
 
 ```
 dataset.jsonl   # one JSON object per line
-{"id": "q1", "query": "What is the mascot of Draf?", "expected": "a rocket"}
+{"id": "q1", "query": "What is the mascot of Teff?", "expected": "a rocket"}
 ```
 
 Every key except `id` / `expected` is merged into the workflow state as an
@@ -1196,15 +1196,15 @@ initial override (on top of the workflow's own `state.initial`). `.json`
 and `.csv` datasets are also accepted.
 
 ```bash
-draf eval workflow.yaml --data dataset.jsonl --exact
-draf eval workflow.yaml --data dataset.jsonl --judge-model gpt-4o --output report.json
+teff eval workflow.yaml --data dataset.jsonl --exact
+teff eval workflow.yaml --data dataset.jsonl --judge-model gpt-4o --output report.json
 ```
 
 In Python:
 
 ```python
-from draf.yaml import load_workflow
-from draf.eval import load_dataset, run_eval, format_report
+from teff.yaml import load_workflow
+from teff.eval import load_dataset, run_eval, format_report
 
 workflow = load_workflow("workflow.yaml")
 dataset = load_dataset("dataset.jsonl")
@@ -1244,7 +1244,7 @@ looks through common keys first), `--max-examples` caps the run.
 | [plan_and_execute](examples/plan_and_execute/)          | LLM plans a JSON step list, `Map` fans out to parallel executors, a reviewer replans on rejection — `graph.py` and `flow.py` (mocked, no API key) |
 | [deep_research](examples/deep_research/)                | Plan research questions → ReAct web research (`web_search`/`fetch_url`) → report → review-revise loop — `graph.py` and `flow.py` (mocked, no API key) |
 | [time_travel](examples/time_travel/)                    | Rewind a finished run to any checkpoint, edit the state, replay — past preserved, future rewritten — `graph.py`, `flow.py` and `workflow.yaml` (Python-only, no LLM) |
-| [release_features](examples/release_features/)          | Release API tour — validation, typed errors, `draf eval`, cost reports, response cache (mocked, no API key)                                    |
+| [release_features](examples/release_features/)          | Release API tour — validation, typed errors, `teff eval`, cost reports, response cache (mocked, no API key)                                    |
 | [simple_router](examples/simple_router/)                | Minimal `Flow.route()` supervisor — two agents, a bounded loop (can't hang), offline tests                                                     |
 | [repair-ai-chat](examples/applications/repair-ai-chat/) | Full FastAPI app built on `route()` — five agents, tools, RAG, streaming (Russian repair workflow)                                             |
 
@@ -1279,7 +1279,7 @@ fully offline (no API keys), and the LLM examples that need Ollama are not run.
 
 ### Cutting a release
 
-1. Bump the version in `pyproject.toml` **and** `draf/_version.py`
+1. Bump the version in `pyproject.toml` **and** `teff/_version.py`
    (they must stay in sync), commit, push to `master`.
 2. Tag and push — the tag is what triggers the pipeline:
 
@@ -1289,8 +1289,8 @@ fully offline (no API keys), and the LLM examples that need Ollama are not run.
    ```
 
 3. `release.yml` runs tests, builds the package, publishes it to PyPI, pushes
-   the six Docker images (`draf`, `draf-fastapi`, `draf-worker`, `draf-obs`,
-   `draf-rag`, `draf-all`) to Docker Hub, attaches the artifacts to a GitHub
+   the six Docker images (`teff`, `teff-fastapi`, `teff-worker`, `teff-obs`,
+   `teff-rag`, `teff-all`) to Docker Hub, attaches the artifacts to a GitHub
    Release, and deploys the docs.
 
 See [CONSTITUTION.md](CONSTITUTION.md) for the framework's principles and

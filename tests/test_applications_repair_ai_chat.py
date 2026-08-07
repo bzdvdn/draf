@@ -37,7 +37,7 @@ def _stub_embedder(client) -> None:
     catalog = client.app.state.catalog
     catalog.embedder = type("_Stub", (), {"embed_many": staticmethod(_embed_many)})()
     catalog.store = __import__(
-        "draf.rag.stores", fromlist=["InMemoryVectorStore"]
+        "teff.rag.stores", fromlist=["InMemoryVectorStore"]
     ).InMemoryVectorStore(dim=4)
     catalog._ingested = 0
 
@@ -135,8 +135,8 @@ async def _run_with_approval(
     operator's replies in order (e.g. ``("нет", "да")`` to force one re-plan /
     re-estimate round).  Uses a per-run JSON-file checkpointer so resume works.
     """
-    from draf.checkpoint import JSONFileCheckpointer
-    from draf.node.interrupt import GraphInterrupt
+    from teff.checkpoint import JSONFileCheckpointer
+    from teff.node.interrupt import GraphInterrupt
 
     answers = list(answers)
     cp = JSONFileCheckpointer(str(checkpoint_dir))
@@ -386,7 +386,7 @@ class _SyncTracerCtx:
 
     class _Tracer:
         def llm(self, provider, model, prompt_tokens, completion_tokens, duration_ms):
-            return None  # sync, as in draf.trace.RunTracer
+            return None  # sync, as in teff.trace.RunTracer
 
     providers = None
     tracer = _Tracer()
@@ -402,7 +402,7 @@ async def test_subagent_tool_runs_with_sync_tracer(transport):
     ``TypeError: object NoneType can't be used in 'await' expression`` once a
     runtime ``RunTracer`` was attached.  The hook must be async.
     """
-    from draf.harness.tools import _run_one_tool_call
+    from teff.harness.tools import _run_one_tool_call
 
     flow, tools = build_flow()
     by_name = {t.name: t for t in tools}
@@ -604,7 +604,7 @@ def test_project_info_schema_allows_null_for_unknown_fields():
     ``null``, so the extractor burned 3 attempts then raised NodeError)."""
     from src.domain.models import PROJECT_INFO_SCHEMA
 
-    from draf.schema import validate_json
+    from teff.schema import validate_json
 
     unknown = {
         "room_type": "bathroom",
@@ -672,7 +672,7 @@ async def test_search_materials_accepts_string_max_price():
 
     from src.tools.rag import SearchMaterials
 
-    from draf.harness.tools import execute_tool_calls
+    from teff.harness.tools import execute_tool_calls
 
     seen = {}
 
@@ -737,7 +737,7 @@ async def test_extractor_falls_back_when_model_drops_room_type(monkeypatch):
     from the first user message so downstream agents see the room."""
     from src.nodes.extractor import room_from_first_user
 
-    from draf.node import ExecContext, Fallback
+    from teff.node import ExecContext, Fallback
 
     node = Fallback(
         input_key="project_info",
@@ -763,7 +763,7 @@ async def test_room_type_fallback_preserves_model_room(monkeypatch):
     """When the model already filled room_type the fallback is a no-op."""
     from src.nodes.extractor import room_from_first_user
 
-    from draf.node import ExecContext, Fallback
+    from teff.node import ExecContext, Fallback
 
     node = Fallback(
         input_key="project_info",
@@ -786,7 +786,7 @@ async def test_room_type_fallback_preserves_model_room(monkeypatch):
 async def test_llm_with_messages_key_prepends_system_prompt(monkeypatch):
     """core LLM injects the system prompt into a messages_key history, so a
     plain LLM node replaces the old Extractor subclass."""
-    from draf.node import LLM, ExecContext
+    from teff.node import LLM, ExecContext
 
     captured = {}
 
@@ -949,7 +949,7 @@ async def test_catalog_reingest_task_detects_changes(tmp_path, monkeypatch):
         "src.rag.catalog", fromlist=["MaterialCatalog"]
     ).MaterialCatalog
     store = __import__(
-        "draf.rag.stores", fromlist=["InMemoryVectorStore"]
+        "teff.rag.stores", fromlist=["InMemoryVectorStore"]
     ).InMemoryVectorStore(dim=4)
 
     async def _embed_many(texts):

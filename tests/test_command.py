@@ -2,8 +2,8 @@
 
 import pytest
 
-from draf.node import Command, Transform
-from draf.node.node import Node
+from teff.node import Command, Transform
+from teff.node.node import Node
 
 
 class _Set(Node):
@@ -33,7 +33,7 @@ async def _run(graph, state=None, **kwargs):
 class TestCommandRouting:
     @pytest.mark.asyncio
     async def test_goto_routes_directly(self):
-        from draf.flow import Flow
+        from teff.flow import Flow
 
         flow = Flow("cmd")
         flow.step(_Set("role", "keep"), id="start")
@@ -47,7 +47,7 @@ class TestCommandRouting:
     @pytest.mark.asyncio
     async def test_goto_skips_intermediate_edge(self):
         """goto jumps straight to the target, bypassing condition edges."""
-        from draf.flow import Flow
+        from teff.flow import Flow
 
         flow = Flow("cmd")
         flow.step(_Set("role", "keep"), id="start")
@@ -65,7 +65,7 @@ class TestCommandRouting:
     @pytest.mark.asyncio
     async def test_command_update_only_keeps_normal_routing(self):
         """Command(update=...) without goto routes along the normal edges."""
-        from draf.flow import Flow
+        from teff.flow import Flow
 
         flow = Flow("cmd")
         flow.step(_Set("role", "keep"), id="start")
@@ -76,8 +76,8 @@ class TestCommandRouting:
 
     @pytest.mark.asyncio
     async def test_goto_targets_must_be_reachable(self):
-        from draf.errors import WorkflowError
-        from draf.flow import Flow
+        from teff.errors import WorkflowError
+        from teff.flow import Flow
 
         flow = Flow("bad")
         flow.step(_Set("role", "keep"), id="start")
@@ -88,7 +88,7 @@ class TestCommandRouting:
 
     @pytest.mark.asyncio
     async def test_stop_terminates_run(self):
-        from draf.flow import Flow
+        from teff.flow import Flow
 
         flow = Flow("stop")
         flow.step(_Set("who", "FIRST"), id="start")
@@ -101,7 +101,7 @@ class TestCommandRouting:
 
     @pytest.mark.asyncio
     async def test_command_merges_via_reducers(self):
-        from draf.flow import Flow
+        from teff.flow import Flow
 
         def append(old, new):
             return (old or []) + new
@@ -116,7 +116,7 @@ class TestCommandRouting:
 class TestCommandWithPlainFunctions:
     @pytest.mark.asyncio
     async def test_step_accepts_async_function(self):
-        from draf.flow import Flow
+        from teff.flow import Flow
 
         async def double(ctx, state):
             return {"doubled": int(state.get("n", 0)) * 2}
@@ -129,7 +129,7 @@ class TestCommandWithPlainFunctions:
 
     @pytest.mark.asyncio
     async def test_step_accepts_sync_function(self):
-        from draf.flow import Flow
+        from teff.flow import Flow
 
         def square(ctx, state):
             return {"squared": int(state.get("n", 0)) ** 2}
@@ -142,7 +142,7 @@ class TestCommandWithPlainFunctions:
 
     @pytest.mark.asyncio
     async def test_step_function_may_return_command(self):
-        from draf.flow import Flow
+        from teff.flow import Flow
 
         def gate(ctx, state):
             return Command(update={"seen": True}, goto=Command.STOP)
@@ -156,7 +156,7 @@ class TestCommandWithPlainFunctions:
 
     @pytest.mark.asyncio
     async def test_step_function_bad_return_type(self):
-        from draf.flow import Flow
+        from teff.flow import Flow
 
         def bad(ctx, state):
             return "nope"
@@ -167,7 +167,7 @@ class TestCommandWithPlainFunctions:
             await _run(flow.compile())
 
     def test_function_node_type_is_function_name(self):
-        from draf.flow import Flow
+        from teff.flow import Flow
 
         async def my_worker(ctx, state):
             return {}
@@ -177,7 +177,7 @@ class TestCommandWithPlainFunctions:
         assert "my_worker" in types
 
     def test_step_rejects_non_callable(self):
-        from draf.flow import Flow
+        from teff.flow import Flow
 
         with pytest.raises(TypeError, match="must be a Node or function"):
             Flow("fn").step({"action": "uppercase"})  # type: ignore[arg-type]

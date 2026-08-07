@@ -12,9 +12,9 @@ Usage:
 
 import asyncio
 
-from draf.graph import Edge, Graph
-from draf.node import LLM
-from draf.provider import ProviderRegistry
+from teff.graph import Edge, Graph
+from teff.node import LLM
+from teff.provider import ProviderRegistry
 
 
 async def main():

@@ -6,9 +6,9 @@ text. Pass a JSON Schema (`json_schema`) or a Python type spec (`output_type`
 
 ```python
 from typing import TypedDict
-from draf.flow import Flow
-from draf.node import LLM
-from draf.provider import ProviderRegistry
+from teff.flow import Flow
+from teff.node import LLM
+from teff.provider import ProviderRegistry
 
 
 class Weather(TypedDict):
@@ -71,7 +71,7 @@ Tune it with `max_retries` on the node; on final failure the run raises
 `StructuredOutputError`, which you can catch or route:
 
 ```python
-from draf import StructuredOutputError
+from teff import StructuredOutputError
 
 try:
     result = await graph.run(state)

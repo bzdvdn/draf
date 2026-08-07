@@ -5,7 +5,7 @@ Demonstrates the three memory pieces on top of a vector store:
 1. ``MemoryExtractor`` — turn a conversation into durable facts via an LLM.
 2. ``MemoryStore`` — persist facts under a per-user namespace, built with
    the same config dict the ``memory`` tool uses (so a provider registered
-   in the :class:`~draf.provider.ProviderRegistry` feeds its ``base_url``
+   in the :class:`~teff.provider.ProviderRegistry` feeds its ``base_url``
    into the embedder unless the config overrides it).
 3. ``memory_context`` — recall relevant facts and format them so they can
    be injected into an agent's system prompt (this is what a
@@ -22,10 +22,10 @@ Usage:
 
 import asyncio
 
-from draf.flow import Flow
-from draf.memory import MemoryConfig, MemoryExtractor, memory_context
-from draf.memory.tool import memory_from_config
-from draf.provider import ProviderRegistry
+from teff.flow import Flow
+from teff.memory import MemoryConfig, MemoryExtractor, memory_context
+from teff.memory.tool import memory_from_config
+from teff.provider import ProviderRegistry
 
 
 async def main():

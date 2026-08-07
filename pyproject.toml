@@ -1,5 +1,5 @@
 [project]
-name = "draf"
+name = "teff"
 version = "0.1.0-alpha"
 description = "Workflow as data. Agents as graphs."
 readme = "README.md"
@@ -54,7 +54,7 @@ stores-pinecone = [
 # Install every store at once (the heavy default — prefer one `stores-*`
 # extra per image so the vector-store deps stay small).
 embedding = [
-    "draf[stores-qdrant,stores-chroma,stores-pgvector,stores-faiss,stores-lance,stores-milvus,stores-weaviate,stores-pinecone]",
+    "teff[stores-qdrant,stores-chroma,stores-pgvector,stores-faiss,stores-lance,stores-milvus,stores-weaviate,stores-pinecone]",
 ]
 rag-pdf = [
     "pypdf>=4.0",
@@ -97,34 +97,34 @@ docs = [
     "mkdocs-gen-files>=0.5",
 ]
 all = [
-    "draf[embedding,tools,mcp,rag-pdf,rag-excel,pg-checkpoint,fastapi,queue,observability]",
+    "teff[embedding,tools,mcp,rag-pdf,rag-excel,pg-checkpoint,fastapi,queue,observability]",
 ]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 asyncio_mode = "auto"
-norecursedirs = ["draf/scaffold/_common", "draf/scaffold/fastapi", "draf/scaffold/cli", "draf/scaffold/daemon", "examples"]
+norecursedirs = ["teff/scaffold/_common", "teff/scaffold/fastapi", "teff/scaffold/cli", "teff/scaffold/daemon", "examples"]
 
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.coverage.run]
-source = ["draf"]
+source = ["teff"]
 # External vector-store backends require heavy dependencies / live services
-# and are covered via `draf[stores-*]` extras + smoke tests; the stdlib
+# and are covered via `teff[stores-*]` extras + smoke tests; the stdlib
 # stores (memory, sqlite) are measured.
 omit = [
-    "draf/scaffold/*",
-    "draf/_version.py",
-    "draf/rag/stores/chroma.py",
-    "draf/rag/stores/faiss.py",
-    "draf/rag/stores/lance.py",
-    "draf/rag/stores/milvus.py",
-    "draf/rag/stores/pgvector.py",
-    "draf/rag/stores/pinecone.py",
-    "draf/rag/stores/qdrant.py",
-    "draf/rag/stores/weaviate.py",
+    "teff/scaffold/*",
+    "teff/_version.py",
+    "teff/rag/stores/chroma.py",
+    "teff/rag/stores/faiss.py",
+    "teff/rag/stores/lance.py",
+    "teff/rag/stores/milvus.py",
+    "teff/rag/stores/pgvector.py",
+    "teff/rag/stores/pinecone.py",
+    "teff/rag/stores/qdrant.py",
+    "teff/rag/stores/weaviate.py",
 ]
 
 [tool.mypy]
@@ -148,10 +148,10 @@ dev = [
 ]
 
 [project.scripts]
-draf = "draf.cli:app"
+teff = "teff.cli:app"
 
 [project.entry-points.pytest11]
-draf = "draf.testing"
+teff = "teff.testing"
 
 [tool.hatch.build.targets.wheel]
-packages = ["draf/"]
+packages = ["teff/"]

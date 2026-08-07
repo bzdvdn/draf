@@ -2,7 +2,7 @@
 
 Normally a node returns a plain dict of state updates and the graph routes
 along its outgoing edges (``branch`` / ``loop`` / string conditions).
-Returning a :class:`draf.node.Command` lets the node **also** pick the next
+Returning a :class:`teff.node.Command` lets the node **also** pick the next
 node — LangGraph-style dynamic routing:
 
     Command(update={...}, goto="node_id")   # jump to any node, bypassing edges
@@ -29,10 +29,10 @@ from __future__ import annotations
 
 import asyncio
 
-from draf.flow import Flow
-from draf.graph import Graph
-from draf.logging import configure_logging
-from draf.node import Command, Transform
+from teff.flow import Flow
+from teff.graph import Graph
+from teff.logging import configure_logging
+from teff.node import Command, Transform
 
 
 def moderate(ctx, state: dict) -> dict | Command:

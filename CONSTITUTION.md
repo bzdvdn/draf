@@ -1,15 +1,30 @@
-# Draf Constitution
+# Teff Constitution
 
 > "Workflow as data. Agents as graphs."
 
 ## Purpose
 
-Draf is a **Python framework** for building durable AI agents and workflows —
-an embeddable async library distributed as `pip install draf`.
+Teff is a **Python framework** for building durable AI agents and workflows —
+an embeddable async library distributed as `pip install teff`. It treats a
+workflow as data: a declarative YAML graph that the runtime executes,
+checkpoints, interrupts, and resumes — in-process, with no orchestration
+servers and no LLM SDKs.
 
-Inspired by **LangGraph** (stateful, graph-based agents) and **LangChain** (tool framework,
-chains, composable primitives), Draf brings these patterns to Python with first-class
-support for simplicity, minimal dependencies, and zero runtime magic.
+Who it is for:
+
+- Application developers who want agents they can trust, inspect, and run
+  inside their own process.
+- Teams shipping production systems where retries, checkpoints, human-in-the-loop
+  (HITL) interrupts, and observability are requirements — not afterthoughts.
+
+What it is:
+
+- **Graph-as-data.** Topology is YAML/JSON — versionable, diffable, validated by
+  jsonschema. Code is never required to describe structure.
+- **Durable by default.** Every run is checkpointable (JSON file, SQLite, PG) and
+  resumable from an arbitrary checkpoint; state is plain, serializable dicts.
+- **Minimal surface.** `httpx` for provider HTTP, `pyyaml`, `jsonschema`, `typer`.
+  Zero runtime magic: no implicit behavior, no hidden branching, no magic imports.
 
 Users extend the framework by implementing interfaces: custom node types (`@node` decorator),
 custom tools (`Tool` subclasses or the `@tool` decorator), custom LLM providers (HTTP via
@@ -76,7 +91,7 @@ workflow topology.
 
 ### VI. Minimal Dependencies
 
-Draf must remain dependency-light. Every dependency must earn its place.
+Teff must remain dependency-light. Every dependency must earn its place.
 
 - Core runtime: `httpx` (provider HTTP), `pyyaml` (workflow YAML), `jsonschema`
   (schema validation), `typer` (CLI), `mcp` (optional MCP tool transport).
@@ -84,7 +99,7 @@ Draf must remain dependency-light. Every dependency must earn its place.
 - LLM providers communicate via raw HTTP (httpx), never through SDKs.
 - No FastAPI, no Django, no Flask, no Celery in the core runtime (FastAPI/Celery
   appear only as optional scaffold templates).
-- Optional extras MUST be import-error friendly — they never block `import draf`.
+- Optional extras MUST be import-error friendly — they never block `import teff`.
 
 ### VII. Async by Default
 
@@ -96,7 +111,7 @@ The entire runtime is `asyncio`. Node execution, tool calls, LLM requests — al
 
 ### VIII. Framework — Users Import Us, We Do Not Import Users
 
-Draf is an embeddable library, not a platform.
+Teff is an embeddable library, not a platform.
 
 - All extension points are public: `Node`, `Tool`, `NodeRegistry`, `ToolRegistry`,
   `@node` decorator, `@tool` decorator, `Skill`, plugins.
@@ -117,7 +132,7 @@ If you cannot inspect execution, you cannot trust execution.
 
 ## Runtime Dependencies
 
-Draf MUST keep runtime dependencies absolute minimum:
+Teff MUST keep runtime dependencies absolute minimum:
 
 - `httpx` — async HTTP client for LLM provider communication
 - `pyyaml` — YAML serialization/deserialization of workflow graphs
@@ -132,26 +147,26 @@ Draf MUST keep runtime dependencies absolute minimum:
 
 Dev/test dependencies (not runtime): ruff, mypy, pytest, uv.
 
-Optional extras (import-error friendly, never block `import draf`):
+Optional extras (import-error friendly, never block `import teff`):
 
-- `draf[stores-qdrant]` — Qdrant store (qdrant-client)
-- `draf[stores-chroma]` — Chroma store (chromadb)
-- `draf[stores-pgvector]` — pgvector store (asyncpg, pgvector)
-- `draf[stores-faiss]` — FAISS store (faiss-cpu)
-- `draf[stores-lance]` — LanceDB store (lancedb)
-- `draf[stores-milvus]` — Milvus store (pymilvus)
-- `draf[stores-weaviate]` — Weaviate store (weaviate-client)
-- `draf[stores-pinecone]` — Pinecone store (pinecone)
-- `draf[embedding]` — all stores at once (alias for every `draf[stores-*]`)
-- `draf[rag-pdf]` — PDF ingestion (pypdf)
-- `draf[rag-excel]` — Excel ingestion (openpyxl)
-- `draf[pg-checkpoint]` — PostgreSQL checkpointer (asyncpg)
-- `draf[tools]` — extra tools: beautifulsoup4, pypdf, boto3, slack-sdk, psycopg, redis
-- `draf[fastapi]` — scaffold web app (fastapi, uvicorn, sse-starlette)
-- `draf[observability]` — trace dashboard (fastapi, uvicorn)
-- `draf[queue]` — scaffold worker (celery[redis])
-- `draf[docs]` — docs build (mkdocs, mkdocs-material, mkdocstrings, mkdocs-gen-files)
-- `draf[all]` — everything above except `docs` (MCP ships in the core package)
+- `teff[stores-qdrant]` — Qdrant store (qdrant-client)
+- `teff[stores-chroma]` — Chroma store (chromadb)
+- `teff[stores-pgvector]` — pgvector store (asyncpg, pgvector)
+- `teff[stores-faiss]` — FAISS store (faiss-cpu)
+- `teff[stores-lance]` — LanceDB store (lancedb)
+- `teff[stores-milvus]` — Milvus store (pymilvus)
+- `teff[stores-weaviate]` — Weaviate store (weaviate-client)
+- `teff[stores-pinecone]` — Pinecone store (pinecone)
+- `teff[embedding]` — all stores at once (alias for every `teff[stores-*]`)
+- `teff[rag-pdf]` — PDF ingestion (pypdf)
+- `teff[rag-excel]` — Excel ingestion (openpyxl)
+- `teff[pg-checkpoint]` — PostgreSQL checkpointer (asyncpg)
+- `teff[tools]` — extra tools: beautifulsoup4, pypdf, boto3, slack-sdk, psycopg, redis
+- `teff[fastapi]` — scaffold web app (fastapi, uvicorn, sse-starlette)
+- `teff[observability]` — trace dashboard (fastapi, uvicorn)
+- `teff[queue]` — scaffold worker (celery[redis])
+- `teff[docs]` — docs build (mkdocs, mkdocs-material, mkdocstrings, mkdocs-gen-files)
+- `teff[all]` — everything above except `docs` (MCP ships in the core package)
 
 ## Non-Negotiable Rules
 
@@ -168,7 +183,7 @@ Optional extras (import-error friendly, never block `import draf`):
 
 ## Constraints
 
-- Public API surface MUST live in `draf/__init__.py`.
+- Public API surface MUST live in `teff/__init__.py`.
 - LLM providers, node types, and tools MUST be swappable through public interfaces.
 - Workflow state MUST be the single source of truth; no implicit state.
 - Every abstraction MUST remove more complexity than it introduces.
@@ -189,7 +204,7 @@ Optional extras (import-error friendly, never block `import draf`):
 - **Lint:** ruff
 - **Types:** mypy
 - **Test:** pytest
-- **Architecture:** `draf/` package with public subpackages
+- **Architecture:** `teff/` package with public subpackages
 - **Agent Graphs:** Directed graphs with conditional edges, branch/case/default,
   parallel branches, dynamic fan-out (Map), checkpoints, interrupts (HITL),
   streaming, ReAct loops
@@ -197,12 +212,12 @@ Optional extras (import-error friendly, never block `import draf`):
 ## Repository Layout
 
 ```
-draf/
+teff/
 ├── __init__.py            # public API exports
 ├── graph/                 # Graph, edges, conditions, execution engine, render
 ├── yaml.py                # from_yaml()/graph_to_yaml(), load_workflow()
 ├── yaml_schema.py         # workflow validation (jsonschema)
-├── errors.py              # typed error hierarchy (DrafError root)
+├── errors.py              # typed error hierarchy (TeffError root)
 ├── trace.py               # RunTracer, RunSummary, cost/token reports
 ├── stream.py              # StreamEvent types
 ├── eval.py                # run_eval(), load_dataset()
@@ -221,7 +236,7 @@ draf/
 ├── tool/                  # Tool base, @tool, registry, MCP, builtin tools
 ├── state/                 # State (typed schema + reducers)
 ├── rag/                   # RAGTool, embedders, chunker, vector stores
-└── scaffold/              # `draf new` templates (fastapi/cli/daemon + variants)
+└── scaffold/              # `teff new` templates (fastapi/cli/daemon + variants)
 docs/
 examples/
 ```
@@ -246,16 +261,22 @@ examples/
 
 ## Constitution Metadata
 
-- Version: 1.2.0
+- Version: 1.3.0
 - Ratified: 2026-07-31
-- Last Amended: 2026-08-04
+- Last Amended: 2026-08-07
 
 ## Last Updated
+
+2026-08-07 — v1.3.0: Repositioning. Purpose now reads product-first: target
+audience (in-process, production-grade agent developers) and core value
+propositions (graph-as-data, durable-by-default, minimal surface). Removed
+references to other agent frameworks; the constitution stands on its own
+technical merits.
 
 2026-08-04 — v1.2.0: Sync with the project. `graph/` is a package (not a single
 `graph.py`); added `logging.py`, `testing.py`, and the `tool/builtin/*` /
 `rag/stores/*` modules to the layout. MCP is a core dependency only (the
-redundant `draf[mcp]` extra was removed); `draf[all]` now excludes `docs`.
+redundant `teff[mcp]` extra was removed); `teff[all]` now excludes `docs`.
 
 2026-08-03 — v1.1.0: Sync with the project. Package layout (node/flow/harness/
 tool/state/rag/checkpoint/scaffold), runtime deps (jsonschema, typer, mcp), typed

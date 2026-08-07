@@ -12,7 +12,7 @@ import pytest
 
 class TestWaitForTool:
     def _tool(self, **cfg):
-        from draf.tool.builtin import WaitForTool
+        from teff.tool.builtin import WaitForTool
 
         return WaitForTool(cfg or {})
 
@@ -194,13 +194,13 @@ class TestWaitForTool:
             self._tool().run(condition="url", target="http://x", status="sometimes")
 
     def test_schema_condition_required(self):
-        from draf.harness import tool_to_schema
-        from draf.tool.builtin import WaitForTool
+        from teff.harness import tool_to_schema
+        from teff.tool.builtin import WaitForTool
 
         schema = tool_to_schema(WaitForTool({}))["function"]["parameters"]
         assert "condition" in schema["required"]
 
     def test_registered(self):
-        from draf.tool.registry import default_tool_registry
+        from teff.tool.registry import default_tool_registry
 
         assert "wait_for" in default_tool_registry.list()

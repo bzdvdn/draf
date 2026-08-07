@@ -1,6 +1,6 @@
 # Plugins — custom nodes & tools from a folder
 
-Shows how to extend draf **without touching the framework**: drop a
+Shows how to extend teff **without touching the framework**: drop a
 `plugins/` folder (or a single `.py` file) next to your workflow, and the
 custom node/tool types it registers become usable in YAML and Python
 alike.
@@ -19,14 +19,14 @@ Layout::
 
 ## How it works
 
-A plugin is any Python module that registers types with draf — *loading
+A plugin is any Python module that registers types with teff — *loading
 the file is the whole mechanism*.  There are two equivalent styles:
 
 **Decorators** (`nodes.py` / `tools.py`):
 
 ```python
-from draf.node.registry import node
-from draf.tool.registry import tool
+from teff.node.registry import node
+from teff.tool.registry import tool
 
 
 @node("slugify_node", SlugConfig)
@@ -40,10 +40,10 @@ def slugify(text: str = "") -> str: ...
 **Subclasses** (`classes.py`):
 
 ```python
-from draf.node.node import Node
-from draf.node.registry import default_registry
-from draf.tool.tool import Tool
-from draf.tool.registry import default_tool_registry
+from teff.node.node import Node
+from teff.node.registry import default_registry
+from teff.tool.tool import Tool
+from teff.tool.registry import default_tool_registry
 
 
 class UpperTool(Tool):
@@ -65,7 +65,7 @@ default_registry.register("uppercase_node", UppercaseNode)
 ```
 
 Both register on import (decorator) or explicitly (class), so they land in
-the same shared registries. `load_workflow` / `draf validate` discover the
+the same shared registries. `load_workflow` / `teff validate` discover the
 files two ways:
 
 1. **Default folder**: any `plugins/` directory next to the workflow is
@@ -85,11 +85,11 @@ plugins:
 To point at a different folder (e.g. vendored plugins elsewhere):
 
 ```yaml
-plugins_folder: vendor/draf-plugins
+plugins_folder: vendor/teff-plugins
 ```
 
 The loaded types land in the shared registries, so validation
-(`draf validate workflow.yaml`) accepts them and they can be referenced
+(`teff validate workflow.yaml`) accepts them and they can be referenced
 in `steps:` / `tools:` exactly like built-ins.
 
 > Tools are only visible to a run if they are listed under `tools:` in
@@ -115,12 +115,12 @@ words, then render a JSON report — fully offline.
 ```bash
 # offline, no LLM
 python examples/plugins/run.py
-uv run draf validate examples/plugins/workflow.yaml
+uv run teff validate examples/plugins/workflow.yaml
 
 # class-based plugin, offline
-uv run draf daemon -f workflow-classes.yaml --once
+uv run teff daemon -f workflow-classes.yaml --once
 
 # the agent variant needs Ollama with llama3.1:8b
 ollama pull llama3.1:8b
-uv run draf daemon -f workflow-agent.yaml --once
+uv run teff daemon -f workflow-agent.yaml --once
 ```

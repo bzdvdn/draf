@@ -10,9 +10,9 @@ Usage:
 
 import asyncio
 
-from draf.flow import Flow
-from draf.provider import ProviderRegistry
-from draf.tool import Tool
+from teff.flow import Flow
+from teff.provider import ProviderRegistry
+from teff.tool import Tool
 
 
 class Calculator(Tool):

@@ -19,12 +19,12 @@ decide — there are no hardcoded Ask-loops in the graph.
 
 from __future__ import annotations
 
-from draf.flow import Flow
-from draf.node import AppendAssistant, ContextBuilder
-from draf.provider import ProviderRegistry
 from src.core.deps import build_deps
 from src.graphs.prompts import COORDINATOR_PROMPT
 from src.tools import COORDINATOR_TOOLS, build_tools
+from teff.flow import Flow
+from teff.node import AppendAssistant, ContextBuilder
+from teff.provider import ProviderRegistry
 
 MODEL_DEFAULT = "llama3.1:8b"
 
@@ -50,7 +50,7 @@ def build_flow(
     ``ContextBuilder`` composes the coordinator's ``input`` from the shared
     sections + latest user message and resets its private ``input`` /
     ``output`` / ``_coordinator_messages`` scratch each turn.  The coordinator
-    is a :class:`~draf.node.agent.ReActAgent` loop (``Flow.react``) whose
+    is a :class:`~teff.node.agent.ReActAgent` loop (``Flow.react``) whose
     conversation lives in ``_coordinator_messages``; only the final reply is
     copied into the shared ``messages`` by ``AppendAssistant``, so
     ``last_reply`` / the API return the clean answer.

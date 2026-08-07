@@ -74,7 +74,7 @@ def _fake_redis(monkeypatch):
 
 class TestLockTool:
     def _tool(self, **cfg):
-        from draf.tool.builtin import LockTool
+        from teff.tool.builtin import LockTool
 
         return LockTool(cfg or {})
 
@@ -146,13 +146,13 @@ class TestLockTool:
             self._tool().run(action="unlock", key="job:1")
 
     def test_schema_action_required(self):
-        from draf.harness import tool_to_schema
-        from draf.tool.builtin import LockTool
+        from teff.harness import tool_to_schema
+        from teff.tool.builtin import LockTool
 
         schema = tool_to_schema(LockTool({}))["function"]["parameters"]
         assert "action" in schema["required"]
 
     def test_registered(self):
-        from draf.tool.registry import default_tool_registry
+        from teff.tool.registry import default_tool_registry
 
         assert "lock" in default_tool_registry.list()

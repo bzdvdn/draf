@@ -1,7 +1,7 @@
-"""Generate mkdocs-gen-files reference pages for the ``draf`` package.
+"""Generate mkdocs-gen-files reference pages for the ``teff`` package.
 
-Every public module under ``draf/`` gets ``docs/api/<module>.md`` rendered
-through mkdocstrings, plus a ``draf/**``-style listing page so the whole
+Every public module under ``teff/`` gets ``docs/api/<module>.md`` rendered
+through mkdocstrings, plus a ``teff/**``-style listing page so the whole
 public surface is documented straight from docstrings.
 
 Run automatically by MkDocs via ``gen-files`` in ``mkdocs.yml``; invoke with
@@ -16,13 +16,13 @@ from typing import Iterable
 import mkdocs_gen_files
 
 ROOT = Path(__file__).resolve().parent.parent
-PKG = ROOT / "draf"
+PKG = ROOT / "teff"
 OUT = Path("api")
 SKIP = {
     "__pycache__",
     ".mypy_cache",
     "_version",
-    "scaffold",  # rendered by `draf new`, not a user-facing package API
+    "scaffold",  # rendered by `teff new`, not a user-facing package API
 }
 
 
@@ -47,7 +47,7 @@ def rel_name(path: Path) -> str:
     parts = list(rel.with_suffix("").parts)
     if parts and parts[-1] == "__init__":
         parts.pop()
-    return "draf." + ".".join(parts)
+    return "teff." + ".".join(parts)
 
 
 def main() -> None:
@@ -61,7 +61,7 @@ def main() -> None:
             fh.write(f"::: {name}\n")
         seen.append(name)
 
-    listing = "draf"
+    listing = "teff"
     with mkdocs_gen_files.open(OUT / f"{listing}.md", "w") as fh:
         fh.write(f"# `{listing}`\n\n::: {listing}\n")
 

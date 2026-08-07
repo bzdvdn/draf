@@ -22,7 +22,7 @@ class _TokenEmbedder:
 
 @pytest.fixture
 def store():
-    from draf.rag.stores import InMemoryVectorStore
+    from teff.rag.stores import InMemoryVectorStore
 
     return InMemoryVectorStore(dim=_TokenEmbedder.dim)
 
@@ -35,7 +35,7 @@ def embedder():
 class TestMemoryStore:
     @pytest.mark.asyncio
     async def test_put_get_round_trip(self, store, embedder):
-        from draf.memory import MemoryStore
+        from teff.memory import MemoryStore
 
         mem = MemoryStore(store, embedder)
         await mem.put(("users", "u1"), "prefs", {"text": "prefers email over Slack"})
@@ -47,7 +47,7 @@ class TestMemoryStore:
 
     @pytest.mark.asyncio
     async def test_put_is_upsert(self, store, embedder):
-        from draf.memory import MemoryStore
+        from teff.memory import MemoryStore
 
         mem = MemoryStore(store, embedder)
         await mem.put(("users", "u1"), "prefs", {"text": "old"})
@@ -58,7 +58,7 @@ class TestMemoryStore:
 
     @pytest.mark.asyncio
     async def test_put_requires_text(self, store, embedder):
-        from draf.memory import MemoryStore
+        from teff.memory import MemoryStore
 
         mem = MemoryStore(store, embedder)
         with pytest.raises(ValueError, match="'text'"):
@@ -66,7 +66,7 @@ class TestMemoryStore:
 
     @pytest.mark.asyncio
     async def test_namespace_subtree_isolation(self, store, embedder):
-        from draf.memory import MemoryStore
+        from teff.memory import MemoryStore
 
         mem = MemoryStore(store, embedder)
         await mem.put(("users", "u1", "memories"), "a", {"text": "pizza"})
@@ -78,7 +78,7 @@ class TestMemoryStore:
 
     @pytest.mark.asyncio
     async def test_search_ranks_by_similarity(self, store, embedder):
-        from draf.memory import MemoryStore
+        from teff.memory import MemoryStore
 
         mem = MemoryStore(store, embedder)
         await mem.put(("u",), "contact", {"text": "email her at work"})
@@ -89,7 +89,7 @@ class TestMemoryStore:
 
     @pytest.mark.asyncio
     async def test_search_without_query_is_recency(self, store, embedder):
-        from draf.memory import MemoryStore
+        from teff.memory import MemoryStore
 
         mem = MemoryStore(store, embedder)
         await mem.put(("u",), "first", {"text": "old fact"})
@@ -101,7 +101,7 @@ class TestMemoryStore:
 
     @pytest.mark.asyncio
     async def test_ttl_expires_items(self, store, embedder):
-        from draf.memory import MemoryStore
+        from teff.memory import MemoryStore
 
         mem = MemoryStore(store, embedder, ttl=0.05)
         await mem.put(("u",), "short", {"text": "ephemeral"})
@@ -112,7 +112,7 @@ class TestMemoryStore:
 
     @pytest.mark.asyncio
     async def test_cleanup_removes_expired(self, store, embedder):
-        from draf.memory import MemoryStore
+        from teff.memory import MemoryStore
 
         mem = MemoryStore(store, embedder, ttl=0.05)
         await mem.put(("u",), "a", {"text": "ephemeral"})
@@ -123,7 +123,7 @@ class TestMemoryStore:
 
     @pytest.mark.asyncio
     async def test_list_and_delete(self, store, embedder):
-        from draf.memory import MemoryStore
+        from teff.memory import MemoryStore
 
         mem = MemoryStore(store, embedder)
         await mem.put(("u",), "a", {"text": "one"})
@@ -137,7 +137,7 @@ class TestMemoryStore:
 class TestMemoryTool:
     @pytest.mark.asyncio
     async def test_remember_recall_cycle(self, store, embedder):
-        from draf.memory import MemoryTool
+        from teff.memory import MemoryTool
 
         tool = MemoryTool(store=store, embedder=embedder, namespace=("users", "u1"))
         out = await tool.arun(
@@ -151,7 +151,7 @@ class TestMemoryTool:
 
     @pytest.mark.asyncio
     async def test_forget_and_list(self, store, embedder):
-        from draf.memory import MemoryTool
+        from teff.memory import MemoryTool
 
         tool = MemoryTool(store=store, embedder=embedder, namespace=("u",))
         await tool.arun(action="remember", key="a", text="one")
@@ -164,7 +164,7 @@ class TestMemoryTool:
 
     @pytest.mark.asyncio
     async def test_dedup_overwrites_similar(self, store, embedder):
-        from draf.memory import MemoryTool
+        from teff.memory import MemoryTool
 
         tool = MemoryTool(
             store=store, embedder=embedder, namespace=("u",), similarity_threshold=0.8
@@ -181,7 +181,7 @@ class TestMemoryTool:
     async def test_namespace_is_fixed_by_the_host(self, store, embedder):
         """An agent cannot switch namespaces at call time: data written under
         the configured namespace stays isolated from other namespaces."""
-        from draf.memory import MemoryTool
+        from teff.memory import MemoryTool
 
         tool = MemoryTool(store=store, embedder=embedder, namespace=("users", "u1"))
         await tool.arun(action="remember", key="a", text="secret for u1")
@@ -192,15 +192,15 @@ class TestMemoryTool:
 
     @pytest.mark.asyncio
     async def test_unknown_action_raises(self, store, embedder):
-        from draf.memory import MemoryTool
+        from teff.memory import MemoryTool
 
         tool = MemoryTool(store=store, embedder=embedder)
         with pytest.raises(ValueError, match="unknown memory action"):
             await tool.arun(action="bogus")
 
     def test_builtin_registry_has_memory_tool(self):
-        import draf.tool.builtin  # noqa: F401 — registers built-in tools
-        from draf.tool.registry import default_tool_registry
+        import teff.tool.builtin  # noqa: F401 — registers built-in tools
+        from teff.tool.registry import default_tool_registry
 
         assert "memory" in default_tool_registry.list()
         cls = default_tool_registry.create("memory")

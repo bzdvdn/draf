@@ -1,4 +1,4 @@
-"""A tiny MCP stdio server for the Draf MCP example.
+"""A tiny MCP stdio server for the Teff MCP example.
 
 Exposes two tools over stdio: ``add`` (integer arithmetic) and
 ``get_weather`` (a canned forecast).  It uses the low-level ``mcp`` SDK

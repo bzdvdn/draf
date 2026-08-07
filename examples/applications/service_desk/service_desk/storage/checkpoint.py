@@ -3,14 +3,14 @@
 A checkpoint is saved after every node, so a crash never loses work and a
 conversation can continue across process restarts by re-using its session
 id.  Swap :func:`build_checkpointer` for
-:class:`~draf.checkpoint.SQLiteCheckpointer` when you need a real database.
+:class:`~teff.checkpoint.SQLiteCheckpointer` when you need a real database.
 """
 
 from __future__ import annotations
 
 from pathlib import Path
 
-from draf.checkpoint import JSONFileCheckpointer
+from teff.checkpoint import JSONFileCheckpointer
 
 #: Relative to the project root; points at ``data/checkpoints/``.
 DEFAULT_CHECKPOINT_DIR = Path(__file__).resolve().parents[2] / "data" / "checkpoints"

@@ -3,7 +3,7 @@
 A single graph serves every tenant: the operator types an owner id at the
 console, and memory is scoped to ``("users", <owner>)`` automatically.
 Each turn streams assistant tokens to the terminal, and afterwards a
-:class:`~draf.memory.MemoryExtractor` turns the exchange into durable facts
+:class:`~teff.memory.MemoryExtractor` turns the exchange into durable facts
 written back under the same owner namespace.  On the next turn those facts
 are injected into the agent's system prompt (``${owner}`` in the
 ``MemoryConfig`` namespace is resolved from the run context), so a second
@@ -25,10 +25,10 @@ from __future__ import annotations
 import argparse
 import asyncio
 
-from draf.flow import Flow
-from draf.memory import MemoryConfig, MemoryExtractor
-from draf.memory.tool import memory_from_config
-from draf.provider import ProviderRegistry
+from teff.flow import Flow
+from teff.memory import MemoryConfig, MemoryExtractor
+from teff.memory.tool import memory_from_config
+from teff.provider import ProviderRegistry
 
 CHAT_SYSTEM = (
     "You are a helpful personal assistant. Use the relevant memories "

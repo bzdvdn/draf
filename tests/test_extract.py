@@ -8,13 +8,13 @@ extractor pattern, in miniature).
 
 import pytest
 
-from draf.flow import Flow
-from draf.node import LLM, Ask, Extract, Fallback
-from draf.node.interrupt import GraphInterrupt
+from teff.flow import Flow
+from teff.node import LLM, Ask, Extract, Fallback
+from teff.node.interrupt import GraphInterrupt
 
 
 async def _run(node, state: dict) -> dict:
-    from draf.node import ExecContext
+    from teff.node import ExecContext
 
     ctx = ExecContext(state=state, tools={})
     return await node.execute(ctx, state)
@@ -126,8 +126,8 @@ class TestExtractInFlow:
     @pytest.mark.asyncio
     async def test_extraction_chain_runs_in_loop_done(self, monkeypatch, tmp_path):
         """A model that drops the room is patched by the Extract fallback."""
-        from draf.checkpoint import JSONFileCheckpointer
-        from draf.provider import ProviderRegistry
+        from teff.checkpoint import JSONFileCheckpointer
+        from teff.provider import ProviderRegistry
 
         called = {}
 

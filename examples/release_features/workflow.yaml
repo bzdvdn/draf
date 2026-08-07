@@ -2,7 +2,7 @@ name: review-triage
 description: >
   A tiny pure-transform workflow: normalises a customer review and emits
   a canned answer under the `answer` key.  No LLM required, so it runs
-  anywhere — try `draf validate` and `draf eval` against it.
+  anywhere — try `teff validate` and `teff eval` against it.
 state:
   initial:
     review: "great service"

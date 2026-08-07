@@ -5,9 +5,9 @@ written **before** every node, so a crash or error resumes from the last safe
 point instead of starting over.
 
 ```python
-from draf import Graph
-from draf.checkpoint import SQLiteCheckpointer
-from draf.node import Transform
+from teff import Graph
+from teff.checkpoint import SQLiteCheckpointer
+from teff.node import Transform
 
 nodes = {"shout": Transform(action="uppercase", input_key="text", output_key="loud")}
 graph = Graph(nodes, edges=[], entry_point="shout")
@@ -26,7 +26,7 @@ await graph.run(state, checkpointer=cp, checkpoint_id="demo-run")
 | ------- | ----- | ----- |
 | `JSONFileCheckpointer` | core | file-based, `owner/` subdirectories |
 | `SQLiteCheckpointer` | core | stdlib SQLite, composite `(owner, checkpoint_id)` key |
-| `PGCheckpointer` | `draf[pg-checkpoint]` | needs PostgreSQL |
+| `PGCheckpointer` | `teff[pg-checkpoint]` | needs PostgreSQL |
 
 On resume the saved state wins over the passed-in state; a `State` instance
 keeps its schema and reducers.
@@ -50,8 +50,8 @@ checkpoints land in an `owner/` subdirectory; SQLite/PG store a composite
 automatically).
 
 When `owner` is omitted, runs fall under the default owner `"default"`
-(`draf.checkpoint.DEFAULT_OWNER`). The CLI exposes the same knob:
-`--checkpoint-owner` on `draf run` and `draf inspect` (defaults to `default`).
+(`teff.checkpoint.DEFAULT_OWNER`). The CLI exposes the same knob:
+`--checkpoint-owner` on `teff run` and `teff inspect` (defaults to `default`).
 
 ## Human-in-the-loop (interrupts)
 
@@ -60,11 +60,11 @@ reaches it, `graph.run()` raises `GraphInterrupt`; resume with the same
 `checkpoint_id` plus a `resume` dict:
 
 ```python
-from draf.checkpoint import JSONFileCheckpointer
-from draf.node.interrupt import GraphInterrupt
-from draf.flow import Flow
-from draf.node import LLM
-from draf.provider import ProviderRegistry
+from teff.checkpoint import JSONFileCheckpointer
+from teff.node.interrupt import GraphInterrupt
+from teff.flow import Flow
+from teff.node import LLM
+from teff.provider import ProviderRegistry
 
 flow = Flow(
     "approval",
@@ -104,7 +104,7 @@ it with the message (the operator's answer) or starts/continues the
 conversation. A pause is **not** raised — it is folded into a `TurnResult`:
 
 ```python
-from draf.graph import TurnResult
+from teff.graph import TurnResult
 
 session_id = "chat-1"
 
@@ -139,7 +139,7 @@ A bare `interrupt` compares the resume value verbatim. To validate the answer
 `interrupt_loop`:
 
 ```python
-from draf.node import Ask
+from teff.node import Ask
 
 flow.interrupt_loop(
     key="code",

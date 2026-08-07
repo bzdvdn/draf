@@ -10,7 +10,7 @@ Each store example has its own README describing what to install
 import asyncio
 import sys
 
-from draf.yaml import load_workflow
+from teff.yaml import load_workflow
 
 
 async def main(path: str):

@@ -6,7 +6,7 @@ from pathlib import Path
 
 from typer.testing import CliRunner
 
-from draf.cli import app
+from teff.cli import app
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -33,7 +33,7 @@ steps:
 
 class TestLoadWorkflow:
     def test_basic_workflow(self, tmp_path):
-        from draf.yaml import load_workflow
+        from teff.yaml import load_workflow
 
         path = tmp_path / "wf.yaml"
         path.write_text(SIMPLE_YAML)
@@ -44,7 +44,7 @@ class TestLoadWorkflow:
         assert reducers == {}
 
     def test_with_tools(self, tmp_path):
-        from draf.yaml import load_workflow
+        from teff.yaml import load_workflow
 
         path = tmp_path / "wf.yaml"
         path.write_text(TOOL_YAML)
@@ -55,7 +55,7 @@ class TestLoadWorkflow:
     def test_runs_to_completion(self, tmp_path):
         import asyncio
 
-        from draf.yaml import load_workflow
+        from teff.yaml import load_workflow
 
         path = tmp_path / "wf.yaml"
         path.write_text(SIMPLE_YAML)
@@ -239,7 +239,7 @@ class TestNew:
         assert not (dest / "template.toml").exists()
 
     def test_templates_registry(self):
-        from draf.scaffold import TEMPLATES, VARIANTS
+        from teff.scaffold import TEMPLATES, VARIANTS
 
         assert set(TEMPLATES) == {"fastapi", "cli", "daemon"}
         assert TEMPLATES["fastapi"].entry == "python main.py"
@@ -256,7 +256,7 @@ class TestNew:
             app, ["new", "Rag App", "--dest", str(dest), "--with", "rag"]
         )
         assert result.exit_code == 0, result.stderr
-        env = {**os.environ, "DRAF_CHECKPOINT_DIR": str(tmp_path / "cp")}
+        env = {**os.environ, "TEFF_CHECKPOINT_DIR": str(tmp_path / "cp")}
         code = (
             "import sys\n"
             f"sys.path.insert(0, {str(dest)!r})\n"
@@ -283,7 +283,7 @@ class TestPruneCommand:
     def test_prune_keep_last(self, tmp_path):
         import asyncio
 
-        from draf.checkpoint import Checkpoint, SQLiteCheckpointer
+        from teff.checkpoint import Checkpoint, SQLiteCheckpointer
 
         db = str(tmp_path / "cp.db")
         ck = SQLiteCheckpointer(db)

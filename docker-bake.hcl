@@ -1,4 +1,4 @@
-# Build matrix for the draf toolchain images.
+# Build matrix for the teff toolchain images.
 #
 #     docker buildx bake            # build all six locally
 #     docker buildx bake --push     # build + push (used by release.yml)
@@ -22,16 +22,16 @@ group "default" {
   targets = ["core", "fastapi", "worker", "obs", "rag", "all"]
 }
 
-# CLI runner: draf run/daemon/graph/validate/... on workflow.yaml + plugins.
+# CLI runner: teff run/daemon/graph/validate/... on workflow.yaml + plugins.
 target "core" {
   context = "."
   args = {
     EXTRA   = "tools"
-    RUNMODE = "draf"
+    RUNMODE = "teff"
   }
   tags = [
-    "${REGISTRY}/${NAMESPACE}/draf:${VERSION}",
-    "${REGISTRY}/${NAMESPACE}/draf:latest",
+    "${REGISTRY}/${NAMESPACE}/teff:${VERSION}",
+    "${REGISTRY}/${NAMESPACE}/teff:latest",
   ]
 }
 
@@ -43,8 +43,8 @@ target "fastapi" {
     RUNMODE = "uvicorn"
   }
   tags = [
-    "${REGISTRY}/${NAMESPACE}/draf-fastapi:${VERSION}",
-    "${REGISTRY}/${NAMESPACE}/draf-fastapi:latest",
+    "${REGISTRY}/${NAMESPACE}/teff-fastapi:${VERSION}",
+    "${REGISTRY}/${NAMESPACE}/teff-fastapi:latest",
   ]
 }
 
@@ -56,12 +56,12 @@ target "worker" {
     RUNMODE = "celery"
   }
   tags = [
-    "${REGISTRY}/${NAMESPACE}/draf-worker:${VERSION}",
-    "${REGISTRY}/${NAMESPACE}/draf-worker:latest",
+    "${REGISTRY}/${NAMESPACE}/teff-worker:${VERSION}",
+    "${REGISTRY}/${NAMESPACE}/teff-worker:latest",
   ]
 }
 
-# Standalone trace collector/dashboard: `draf obs-server` (ingest + UI).
+# Standalone trace collector/dashboard: `teff obs-server` (ingest + UI).
 target "obs" {
   context = "."
   args = {
@@ -69,8 +69,8 @@ target "obs" {
     RUNMODE = "obs-server"
   }
   tags = [
-    "${REGISTRY}/${NAMESPACE}/draf-obs:${VERSION}",
-    "${REGISTRY}/${NAMESPACE}/draf-obs:latest",
+    "${REGISTRY}/${NAMESPACE}/teff-obs:${VERSION}",
+    "${REGISTRY}/${NAMESPACE}/teff-obs:latest",
   ]
 }
 
@@ -79,25 +79,25 @@ target "all" {
   context = "."
   args = {
     EXTRA   = "embedding,tools,rag-pdf,rag-excel,pg-checkpoint,fastapi,queue"
-    RUNMODE = "draf"
+    RUNMODE = "teff"
   }
   tags = [
-    "${REGISTRY}/${NAMESPACE}/draf-all:${VERSION}",
-    "${REGISTRY}/${NAMESPACE}/draf-all:latest",
+    "${REGISTRY}/${NAMESPACE}/teff-all:${VERSION}",
+    "${REGISTRY}/${NAMESPACE}/teff-all:latest",
   ]
 }
 
-# Slim RAG example: `draf[embedding]` pulls in every vector store (chromadb
+# Slim RAG example: `teff[embedding]` pulls in every vector store (chromadb
 # alone brings onnxruntime, ~200+ MB), so build only the store you use.
 #   docker buildx bake rag
 target "rag" {
   context = "."
   args = {
     EXTRA   = "stores-qdrant,tools,rag-pdf"
-    RUNMODE = "draf"
+    RUNMODE = "teff"
   }
   tags = [
-    "${REGISTRY}/${NAMESPACE}/draf-rag:${VERSION}",
-    "${REGISTRY}/${NAMESPACE}/draf-rag:latest",
+    "${REGISTRY}/${NAMESPACE}/teff-rag:${VERSION}",
+    "${REGISTRY}/${NAMESPACE}/teff-rag:latest",
   ]
 }

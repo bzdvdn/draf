@@ -9,10 +9,10 @@ Usage:
 
 import asyncio
 
-from draf.flow import Case, Flow
-from draf.node import Transform
-from draf.provider import ProviderRegistry
-from draf.state.state import reducers_from_yaml_schema
+from teff.flow import Case, Flow
+from teff.node import Transform
+from teff.provider import ProviderRegistry
+from teff.state.state import reducers_from_yaml_schema
 
 
 async def main():

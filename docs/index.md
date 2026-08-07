@@ -1,8 +1,8 @@
-# Draf
+# Teff
 
 **Workflow as data. Agents as graphs.**
 
-Draf is a Python framework for building durable AI agents and workflows —
+Teff is a Python framework for building durable AI agents and workflows —
 an embeddable async library. Inspired by LangGraph and LangChain, it brings
 graph-based, stateful agents to Python with minimal dependencies and zero
 runtime magic.
@@ -32,14 +32,14 @@ runtime magic.
 | Custom node/tool types | Plugins (decorators or classes) | [Plugins](guide/plugins.md) |
 | Streaming | `graph.stream()` events | [Streaming](guide/streaming.md) |
 | Guaranteed JSON | `output_type` / `json_schema` | [Agents](guide/agents.md) |
-| Evaluation | `draf eval` / `run_eval` | [Evaluation](guide/evaluation.md) |
+| Evaluation | `teff eval` / `run_eval` | [Evaluation](guide/evaluation.md) |
 | Observability | `RunTracer` / cost reports | [Streaming](guide/streaming.md) |
 | Deployable workflows | `Flow.to_yaml()` export | [YAML workflows](guide/yaml-workflows.md) |
-| Scaffold an app | `draf new` (fastapi/cli/daemon) | [CLI](cli.md) |
+| Scaffold an app | `teff new` (fastapi/cli/daemon) | [CLI](cli.md) |
 
 ## Getting started
 
-- [Installation](getting-started/install.md) — get draf on `pip`.
+- [Installation](getting-started/install.md) — get teff on `pip`.
 - [Quick start](getting-started/quickstart.md) — your first workflow in five
   minutes.
 - [Concepts](getting-started/concepts.md) — state, nodes, graphs, tools, RAG.

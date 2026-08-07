@@ -1,9 +1,9 @@
-"""Fraud-gate graph — a production use case for :class:`draf.node.Command`.
+"""Fraud-gate graph — a production use case for :class:`teff.node.Command`.
 
 Two LLM nodes do the actual analytic work — an analyser reads the payment's
 free-text ``note`` and returns a structured risk score; a finalizer writes
 the human-facing outcome.  The routing between them is driven by a
-:class:`draf.node.Command` returned from the ``router`` node, because the
+:class:`teff.node.Command` returned from the ``router`` node, because the
 next step depends on the **value of the score** the model just produced and
 cannot be statically wired:
 
@@ -17,7 +17,7 @@ Three behaviours:
   the finalizer even though there is **no** ``router -> finalize`` edge.
 * **Mid-risk review** — ``Command(update=...)`` (no ``goto``), so the normal
   ``router -> review_gate`` edge runs; a human approves/declines via an
-  :class:`~draf.node.Interrupt` and the run pauses for a durable resume.
+  :class:`~teff.node.Interrupt` and the run pauses for a durable resume.
 * **Deny** — ``Command(update=..., goto=Command.STOP)`` terminates
   immediately, blocking the payment without running any further node.
 
@@ -27,8 +27,8 @@ so routing and state-writing happen in the same return value.
 
 from __future__ import annotations
 
-from draf.flow import Flow
-from draf.provider import ProviderRegistry
+from teff.flow import Flow
+from teff.provider import ProviderRegistry
 
 from .nodes import Ingest, Router
 from .prompts import (

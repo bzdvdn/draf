@@ -25,9 +25,9 @@ Usage:
 import asyncio
 from pathlib import Path
 
-from draf.flow import Flow
-from draf.provider import ProviderRegistry
-from draf.tool import Tool
+from teff.flow import Flow
+from teff.provider import ProviderRegistry
+from teff.tool import Tool
 
 SKILL_DIR = Path(__file__).resolve().parent / "skills"
 

@@ -7,7 +7,7 @@ description: >
 
 state:
   initial:
-    body: "  hello world, draf plugins  "
+    body: "  hello world, teff plugins  "
 
 tools:
   - type: slugify

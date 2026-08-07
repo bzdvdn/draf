@@ -1,6 +1,6 @@
-site_name: Draf
+site_name: Teff
 site_description: Workflow as data, agents as graphs. Python async framework for durable AI agents and workflows.
-repo_url: https://github.com/bzdvdn/draf
+repo_url: https://github.com/bzdvdn/teff
 edit_uri: edit/main/docs/
 theme:
   name: material
@@ -70,6 +70,7 @@ nav:
       - Concepts: getting-started/concepts.md
   - Guide:
       - YAML workflows: guide/yaml-workflows.md
+      - Best practices: guide/best-practices.md
       - Flow builder: guide/flow-builder.md
       - Command routing: guide/commands.md
       - Agents: guide/agents.md
@@ -95,6 +96,6 @@ nav:
   - CLI Reference: cli.md
   - API Reference:
       - Overview: api/index.md
-      - Top level (draf): api/draf.md
+      - Top level (teff): api/teff.md
   - Examples: examples.md
   - Reference: reference.md

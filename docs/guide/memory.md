@@ -1,7 +1,7 @@
 # Long-term memory
 
 Checkpoints persist a *single run*; long-term memory persists *knowledge*
-across runs. This guide explains the difference and the draf memory
+across runs. This guide explains the difference and the teff memory
 design.
 
 ## Checkpoints are not memory
@@ -31,7 +31,7 @@ facts* that are looked up semantically and evolve over time.
 | Long-term (facts) | cross-session, per user | "user prefers email over Slack" | memory store |
 | Episodic / procedural | cross-session | past successful plans; self-tuned instructions | memory store |
 
-draf's memory layer targets the bottom two rows. The top row is already
+teff's memory layer targets the bottom two rows. The top row is already
 handled by `state` reducers and the checkpointer.
 
 ## Comparison: LangGraph store
@@ -55,18 +55,18 @@ For reference, LangGraph solves the same problem with a separate
   / `create_search_memory_tool`, plus three memory types (semantic,
   episodic, procedural where the agent rewrites its own system prompt).
 
-draf already has the two hard parts LangGraph had to build: a pluggable
+teff already has the two hard parts LangGraph had to build: a pluggable
 `VectorStore` with semantic search + filter DSL, and an `Embedder`. What
 is missing is the namespace/`put`/`search` layer and the agent-facing
 tools on top.
 
-## draf design
+## teff design
 
 ### `MemoryStore` — a namespace store over `VectorStore`
 
 ```python
-from draf.memory import MemoryStore
-from draf.rag import Embedder, InMemoryVectorStore
+from teff.memory import MemoryStore
+from teff.rag import Embedder, InMemoryVectorStore
 
 memory = MemoryStore(
     store=InMemoryVectorStore(dim=768),
@@ -135,7 +135,7 @@ Facts are written one of two ways:
    graph:
 
    ```python
-   from draf.memory import MemoryExtractor
+   from teff.memory import MemoryExtractor
 
    extractor = MemoryExtractor(model="gpt-4o")
    await extractor.save(memory, conversation, ("users", user_id))
@@ -169,11 +169,11 @@ Reading is explicit (via `recall`) or injected:
   `memory_context_from_config(cfg, state=, ctx=)`, the shared helper both
   nodes use.
 
-  In Python, pass a typed :class:`~draf.memory.context.MemoryConfig` — the
+  In Python, pass a typed :class:`~teff.memory.context.MemoryConfig` — the
   same shape a config dict or YAML entry carries:
 
   ```python
-  from draf import Flow, MemoryConfig
+  from teff import Flow, MemoryConfig
 
   flow.react(
       model="gpt-4o",

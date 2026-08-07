@@ -4,9 +4,9 @@ Every knob the server needs lives here — the LLM ``provider``/``model``,
 the optional ``api_key``, the bind address, app metadata and the storage
 and RAG paths — so ``main.py``, ``app.py`` and ``cli.py`` share a single
 source of truth.  Override any value with an environment variable prefixed
-``DRAF_`` (e.g. ``DRAF_PORT=9000``) or a line in a local ``.env`` file.
+``TEFF_`` (e.g. ``TEFF_PORT=9000``) or a line in a local ``.env`` file.
 
-The layout mirrors the ``draf new`` scaffold.
+The layout mirrors the ``teff new`` scaffold.
 """
 
 from __future__ import annotations
@@ -20,7 +20,7 @@ class Settings(BaseSettings):
     """Runtime configuration for the ``repair-ai-chat`` service."""
 
     model_config = SettingsConfigDict(
-        env_prefix="DRAF_",
+        env_prefix="TEFF_",
         env_file=".env",
         env_file_encoding="utf-8",
         extra="ignore",

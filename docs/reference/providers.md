@@ -22,7 +22,7 @@ common providers; you declare exactly which ones you use.
 ## Using a provider
 
 ```python
-from draf.harness import Harness
+from teff.harness import Harness
 
 harness = Harness(
     model="claude-3-5-sonnet-latest",
@@ -59,8 +59,8 @@ If neither is set, the node raises `ConfigError` — there is no silent fallback
 `providers=` map / `providers:` block (see below).
 
 ```python
-from draf.flow import Flow
-from draf.provider import ProviderRegistry
+from teff.flow import Flow
+from teff.provider import ProviderRegistry
 
 flow = Flow(
     "repair",
@@ -79,7 +79,7 @@ Under the hood each provider is a `Provider` — a lightweight value object that
 picks the wire protocol and the endpoint:
 
 ```python
-from draf import Provider
+from teff import Provider
 
 Provider(type="anthropic_compatible", base_url="http://proxy", chat_path="/v1/messages")
 ```
@@ -98,9 +98,9 @@ fallback. There is **no string shorthand**: pass real `Provider` instances (or
 a `ProviderRegistry`), never bare preset-name strings.
 
 ```python
-from draf import Provider
-from draf.graph import Graph
-from draf.node import LLM
+from teff import Provider
+from teff.graph import Graph
+from teff.node import LLM
 
 providers = {
     "vllm": Provider(base_url="http://vllm:8000/v1"),  # openai_compatible
@@ -122,10 +122,10 @@ A `ProviderRegistry` is a dict-like `{name: Provider}` map you build once and
 reuse. It starts empty, and only registered names are usable.
 
 ```python
-from draf import Graph, Provider, ProviderRegistry
-from draf.flow import Flow
-from draf.harness import Harness
-from draf.node import LLM
+from teff import Graph, Provider, ProviderRegistry
+from teff.flow import Flow
+from teff.harness import Harness
+from teff.node import LLM
 
 reg = ProviderRegistry()  # register instances explicitly…
 reg.register(Provider(name="vllm", base_url="http://vllm:8000/v1"))
@@ -171,7 +171,7 @@ globally per provider — across every `Harness` instance, so parallel branches
 throttle together instead of blowing past provider rate limits:
 
 ```python
-from draf.harness import set_provider_concurrency, provider_concurrency
+from teff.harness import set_provider_concurrency, provider_concurrency
 
 set_provider_concurrency("openai", 8)  # global cap
 provider_concurrency("openai")  # -> 8 (the active cap, or None)
@@ -200,7 +200,7 @@ internal model-price table (exact name match, then prefix match; unknown and
 local models cost $0). Secrets are redacted from every reported value.
 
 ```python
-from draf import RunTracer
+from teff import RunTracer
 
 tracer = RunTracer()
 await graph.run(state, tracer=tracer)
@@ -218,7 +218,7 @@ Register custom USD-per-1M-token pricing at runtime; it takes precedence over
 the built-in table:
 
 ```python
-from draf import set_model_pricing, set_provider_pricing, model_pricing
+from teff import set_model_pricing, set_provider_pricing, model_pricing
 
 set_model_pricing("openrouter", "openai/gpt-4o", 3.0, 12.0)
 set_provider_pricing("kilo", 0.1, 0.4)  # whole-provider default

@@ -1,13 +1,13 @@
 # RAG store: milvus
 
-RAG agent over the Draf knowledge base using the Milvus store.
+RAG agent over the Teff knowledge base using the Milvus store.
 
 ## Dependencies
 
 Install the vector-store extra (includes Milvus Lite for local use):
 
 ```bash
-uv add "draf[stores-milvus]"    # or: pip install "draf[stores-milvus]"
+uv add "teff[stores-milvus]"    # or: pip install "teff[stores-milvus]"
 ```
 
 Ollama must be running locally with:

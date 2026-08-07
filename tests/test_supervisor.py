@@ -2,7 +2,7 @@ import asyncio
 
 import pytest
 
-from draf.flow import Flow
+from teff.flow import Flow
 
 
 def _run(coro):
@@ -10,7 +10,7 @@ def _run(coro):
 
 
 def _supervisor(**kw):
-    from draf.node import Supervisor
+    from teff.node import Supervisor
 
     base = dict(
         model="test-model",
@@ -26,7 +26,7 @@ def _supervisor(**kw):
 
 class TestConfig:
     def test_defaults(self):
-        from draf.node import Supervisor
+        from teff.node import Supervisor
 
         s = Supervisor()
         assert s.type == "supervisor"
@@ -111,7 +111,7 @@ class TestNeedsModel:
 
 class TestFillOrder:
     def _chain_supervisor(self, **kw):
-        from draf.node import Supervisor
+        from teff.node import Supervisor
 
         base = dict(
             model="test-model",
@@ -257,8 +257,8 @@ class TestExecute:
 class TestAskModelGraph:
     @pytest.mark.asyncio
     async def test_ask_model_uses_default_model(self, monkeypatch):
-        from draf.graph import Graph
-        from draf.provider import ProviderRegistry
+        from teff.graph import Graph
+        from teff.provider import ProviderRegistry
 
         bodies = []
 
@@ -306,7 +306,7 @@ class TestAskModelGraph:
 
 class TestFlowHelper:
     def test_supervisor_helper_wires_node(self):
-        from draf.node import LLM
+        from teff.node import LLM
 
         flow = Flow("x")
         flow.supervisor(
@@ -324,13 +324,13 @@ class TestFlowHelper:
         assert graph.nodes["decider"].type == "supervisor"
 
     def test_helper_rejects_instance_plus_config(self):
-        from draf.node import Supervisor
+        from teff.node import Supervisor
 
         with pytest.raises(TypeError):
             Flow().supervisor(Supervisor(), model="m")
 
     def test_helper_rejects_wrong_type(self):
-        from draf.node import LLM
+        from teff.node import LLM
 
         with pytest.raises(TypeError):
             Flow().supervisor(LLM(model="m"))
@@ -338,7 +338,7 @@ class TestFlowHelper:
 
 class TestRegistry:
     def test_registered_and_creatable(self):
-        from draf.node import Supervisor, default_registry
+        from teff.node import Supervisor, default_registry
 
         assert "supervisor" in default_registry.list()
         node = default_registry.create("supervisor", {"model": "m"})

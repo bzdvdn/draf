@@ -22,16 +22,16 @@ ollama pull llama3.1:8b
 ollama pull nomic-embed-text
 
 # embedded (no server)
-uv run draf -f examples/memory_assistant/workflow.yaml
+uv run teff -f examples/memory_assistant/workflow.yaml
 
 # server-backed
 docker compose -f examples/memory_assistant/docker-compose.yml up -d
-uv run draf -f examples/memory_assistant/workflow.qdrant.yaml
-uv run draf -f examples/memory_assistant/workflow.pgvector.yaml
+uv run teff -f examples/memory_assistant/workflow.qdrant.yaml
+uv run teff -f examples/memory_assistant/workflow.pgvector.yaml
 ```
 
 Server-backed stores need their extra:
-`pip install "draf[stores-qdrant]"` or `"draf[stores-pgvector]"`.
+`pip install "teff[stores-qdrant]"` or `"teff[stores-pgvector]"`.
 
 ## Python
 

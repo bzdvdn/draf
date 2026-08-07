@@ -3,24 +3,24 @@ import pytest
 
 class TestParseTextToolCall:
     def test_parses_parameters_form(self):
-        from draf.node.llm import _parse_text_tool_call
+        from teff.node.llm import _parse_text_tool_call
 
         content = 'Calling tool: {"name": "rag", "parameters": {"k": 5, "query": "x"}}'
         assert _parse_text_tool_call(content) == ("rag", {"k": 5, "query": "x"})
 
     def test_parses_arguments_form(self):
-        from draf.node.llm import _parse_text_tool_call
+        from teff.node.llm import _parse_text_tool_call
 
         content = '{"name": "calc", "arguments": {"expression": "2+2"}}'
         assert _parse_text_tool_call(content) == ("calc", {"expression": "2+2"})
 
     def test_no_tool_call_returns_none(self):
-        from draf.node.llm import _parse_text_tool_call
+        from teff.node.llm import _parse_text_tool_call
 
         assert _parse_text_tool_call("just a normal answer") is None
 
     def test_nested_braces_in_arguments(self):
-        from draf.node.llm import _parse_text_tool_call
+        from teff.node.llm import _parse_text_tool_call
 
         content = '{"name": "rag", "parameters": {"k": 1, "query": "a {b} c"}}'
         assert _parse_text_tool_call(content) == (
@@ -32,7 +32,7 @@ class TestParseTextToolCall:
 class TestLLMNode:
     @pytest.mark.asyncio
     async def test_sends_request_and_stores_response(self, monkeypatch):
-        from draf.node import LLM, ExecContext
+        from teff.node import LLM, ExecContext
 
         monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
 
@@ -64,7 +64,7 @@ class TestLLMNode:
 
     @pytest.mark.asyncio
     async def test_prompt_template_renders_state_keys(self, monkeypatch):
-        from draf.node import LLM, ExecContext
+        from teff.node import LLM, ExecContext
 
         monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
 
@@ -107,7 +107,7 @@ class TestLLMNode:
 
     @pytest.mark.asyncio
     async def test_prompt_template_missing_key_raises(self, monkeypatch):
-        from draf.node import LLM, ExecContext
+        from teff.node import LLM, ExecContext
 
         monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
 
@@ -118,7 +118,7 @@ class TestLLMNode:
 
     @pytest.mark.asyncio
     async def test_structured_output_json_mode(self, monkeypatch):
-        from draf.node import LLM, ExecContext
+        from teff.node import LLM, ExecContext
 
         monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
 
@@ -149,8 +149,8 @@ class TestLLMNode:
 
     @pytest.mark.asyncio
     async def test_tool_calling_loop(self, monkeypatch):
-        from draf.node import LLM, ExecContext
-        from draf.tool import Tool
+        from teff.node import LLM, ExecContext
+        from teff.tool import Tool
 
         monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
 
@@ -210,8 +210,8 @@ class TestLLMNode:
 
     @pytest.mark.asyncio
     async def test_tool_calling_executes_and_feeds_back(self, monkeypatch):
-        from draf.node import LLM, ExecContext
-        from draf.tool import Tool
+        from teff.node import LLM, ExecContext
+        from teff.tool import Tool
 
         monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
 
@@ -271,7 +271,7 @@ class TestLLMNode:
 
     @pytest.mark.asyncio
     async def test_manual_tool_defs_without_use_tools(self, monkeypatch):
-        from draf.node import LLM, ExecContext
+        from teff.node import LLM, ExecContext
 
         monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
 
@@ -302,8 +302,8 @@ class TestLLMNode:
 
     @pytest.mark.asyncio
     async def test_tool_schema_generation(self):
-        from draf.node import LLM
-        from draf.tool import Tool
+        from teff.node import LLM
+        from teff.tool import Tool
 
         class MyTool(Tool):
             name = "mytool"
@@ -321,8 +321,8 @@ class TestLLMNode:
 
     @pytest.mark.asyncio
     async def test_tool_schema_required_params(self):
-        from draf.node import LLM
-        from draf.tool import Tool
+        from teff.node import LLM
+        from teff.tool import Tool
 
         class ReqTool(Tool):
             name = "req"
@@ -336,7 +336,7 @@ class TestLLMNode:
 
     @pytest.mark.asyncio
     async def test_streaming_accumulates_content(self, monkeypatch):
-        from draf.node import LLM, ExecContext
+        from teff.node import LLM, ExecContext
 
         monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
 
@@ -375,7 +375,7 @@ class TestLLMNode:
 
     @pytest.mark.asyncio
     async def test_streaming_calls_on_token(self, monkeypatch):
-        from draf.node import LLM, ExecContext
+        from teff.node import LLM, ExecContext
 
         monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
 
@@ -427,8 +427,8 @@ class TestLLMNode:
 
     @pytest.mark.asyncio
     async def test_streaming_disabled_when_tools_are_used(self, monkeypatch):
-        from draf.node import LLM, ExecContext
-        from draf.tool import Tool
+        from teff.node import LLM, ExecContext
+        from teff.tool import Tool
 
         monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
 

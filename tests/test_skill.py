@@ -22,7 +22,7 @@ You are a data analyst. Always use calc first.
 
 
 def test_load_skill_parses_frontmatter(analyst_skill):
-    from draf.skill import load_skill
+    from teff.skill import load_skill
 
     s = load_skill(analyst_skill)
     assert s.name == "analyst"
@@ -34,7 +34,7 @@ def test_load_skill_parses_frontmatter(analyst_skill):
 
 
 def test_load_skill_defaults_name_to_folder(tmp_path):
-    from draf.skill import load_skill
+    from teff.skill import load_skill
 
     d = tmp_path / "writer"
     d.mkdir()
@@ -48,21 +48,21 @@ def test_load_skill_defaults_name_to_folder(tmp_path):
 
 
 def test_load_skill_missing_raises(tmp_path):
-    from draf.skill import load_skill
+    from teff.skill import load_skill
 
     with pytest.raises(FileNotFoundError):
         load_skill(tmp_path / "nope")
 
 
 def test_load_skill_accepts_skill_md_path(analyst_skill):
-    from draf.skill import load_skill
+    from teff.skill import load_skill
 
     s = load_skill(analyst_skill / "SKILL.md")
     assert s.name == "analyst"
 
 
 def test_resolve_skills_accepts_names_paths_and_objects(tmp_path, analyst_skill):
-    from draf.skill import Skill, resolve_skills
+    from teff.skill import Skill, resolve_skills
 
     (tmp_path / "other").mkdir()
     (tmp_path / "other" / "SKILL.md").write_text(
@@ -77,7 +77,7 @@ def test_resolve_skills_accepts_names_paths_and_objects(tmp_path, analyst_skill)
 
 
 def test_skills_instructions_renders_blocks(analyst_skill):
-    from draf.skill import load_skill, skills_instructions
+    from teff.skill import load_skill, skills_instructions
 
     text = skills_instructions([load_skill(analyst_skill)])
     assert "### Skill: analyst" in text
@@ -85,7 +85,7 @@ def test_skills_instructions_renders_blocks(analyst_skill):
 
 
 def _tools():
-    from draf.tool import Tool
+    from teff.tool import Tool
 
     class Calc(Tool):
         name = "calc"
@@ -112,7 +112,7 @@ def _tools():
 
 
 def test_scope_tools_list_narrows_pool():
-    from draf.skill import scope_tools
+    from teff.skill import scope_tools
 
     pool = _tools()
     scoped = scope_tools(pool, {"use_tools": ["calc"]})
@@ -120,13 +120,13 @@ def test_scope_tools_list_narrows_pool():
 
 
 def test_scope_tools_false_is_empty():
-    from draf.skill import scope_tools
+    from teff.skill import scope_tools
 
     assert scope_tools(_tools(), {"use_tools": False}) == {}
 
 
 def test_scope_tools_skill_allowed_intersects(analyst_skill):
-    from draf.skill import load_skill, scope_tools
+    from teff.skill import load_skill, scope_tools
 
     skills = [load_skill(analyst_skill)]
     # skill allows only [calc], so even with all tools enabled we get calc
@@ -139,7 +139,7 @@ def test_scope_tools_skill_allowed_intersects(analyst_skill):
 
 
 def test_scope_tools_disallowed_removes(analyst_skill):
-    from draf.skill import load_skill, scope_tools
+    from teff.skill import load_skill, scope_tools
 
     skills = [load_skill(analyst_skill)]
     scoped = scope_tools(_tools(), {"use_tools": ["calc", "secret"]}, skills)
@@ -149,60 +149,60 @@ def test_scope_tools_disallowed_removes(analyst_skill):
 
 class TestCoreSkills:
     def test_core_skills_are_builtin_and_namespaced(self):
-        from draf.skill import core_skills
+        from teff.skill import core_skills
 
         skills = core_skills()
         names = {s.name for s in skills}
         assert names == {
-            "draf-tool-discipline",
-            "draf-structured-output",
-            "draf-verification",
+            "teff-tool-discipline",
+            "teff-structured-output",
+            "teff-verification",
         }
         assert all(s.builtin for s in skills)
         assert all(s.path is None for s in skills)
         assert all(s.allowed_tools is None for s in skills)
 
     def test_get_core_skill(self):
-        from draf.skill import get_core_skill
+        from teff.skill import get_core_skill
 
-        s = get_core_skill("draf-verification")
+        s = get_core_skill("teff-verification")
         assert s is not None
         assert s.builtin is True
         assert get_core_skill("nope") is None
 
     def test_resolve_skills_falls_back_to_core(self, tmp_path):
-        from draf.skill import resolve_skills
+        from teff.skill import resolve_skills
 
         skills = resolve_skills(
-            {"skills": ["draf-tool-discipline"], "skill_dir": str(tmp_path)}
+            {"skills": ["teff-tool-discipline"], "skill_dir": str(tmp_path)}
         )
         assert len(skills) == 1
-        assert skills[0].name == "draf-tool-discipline"
+        assert skills[0].name == "teff-tool-discipline"
         assert skills[0].builtin is True
 
     def test_resolve_skills_unknown_name_raises(self, tmp_path):
-        from draf.skill import resolve_skills
+        from teff.skill import resolve_skills
 
         with pytest.raises(FileNotFoundError):
             resolve_skills({"skills": ["no-such-skill"], "skill_dir": str(tmp_path)})
 
     def test_user_skill_shadows_core(self, tmp_path):
-        from draf.skill import resolve_skills
+        from teff.skill import resolve_skills
 
-        d = tmp_path / "draf-tool-discipline"
+        d = tmp_path / "teff-tool-discipline"
         d.mkdir()
         (d / "SKILL.md").write_text(
-            "---\nname: draf-tool-discipline\n---\n\nCustom override.",
+            "---\nname: teff-tool-discipline\n---\n\nCustom override.",
             encoding="utf-8",
         )
         skills = resolve_skills(
-            {"skills": ["draf-tool-discipline"], "skill_dir": str(tmp_path)}
+            {"skills": ["teff-tool-discipline"], "skill_dir": str(tmp_path)}
         )
         assert skills[0].builtin is False
         assert "Custom override" in skills[0].instructions
 
     def test_load_skill_defaults_builtin_false(self, tmp_path):
-        from draf.skill import load_skill
+        from teff.skill import load_skill
 
         d = tmp_path / "custom"
         d.mkdir()
@@ -210,10 +210,10 @@ class TestCoreSkills:
         assert load_skill(d).builtin is False
 
     def test_skills_instructions_marks_system(self, analyst_skill):
-        from draf.skill import get_core_skill, load_skill, skills_instructions
+        from teff.skill import get_core_skill, load_skill, skills_instructions
 
-        core = skills_instructions([get_core_skill("draf-verification")])
-        assert core.startswith("### Skill: draf-verification [system]")
+        core = skills_instructions([get_core_skill("teff-verification")])
+        assert core.startswith("### Skill: teff-verification [system]")
 
         custom = skills_instructions([load_skill(analyst_skill)])
         assert custom.startswith("### Skill: analyst")
@@ -225,7 +225,7 @@ class TestSkillIntegration:
     async def test_llm_merges_instructions_and_scopes_tools(
         self, monkeypatch, tmp_path
     ):
-        from draf.node import LLM, ExecContext
+        from teff.node import LLM, ExecContext
 
         monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
 
@@ -281,7 +281,7 @@ class TestSkillIntegration:
     async def test_llm_skill_instructions_with_braces(self, monkeypatch, tmp_path):
         """Skill bodies may contain ``{...}`` (e.g. code samples) — they must
         not be interpolated as template placeholders on a plain LLM node."""
-        from draf.node import LLM, ExecContext
+        from teff.node import LLM, ExecContext
 
         monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
 
@@ -335,8 +335,8 @@ class TestSkillIntegration:
 
     @pytest.mark.asyncio
     async def test_react_agent_scopes_tools_with_skill(self, monkeypatch, tmp_path):
-        from draf.node import ExecContext
-        from draf.node.agent import ReActAgent
+        from teff.node import ExecContext
+        from teff.node.agent import ReActAgent
 
         monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
 
@@ -385,8 +385,8 @@ class TestSkillIntegration:
 
     @pytest.mark.asyncio
     async def test_flow_harness_passes_skills_to_nodes(self, tmp_path):
-        from draf.flow import Flow
-        from draf.node.agent import ReActAgent, ToolExec
+        from teff.flow import Flow
+        from teff.node.agent import ReActAgent, ToolExec
 
         d = tmp_path / "analyst"
         d.mkdir()
@@ -419,8 +419,8 @@ def test_skill_scopes_foreign_mcp_tools(tmp_path):
     pytest.importorskip("mcp")
     from mcp.types import Tool as McpToolSpec
 
-    from draf.skill import load_skill, scope_tools
-    from draf.tool import McpTool
+    from teff.skill import load_skill, scope_tools
+    from teff.tool import McpTool
 
     d = tmp_path / "repo-helper"
     d.mkdir()
@@ -472,9 +472,9 @@ async def test_react_agent_body_scopes_foreign_tools(monkeypatch, tmp_path):
     pytest.importorskip("mcp")
     from mcp.types import Tool as McpToolSpec
 
-    from draf.node import ExecContext
-    from draf.node.agent import ReActAgent
-    from draf.tool import McpTool
+    from teff.node import ExecContext
+    from teff.node.agent import ReActAgent
+    from teff.tool import McpTool
 
     monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
 

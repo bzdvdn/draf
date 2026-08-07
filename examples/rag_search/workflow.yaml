@@ -1,6 +1,6 @@
 name: rag-agent
 description: >
-  RAG agent over a fictional Draf knowledge base. Documents from docs.csv
+  RAG agent over a fictional Teff knowledge base. Documents from docs.csv
   are embedded with nomic-embed-text and searched via the `rag` tool, so
   the model must retrieve before answering.
   Requires Ollama: llama3.1:8b + nomic-embed-text.
@@ -20,7 +20,7 @@ tools:
 
 state:
   initial:
-    query: What is the mascot of Draf, and what does it ride?
+    query: What is the mascot of Teff, and what does it ride?
 
 providers:
   - name: ollama
@@ -34,7 +34,7 @@ steps:
       provider: ollama
       model: llama3.1:8b
       system: >
-        You are a RAG assistant over the Draf knowledge base. Always call
+        You are a RAG assistant over the Teff knowledge base. Always call
         the 'rag' tool to search before answering, and answer strictly
         from the retrieved snippets.
       input_key: query

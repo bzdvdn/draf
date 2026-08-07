@@ -1,7 +1,7 @@
 # Testing offline
 
 Every graph that talks to a model can be tested without keys or network via
-`draf.testing`. It ships two layers:
+`teff.testing`. It ships two layers:
 
 - `FakeLLM` — a deterministic node you put *in place of* `LLM` in a
   programmatically-built graph.
@@ -15,8 +15,8 @@ Build a graph whose model step always returns the same string:
 
 ```python
 import asyncio
-from draf.graph import Graph
-from draf.testing import FakeLLM
+from teff.graph import Graph
+from teff.testing import FakeLLM
 
 g = Graph(
     nodes={"answer": FakeLLM({"prompt": "hi {name}", "content": "hello {name}"})},
@@ -42,7 +42,7 @@ responses. It returns a `MockLLM` with:
 - `calls` — the request bodies sent, for asserting on prompts/models.
 
 ```python
-from draf.provider import ProviderRegistry
+from teff.provider import ProviderRegistry
 
 
 async def test_flow(mock_llm):
@@ -72,10 +72,10 @@ Structured output works too — feed the fixture a valid JSON string via
 `canned_json`:
 
 ```python
-from draf.testing import canned_json
+from teff.testing import canned_json
 
 mock_llm.content = canned_json({"answer": 42, "ok": True})
 ```
 
-`draf.testing` is registered as a `pytest11` entry point, so `mock_llm` is
+`teff.testing` is registered as a `pytest11` entry point, so `mock_llm` is
 available in any downstream test suite without a `conftest.py`.

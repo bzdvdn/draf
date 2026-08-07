@@ -1,13 +1,13 @@
 import pytest
 
-from draf.provider import ProviderRegistry
+from teff.provider import ProviderRegistry
 
 
 class TestReActAgent:
     @pytest.mark.asyncio
     async def test_agent_responds_directly(self, monkeypatch):
-        from draf.graph import Graph
-        from draf.node.agent import ReActAgent
+        from teff.graph import Graph
+        from teff.node.agent import ReActAgent
 
         monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
 
@@ -42,9 +42,9 @@ class TestReActAgent:
 
     @pytest.mark.asyncio
     async def test_agent_tool_cycle(self, monkeypatch):
-        from draf.graph import Edge, Graph
-        from draf.node.agent import ReActAgent, ToolExec
-        from draf.tool import Tool
+        from teff.graph import Edge, Graph
+        from teff.node.agent import ReActAgent, ToolExec
+        from teff.tool import Tool
 
         monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
 
@@ -117,9 +117,9 @@ class TestReActAgent:
 
     @pytest.mark.asyncio
     async def test_agent_tool_cycle_append_reducer_no_duplicates(self, monkeypatch):
-        from draf.graph import Edge, Graph
-        from draf.node.agent import ReActAgent, ToolExec
-        from draf.tool import Tool
+        from teff.graph import Edge, Graph
+        from teff.node.agent import ReActAgent, ToolExec
+        from teff.tool import Tool
 
         monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
 
@@ -195,8 +195,8 @@ class TestReActAgent:
 
     @pytest.mark.asyncio
     async def test_agent_loop_exceeds_max_iterations(self, monkeypatch):
-        from draf.graph import Edge, Graph
-        from draf.node.agent import ReActAgent, ToolExec
+        from teff.graph import Edge, Graph
+        from teff.node.agent import ReActAgent, ToolExec
 
         monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
 
@@ -230,7 +230,7 @@ class TestReActAgent:
 
         monkeypatch.setattr(httpx.AsyncClient, "post", mock_post)
 
-        from draf.tool import Tool
+        from teff.tool import Tool
 
         class AlwaysTool(Tool):
             name = "always_tool"
@@ -263,9 +263,9 @@ class TestParallelToolExecution:
     async def test_multiple_tools_fan_out_in_parallel(self, monkeypatch):
         import asyncio
 
-        from draf.graph import Edge, Graph
-        from draf.node.agent import ReActAgent, ToolExec
-        from draf.tool import Tool
+        from teff.graph import Edge, Graph
+        from teff.node.agent import ReActAgent, ToolExec
+        from teff.tool import Tool
 
         monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
 
@@ -360,9 +360,9 @@ class TestParallelToolExecution:
     async def test_single_round_parallel_saves_a_round(self, monkeypatch):
         import asyncio
 
-        from draf.graph import Edge, Graph
-        from draf.node.agent import ReActAgent, ToolExec
-        from draf.tool import Tool
+        from teff.graph import Edge, Graph
+        from teff.node.agent import ReActAgent, ToolExec
+        from teff.tool import Tool
 
         monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
 
@@ -448,9 +448,9 @@ class TestParallelToolExecution:
 class TestToolErrorMode:
     @pytest.mark.asyncio
     async def test_tool_error_becomes_message_by_default(self, monkeypatch):
-        from draf.graph import Edge, Graph
-        from draf.node.agent import ReActAgent, ToolExec
-        from draf.tool import Tool
+        from teff.graph import Edge, Graph
+        from teff.node.agent import ReActAgent, ToolExec
+        from teff.tool import Tool
 
         monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
 
@@ -523,10 +523,10 @@ class TestToolErrorMode:
 
     @pytest.mark.asyncio
     async def test_tool_error_raise_routes_to_error_edge(self, monkeypatch):
-        from draf.graph import Edge, Graph
-        from draf.node import Transform
-        from draf.node.agent import ReActAgent, ToolExec
-        from draf.tool import Tool
+        from teff.graph import Edge, Graph
+        from teff.node import Transform
+        from teff.node.agent import ReActAgent, ToolExec
+        from teff.tool import Tool
 
         monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
 
@@ -602,7 +602,7 @@ class TestToolErrorMode:
 class TestFlowReact:
     @pytest.mark.asyncio
     async def test_flow_react_direct_response(self, monkeypatch):
-        from draf.flow import Flow
+        from teff.flow import Flow
 
         monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
 
@@ -637,8 +637,8 @@ class TestFlowReact:
 
     @pytest.mark.asyncio
     async def test_flow_react_tool_cycle(self, monkeypatch):
-        from draf.flow import Flow
-        from draf.tool import Tool
+        from teff.flow import Flow
+        from teff.tool import Tool
 
         monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
 
@@ -702,8 +702,8 @@ class TestFlowReact:
 
     @pytest.mark.asyncio
     async def test_flow_react_chains_after(self, monkeypatch):
-        from draf.flow import Flow
-        from draf.node import Transform
+        from teff.flow import Flow
+        from teff.node import Transform
 
         monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
 
@@ -738,8 +738,8 @@ class TestFlowReact:
 
     @pytest.mark.asyncio
     async def test_flow_harness_accepts_loop_kwargs(self, monkeypatch):
-        from draf.flow import Flow
-        from draf.node import Transform
+        from teff.flow import Flow
+        from teff.node import Transform
 
         monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
 
@@ -783,7 +783,7 @@ class TestFlowReact:
         assert r["answer"] == "hello world"
         assert r["result"] == "HELLO WORLD"
 
-        from draf.node.agent import ReActAgent, ToolExec
+        from teff.node.agent import ReActAgent, ToolExec
 
         agent = next(n for n in g.nodes.values() if isinstance(n, ReActAgent))
         assert agent.config["max_tool_rounds"] == 3

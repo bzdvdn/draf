@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
-from draf.schema import json_schema_from_type
+from teff.schema import json_schema_from_type
 
 #: Human-readable labels for rendering :class:`ProjectInfo` to an LLM.
 PROJECT_INFO_LABELS: dict[str, str] = {

@@ -2,7 +2,7 @@
 
 The example ships with a single shared key from ``settings.api_key``.
 When it is empty (the default) auth is disabled and every route is open;
-set ``DRAF_API_KEY`` (or ``api_key`` in ``.env``) to require the
+set ``TEFF_API_KEY`` (or ``api_key`` in ``.env``) to require the
 ``X-API-Key`` header on the chat and run routers.  Swap this dependency
 for a JWT/cookie flow later without touching the route handlers.
 """

@@ -1,7 +1,7 @@
 """Service-desk graph builder — the default supervisor chat router.
 
-A single :class:`draf.node.Supervisor` (added with
-:meth:`draf.flow.Flow.supervisor` and configured entirely through
+A single :class:`teff.node.Supervisor` (added with
+:meth:`teff.flow.Flow.supervisor` and configured entirely through
 ``route_keys`` / ``done_keys`` / ``fallback_agent`` / ``max_rounds`` — no
 subclass) dispatches every request to one specialist::
 
@@ -23,7 +23,7 @@ Guards demonstrated here:
   honours it (resume continues straight back at the supervisor).
 
 Each specialist is a self-contained ReAct agent
-(:func:`draf.flow.agent_step`) writing into its own state slot, scoped to a
+(:func:`teff.flow.agent_step`) writing into its own state slot, scoped to a
 single knowledge-base tool (``use_tools=<allowlist>``).  The function returns
 the assembled graph *and* the tools pool so the caller can hand it to
 ``graph.run(tools=...)`` / ``Assistant``.
@@ -31,9 +31,6 @@ the assembled graph *and* the tools pool so the caller can hand it to
 
 from __future__ import annotations
 
-from draf.flow import Flow, SubFlow, agent_step
-from draf.node import LLM, ContextBuilder, Interrupt
-from draf.provider import ProviderRegistry
 from service_desk.core.deps import build_deps
 from service_desk.graphs.prompts import (
     BILLING_PROMPT,
@@ -44,6 +41,9 @@ from service_desk.graphs.prompts import (
     SUPERVISOR_PROMPT,
 )
 from service_desk.tools import KNOWLEDGE_TOOLS, build_tools
+from teff.flow import Flow, SubFlow, agent_step
+from teff.node import LLM, ContextBuilder, Interrupt
+from teff.provider import ProviderRegistry
 
 MODEL_DEFAULT = "llama3.1:8b"
 
@@ -84,7 +84,7 @@ def build_flow(
     to a single knowledge-search tool from its pool.
 
     Returns ``(flow, tools)`` — the tools go to ``graph.run(tools=...)`` /
-    :class:`~draf.Assistant`.
+    :class:`~teff.Assistant`.
     """
 
     def agent(system: str, slot: str, use_tools: str | None = None) -> SubFlow:

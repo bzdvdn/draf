@@ -4,8 +4,8 @@ import pytest
 
 
 def _build_linear_graph():
-    from draf.flow import Flow
-    from draf.node import Transform
+    from teff.flow import Flow
+    from teff.node import Transform
 
     flow = Flow("ckpt")
     flow.step(
@@ -17,7 +17,7 @@ def _build_linear_graph():
 
 class TestCheckpointBase:
     def test_roundtrip_dict(self):
-        from draf.checkpoint import Checkpoint, checkpoint_from_dict, checkpoint_to_dict
+        from teff.checkpoint import Checkpoint, checkpoint_from_dict, checkpoint_to_dict
 
         cp = Checkpoint(state={"a": 1}, next_node_id="node_2", iteration=3)
         assert checkpoint_from_dict(checkpoint_to_dict(cp)) == cp
@@ -25,7 +25,7 @@ class TestCheckpointBase:
     def test_checkpoint_id_required(self):
         import asyncio
 
-        from draf.checkpoint import SQLiteCheckpointer
+        from teff.checkpoint import SQLiteCheckpointer
 
         g = _build_linear_graph()
         with pytest.raises(ValueError, match="checkpoint_id"):
@@ -40,7 +40,7 @@ class TestCheckpointBase:
 
         if importlib.util.find_spec("asyncpg") is not None:
             pytest.skip("asyncpg is installed")
-        from draf.checkpoint.pg import PGCheckpointer
+        from teff.checkpoint.pg import PGCheckpointer
 
         with pytest.raises(ImportError):
             PGCheckpointer("postgresql://localhost/x")
@@ -50,7 +50,7 @@ class TestJSONFileCheckpointer:
     def test_save_load_delete(self, tmp_path):
         import asyncio
 
-        from draf.checkpoint import Checkpoint, JSONFileCheckpointer
+        from teff.checkpoint import Checkpoint, JSONFileCheckpointer
 
         ck = JSONFileCheckpointer(str(tmp_path))
         asyncio.run(
@@ -68,7 +68,7 @@ class TestJSONFileCheckpointer:
     def test_load_missing(self, tmp_path):
         import asyncio
 
-        from draf.checkpoint import JSONFileCheckpointer
+        from teff.checkpoint import JSONFileCheckpointer
 
         ck = JSONFileCheckpointer(str(tmp_path))
         assert asyncio.run(ck.load("missing")) is None
@@ -76,7 +76,7 @@ class TestJSONFileCheckpointer:
     def test_sanitizes_path(self, tmp_path):
         import asyncio
 
-        from draf.checkpoint import Checkpoint, JSONFileCheckpointer
+        from teff.checkpoint import Checkpoint, JSONFileCheckpointer
 
         ck = JSONFileCheckpointer(str(tmp_path))
         asyncio.run(
@@ -89,7 +89,7 @@ class TestSQLiteCheckpointer:
     def test_save_load_overwrite(self, tmp_path):
         import asyncio
 
-        from draf.checkpoint import Checkpoint, SQLiteCheckpointer
+        from teff.checkpoint import Checkpoint, SQLiteCheckpointer
 
         ck = SQLiteCheckpointer(str(tmp_path / "ck.db"))
         try:
@@ -117,7 +117,7 @@ class TestSQLiteCheckpointer:
     def test_independent_ids(self, tmp_path):
         import asyncio
 
-        from draf.checkpoint import Checkpoint, SQLiteCheckpointer
+        from teff.checkpoint import Checkpoint, SQLiteCheckpointer
 
         ck = SQLiteCheckpointer(str(tmp_path / "ck.db"))
         try:
@@ -134,7 +134,7 @@ class TestSQLiteCheckpointer:
 
 
 def _cp(state: dict):
-    from draf.checkpoint import Checkpoint
+    from teff.checkpoint import Checkpoint
 
     return Checkpoint(state=state, next_node_id=None, iteration=0)
 
@@ -146,11 +146,11 @@ class TestOwnerIsolation:
         import asyncio
 
         if kind == "file":
-            from draf.checkpoint import JSONFileCheckpointer
+            from teff.checkpoint import JSONFileCheckpointer
 
             self.ck = JSONFileCheckpointer(str(tmp_path))
         else:
-            from draf.checkpoint import SQLiteCheckpointer
+            from teff.checkpoint import SQLiteCheckpointer
 
             self.ck = SQLiteCheckpointer(str(tmp_path / "ck.db"))
         self.run = lambda coro: asyncio.run(coro)
@@ -215,7 +215,7 @@ class TestSQLiteOwnerMigration:
         conn.commit()
         conn.close()
 
-        from draf.checkpoint import SQLiteCheckpointer
+        from teff.checkpoint import SQLiteCheckpointer
 
         ck = SQLiteCheckpointer(path)
         try:
@@ -233,11 +233,11 @@ class TestGraphOwnerPassThrough:
     @pytest.mark.asyncio
     async def test_run_scopes_checkpoints(self, kind, tmp_path):
         if kind == "file":
-            from draf.checkpoint import JSONFileCheckpointer
+            from teff.checkpoint import JSONFileCheckpointer
 
             ck = JSONFileCheckpointer(str(tmp_path))
         else:
-            from draf.checkpoint import SQLiteCheckpointer
+            from teff.checkpoint import SQLiteCheckpointer
 
             ck = SQLiteCheckpointer(str(tmp_path / "ck.db"))
         try:
@@ -280,11 +280,11 @@ class TestGraphOwnerPassThrough:
 def checkpointer(request, tmp_path):
     kind = request.param
     if kind == "file":
-        from draf.checkpoint import JSONFileCheckpointer
+        from teff.checkpoint import JSONFileCheckpointer
 
         return JSONFileCheckpointer(str(tmp_path))
     if kind == "sqlite":
-        from draf.checkpoint import SQLiteCheckpointer
+        from teff.checkpoint import SQLiteCheckpointer
 
         return SQLiteCheckpointer(str(tmp_path / "ck.db"))
 
@@ -422,7 +422,7 @@ class TestCheckpointResume:
 
     async def test_crash_between_nodes_resumes_next(self, checkpointer):
         """Simulate a crash: save a checkpoint manually and resume."""
-        from draf.checkpoint import Checkpoint
+        from teff.checkpoint import Checkpoint
 
         g = _build_linear_graph()
         await checkpointer.save(
@@ -441,7 +441,7 @@ class TestCheckpointResume:
 
     async def test_resume_mid_graph(self, checkpointer):
         """A checkpoint pointing at node 2 skips node 1 on resume."""
-        from draf.checkpoint import Checkpoint
+        from teff.checkpoint import Checkpoint
 
         g = _build_linear_graph()
         node_ids = list(g.nodes)
@@ -462,7 +462,7 @@ class TestCheckpointResume:
         assert result["b"] == "hi"
 
     async def test_state_instance_keeps_schema(self, checkpointer):
-        from draf.state import State
+        from teff.state import State
 
         class S(TypedDict):
             text: str
@@ -480,8 +480,8 @@ class TestCheckpointResume:
 
     async def test_error_edge_checkpoint_points_to_fallback(self, checkpointer):
         """After a node fails and routes via __error__, resume goes to fallback."""
-        from draf.graph import Edge, Graph
-        from draf.node import Node
+        from teff.graph import Edge, Graph
+        from teff.node import Node
 
         class Crash(Node):
             type = "cr"
@@ -514,8 +514,8 @@ class TestCheckpointResume:
         assert cp.next_node_id is None
 
     async def test_no_error_edge_keeps_checkpoint_at_failed_node(self, checkpointer):
-        from draf.graph import Graph
-        from draf.node import Node
+        from teff.graph import Graph
+        from teff.node import Node
 
         class Crash(Node):
             type = "cr"
@@ -546,7 +546,7 @@ class TestSQLiteHistoryCheckpointer:
     def test_save_load_history(self, tmp_path):
         import asyncio
 
-        from draf.checkpoint import Checkpoint, SQLiteHistoryCheckpointer
+        from teff.checkpoint import Checkpoint, SQLiteHistoryCheckpointer
 
         ck = SQLiteHistoryCheckpointer(str(tmp_path / "ck.db"))
         try:
@@ -584,7 +584,7 @@ class TestSQLiteHistoryCheckpointer:
     def test_load_at_missing(self, tmp_path):
         import asyncio
 
-        from draf.checkpoint import SQLiteHistoryCheckpointer
+        from teff.checkpoint import SQLiteHistoryCheckpointer
 
         ck = SQLiteHistoryCheckpointer(str(tmp_path / "ck.db"))
         try:
@@ -597,7 +597,7 @@ class TestSQLiteHistoryCheckpointer:
         """Rewind to a past checkpoint, edit state, replay from a branch id."""
         import asyncio
 
-        from draf.checkpoint import SQLiteHistoryCheckpointer
+        from teff.checkpoint import SQLiteHistoryCheckpointer
 
         g = _build_linear_graph()
         ck = SQLiteHistoryCheckpointer(str(tmp_path / "ck.db"))
@@ -637,8 +637,8 @@ class TestPGHistoryCheckpointer:
         import importlib.util
         import os
 
-        if os.environ.get("DRAF_TEST_PG_DSN") is None:
-            pytest.skip("set DRAF_TEST_PG_DSN to run PostgreSQL checkpoint tests")
+        if os.environ.get("TEFF_TEST_PG_DSN") is None:
+            pytest.skip("set TEFF_TEST_PG_DSN to run PostgreSQL checkpoint tests")
         if importlib.util.find_spec("asyncpg") is None:
             pytest.skip("asyncpg is not installed")
 
@@ -646,12 +646,12 @@ class TestPGHistoryCheckpointer:
     def pg(self):
         import os
 
-        from draf.checkpoint import PGHistoryCheckpointer
+        from teff.checkpoint import PGHistoryCheckpointer
 
-        return PGHistoryCheckpointer(os.environ["DRAF_TEST_PG_DSN"])
+        return PGHistoryCheckpointer(os.environ["TEFF_TEST_PG_DSN"])
 
     async def test_save_load_history(self, pg):
-        from draf.checkpoint import Checkpoint
+        from teff.checkpoint import Checkpoint
 
         await pg.save(
             "run-1", Checkpoint(state={"n": 1}, next_node_id="n1", iteration=1)
@@ -674,8 +674,8 @@ class TestPGCheckpointCleanup:
         import importlib.util
         import os
 
-        if os.environ.get("DRAF_TEST_PG_DSN") is None:
-            pytest.skip("set DRAF_TEST_PG_DSN to run PostgreSQL checkpoint tests")
+        if os.environ.get("TEFF_TEST_PG_DSN") is None:
+            pytest.skip("set TEFF_TEST_PG_DSN to run PostgreSQL checkpoint tests")
         if importlib.util.find_spec("asyncpg") is None:
             pytest.skip("asyncpg is not installed")
 
@@ -683,9 +683,9 @@ class TestPGCheckpointCleanup:
     def pg(self):
         import os
 
-        from draf.checkpoint.pg import PGCheckpointer
+        from teff.checkpoint.pg import PGCheckpointer
 
-        ck = PGCheckpointer(os.environ["DRAF_TEST_PG_DSN"])
+        ck = PGCheckpointer(os.environ["TEFF_TEST_PG_DSN"])
         return ck
 
     async def test_cleanup_keep_last(self, pg):
@@ -817,7 +817,7 @@ class TestPGCheckpointerMocked:
 
     @pytest.fixture
     def pg(self, monkeypatch):
-        from draf.checkpoint.pg import PGCheckpointer
+        from teff.checkpoint.pg import PGCheckpointer
 
         return _mock_pg(monkeypatch, PGCheckpointer)
 
@@ -851,12 +851,12 @@ class TestPGCheckpointerMocked:
 class TestPGHistoryCheckpointerMocked:
     @pytest.fixture
     def pg(self, monkeypatch):
-        from draf.checkpoint import PGHistoryCheckpointer
+        from teff.checkpoint import PGHistoryCheckpointer
 
         return _mock_pg(monkeypatch, PGHistoryCheckpointer)
 
     async def test_save_history_load_at(self, pg):
-        from draf.checkpoint import Checkpoint
+        from teff.checkpoint import Checkpoint
 
         await pg.save(
             "run-1",

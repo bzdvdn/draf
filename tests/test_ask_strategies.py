@@ -10,15 +10,15 @@ import asyncio
 
 import pytest
 
-from draf.flow import Flow
-from draf.node import Ask, Transform
-from draf.node.ask import Validate
-from draf.node.interrupt import GraphInterrupt
-from draf.node.node import Node
+from teff.flow import Flow
+from teff.node import Ask, Transform
+from teff.node.ask import Validate
+from teff.node.interrupt import GraphInterrupt
+from teff.node.node import Node
 
 
 async def _run(node, state: dict) -> dict:
-    from draf.node import ExecContext
+    from teff.node import ExecContext
 
     ctx = ExecContext(state=state, tools={})
     return await node.execute(ctx, state)
@@ -157,7 +157,7 @@ class TestAsk:
 class TestInterruptLoopAsk:
     @pytest.fixture(autouse=True)
     def _checkpoint(self, tmp_path):
-        from draf.checkpoint import JSONFileCheckpointer
+        from teff.checkpoint import JSONFileCheckpointer
 
         self.cp = JSONFileCheckpointer(str(tmp_path))
 
@@ -216,8 +216,8 @@ class TestInterruptLoopModel:
     @pytest.mark.asyncio
     async def test_wires_classifier_before_validate(self, monkeypatch, tmp_path):
         """A 'model' Ask inserts an LLM classifier between interrupt and validate."""
-        from draf.checkpoint import JSONFileCheckpointer
-        from draf.provider import ProviderRegistry
+        from teff.checkpoint import JSONFileCheckpointer
+        from teff.provider import ProviderRegistry
 
         mock_calls = []
 
@@ -225,7 +225,7 @@ class TestInterruptLoopModel:
             mock_calls.append(state.get("approved"))
             return {"verdict": {"ok": state.get("approved") == "да", "code": ""}}
 
-        from draf.node.llm import LLM
+        from teff.node.llm import LLM
 
         monkeypatch.setattr(LLM, "execute", fake_execute)
 
@@ -262,8 +262,8 @@ class TestInterruptLoopModel:
     async def test_unclear_answer_reasks_without_body(self, monkeypatch, tmp_path):
         """A clear=false verdict routes back to the interrupt (re-ask) and the
         body chain is NOT re-run; a later pass completes the loop."""
-        from draf.checkpoint import JSONFileCheckpointer
-        from draf.provider import ProviderRegistry
+        from teff.checkpoint import JSONFileCheckpointer
+        from teff.provider import ProviderRegistry
 
         body_calls = []
 
@@ -283,7 +283,7 @@ class TestInterruptLoopModel:
                 }
             }
 
-        from draf.node.llm import LLM
+        from teff.node.llm import LLM
 
         monkeypatch.setattr(LLM, "execute", fake_execute)
 

@@ -1,11 +1,11 @@
 # Plugins
 
-A plugin is any Python module that registers types with draf. **Loading the
+A plugin is any Python module that registers types with teff. **Loading the
 file is the whole mechanism** — no separate plugin API.
 
 ## Discovery
 
-`load_workflow` and `draf validate` discover plugin files two ways:
+`load_workflow` and `teff validate` discover plugin files two ways:
 
 1. **`plugins:` key** — a list of file paths (relative to the workflow) in the
    workflow document:
@@ -26,7 +26,7 @@ Registration is idempotent per absolute path, so double-loading is harmless.
 
 ```python
 # plugins/nodes.py
-from draf.node.registry import node
+from teff.node.registry import node
 
 
 @node("slugify_node", SlugConfig)
@@ -35,7 +35,7 @@ async def slugify_node(ctx, config, state): ...
 
 ```python
 # plugins/tools.py
-from draf.tool.registry import tool
+from teff.tool.registry import tool
 
 
 @tool("slugify", "Convert a string to a lowercase URL slug")
@@ -47,10 +47,10 @@ def slugify(text: str = "") -> str: ...
 No decorators needed — subclass `Node` / `Tool` and register explicitly:
 
 ```python
-from draf.node.node import Node
-from draf.node.registry import default_registry
-from draf.tool.tool import Tool
-from draf.tool.registry import default_tool_registry
+from teff.node.node import Node
+from teff.node.registry import default_registry
+from teff.tool.tool import Tool
+from teff.tool.registry import default_tool_registry
 
 
 class UpperTool(Tool):
@@ -88,11 +88,11 @@ plugin.
 ## Programmatic loading
 
 ```python
-from draf.plugins import load_plugins
+from teff.plugins import load_plugins
 
 load_plugins(["nodes.py", "tools.py"])  # files
 load_plugins(["plugins"])  # folder
 ```
 
-See [`examples/plugins/`](https://github.com/bzdvdn/draf/tree/main/examples/plugins/) for a complete offline
+See [`examples/plugins/`](https://github.com/bzdvdn/teff/tree/main/examples/plugins/) for a complete offline
 pipeline (both styles) plus a ReAct agent that uses the custom tools.

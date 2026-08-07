@@ -5,10 +5,10 @@ executor stay visible as graph topology, so the loop is inspectable and can
 be followed by more nodes:
 
 ```python
-from draf.flow import Flow
-from draf.node import Transform
-from draf.provider import ProviderRegistry
-from draf.tool import Tool
+from teff.flow import Flow
+from teff.node import Transform
+from teff.provider import ProviderRegistry
+from teff.tool import Tool
 
 
 class Search(Tool):
@@ -29,7 +29,7 @@ flow.react(system="Answer using tools.", input_key="query", output_key="answer")
 flow.step(Transform(action="uppercase", input_key="answer", output_key="result"))
 
 graph = flow.compile()
-result = await graph.run({"query": "draf"}, tools=[Search()], max_iterations=10)
+result = await graph.run({"query": "teff"}, tools=[Search()], max_iterations=10)
 ```
 
 When the model requests tools, the executor runs them **all in parallel** in
@@ -82,9 +82,9 @@ and its tools become ordinary `Tool` instances — no `graph.run` changes.
 Requires the `mcp` package (bundled with the core install, imported lazily):
 
 ```python
-from draf.flow import Flow
-from draf.provider import ProviderRegistry
-from draf.tool import mcp_tools
+from teff.flow import Flow
+from teff.provider import ProviderRegistry
+from teff.tool import mcp_tools
 
 flow = Flow(
     "agent",
@@ -106,7 +106,7 @@ async with mcp_tools(command=["uvx", "mcp-server-git"]) as tools:
 
 `command` starts a stdio server (split into argv), `url` connects to a
 Streamable HTTP endpoint. The session stays open for the `async with` block.
-A runnable pair lives in [`examples/mcp/`](https://github.com/bzdvdn/draf/tree/main/examples/mcp/).
+A runnable pair lives in [`examples/mcp/`](https://github.com/bzdvdn/teff/tree/main/examples/mcp/).
 
 ## Multi-agent supervisors
 

@@ -1,8 +1,8 @@
 # Command routing
 
-[`Command`](../../draf/node/command.py) is a node return value that combines
+[`Command`](../../teff/node/command.py) is a node return value that combines
 a **state update** with an explicit **next-node route** — LangGraph-style
-dynamic routing built into Draf's `Flow` and `Graph`.
+dynamic routing built into Teff's `Flow` and `Graph`.
 
 Normally a node returns a plain dict of updates and the graph follows its
 outgoing edges. Returning a `Command` lets the node *also* pick the next node

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 
-from draf.node import Command, Node
+from teff.node import Command, Node
 
 #: Decision thresholds: score above ``review`` needs a human; above ``deny``
 #: is blocked outright.

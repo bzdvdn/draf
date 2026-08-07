@@ -2,9 +2,9 @@
 
 import pytest
 
-from draf.flow import Flow
-from draf.graph.conditions import evaluate
-from draf.node import Transform
+from teff.flow import Flow
+from teff.graph.conditions import evaluate
+from teff.node import Transform
 
 
 class TestEvaluateCallable:
@@ -24,8 +24,8 @@ class TestEvaluateCallable:
 class TestGraphCallableConditions:
     @pytest.mark.asyncio
     async def test_callable_condition_routes_in_graph(self):
-        from draf.graph import Edge, Graph
-        from draf.node import Node
+        from teff.graph import Edge, Graph
+        from teff.node import Node
 
         class Write(Node):
             type = "write"
@@ -54,9 +54,9 @@ class TestGraphCallableConditions:
 
     @pytest.mark.asyncio
     async def test_error_edges_still_work_alongside_callables(self):
-        from draf.errors import NodeError
-        from draf.graph import Edge, Graph
-        from draf.node import Node
+        from teff.errors import NodeError
+        from teff.graph import Edge, Graph
+        from teff.node import Node
 
         class Boom(Node):
             type = "boom"
@@ -146,8 +146,8 @@ class TestCommandRoutingWithConditions:
     @pytest.mark.asyncio
     async def test_command_goto_from_guarded_branch(self):
         """A node may return Command(goto=...) to jump anywhere in the graph."""
-        from draf.graph import Edge, Graph
-        from draf.node import Command, Node
+        from teff.graph import Edge, Graph
+        from teff.node import Command, Node
 
         class Route(Node):
             type = "route"

@@ -1,20 +1,20 @@
 # RAG store examples
 
 The same RAG agent (docs.csv → embeddings → search → answer) running on
-every vector store draf supports. Pick the one that fits your needs.
+every vector store teff supports. Pick the one that fits your needs.
 
 | Store       | Deps needed                | Server required | Persistence    | Best for                          |
 | ----------- | -------------------------- | --------------- | -------------- | --------------------------------- |
 | `in_memory` | none (core)                | no              | no             | demos, tests, small workloads     |
 | `sqlite`    | none (stdlib `sqlite3`)    | no              | yes (file)     | small collections, file storage   |
-| `chroma`    | `draf[stores-chroma]`      | no (local dir)  | yes (directory)| local ANN search, no server       |
-| `faiss`     | `draf[stores-faiss]`       | no              | yes (files)    | fast flat index, in-process       |
-| `lance`     | `draf[stores-lance]`       | no              | yes (directory)| embedded columnar store           |
-| `milvus`    | `draf[stores-milvus]`      | no (Milvus Lite)| yes (file)     | local/remote Milvus, scaling path  |
-| `weaviate`  | `draf[stores-weaviate]`    | no (embedded)   | in-memory      | local ANN search, embedded server |
-| `qdrant`    | `draf[stores-qdrant]`      | yes (Docker)    | yes            | production scale, multi-tenant    |
-| `pgvector`  | `draf[stores-pgvector]`    | yes (PostgreSQL)| yes            | vectors alongside your SQL data   |
-| `pinecone`  | `draf[stores-pinecone]`    | yes (cloud)     | yes            | managed, hosted vector search     |
+| `chroma`    | `teff[stores-chroma]`      | no (local dir)  | yes (directory)| local ANN search, no server       |
+| `faiss`     | `teff[stores-faiss]`       | no              | yes (files)    | fast flat index, in-process       |
+| `lance`     | `teff[stores-lance]`       | no              | yes (directory)| embedded columnar store           |
+| `milvus`    | `teff[stores-milvus]`      | no (Milvus Lite)| yes (file)     | local/remote Milvus, scaling path  |
+| `weaviate`  | `teff[stores-weaviate]`    | no (embedded)   | in-memory      | local ANN search, embedded server |
+| `qdrant`    | `teff[stores-qdrant]`      | yes (Docker)    | yes            | production scale, multi-tenant    |
+| `pgvector`  | `teff[stores-pgvector]`    | yes (PostgreSQL)| yes            | vectors alongside your SQL data   |
+| `pinecone`  | `teff[stores-pinecone]`    | yes (cloud)     | yes            | managed, hosted vector search     |
 
 Each subdirectory has its own README with the exact install steps:
 
@@ -42,10 +42,10 @@ The vector-store extra for the store you use (for `chroma`, `qdrant`,
 `pgvector`, …):
 
 ```bash
-uv add "draf[stores-qdrant]"    # or: pip install "draf[stores-qdrant]"
+uv add "teff[stores-qdrant]"    # or: pip install "teff[stores-qdrant]"
 ```
 
-Use `draf[embedding]` (an alias for every store) only if you really need
+Use `teff[embedding]` (an alias for every store) only if you really need
 all of them at once — it is the heaviest extra.
 
 The stores that need a server (`qdrant`, `pgvector`) ship a
@@ -91,4 +91,4 @@ uv run python examples/rag_stores/flow.py pinecone
 
 `pinecone` has no subdirectory: it needs a hosted index, so configure it
 in `flow.py` and set `PINECONE_API_KEY` (plus create an index named
-`draf`) before running.
+`teff`) before running.

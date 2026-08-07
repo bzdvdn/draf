@@ -5,8 +5,8 @@
 import httpx
 import pytest
 
-from draf.errors import ConfigError
-from draf.provider import (
+from teff.errors import ConfigError
+from teff.provider import (
     BUILTINS,
     DEFAULT_PROVIDERS,
     PROVIDER_TYPES,
@@ -192,7 +192,7 @@ class TestToProviderRegistry:
 class TestHarnessProviders:
     @pytest.mark.asyncio
     async def test_custom_anthropic_provider(self, post_bodies):
-        from draf.harness import Harness
+        from teff.harness import Harness
 
         providers = {
             "claude-proxy": Provider(
@@ -215,8 +215,8 @@ class TestHarnessProviders:
 
     @pytest.mark.asyncio
     async def test_custom_ollama_structured(self, post_bodies):
-        from draf.graph import Graph
-        from draf.node import LLM
+        from teff.graph import Graph
+        from teff.node import LLM
 
         providers = {"local": Provider(type="ollama", base_url="http://ollama.local")}
         g = Graph(
@@ -236,8 +236,8 @@ class TestHarnessProviders:
 
     @pytest.mark.asyncio
     async def test_run_providers_override_graph_default(self, post_bodies):
-        from draf.graph import Graph
-        from draf.node import LLM
+        from teff.graph import Graph
+        from teff.node import LLM
 
         g = Graph(
             {"llm": LLM(model="m", api_key_env="X")},
@@ -254,8 +254,8 @@ class TestHarnessProviders:
 
     @pytest.mark.asyncio
     async def test_graph_providers_used_by_default(self, post_bodies):
-        from draf.graph import Graph
-        from draf.node import LLM
+        from teff.graph import Graph
+        from teff.node import LLM
 
         providers = {
             "claude": Provider(type="anthropic_compatible", base_url="http://proxy")
@@ -271,8 +271,8 @@ class TestHarnessProviders:
 
     @pytest.mark.asyncio
     async def test_unknown_provider_raises_at_runtime(self, post_bodies):
-        from draf.graph import Graph
-        from draf.node import LLM
+        from teff.graph import Graph
+        from teff.node import LLM
 
         g = Graph(
             {"llm": LLM(model="m", provider="nope", api_key_env="X")},
@@ -284,8 +284,8 @@ class TestHarnessProviders:
 
     @pytest.mark.asyncio
     async def test_no_provider_raises_without_default(self, post_bodies):
-        from draf.graph import Graph
-        from draf.node import LLM
+        from teff.graph import Graph
+        from teff.node import LLM
 
         g = Graph({"llm": LLM(model="m", api_key_env="X")}, [], "llm")
         with pytest.raises(ConfigError, match="no provider configured"):
@@ -293,8 +293,8 @@ class TestHarnessProviders:
 
     @pytest.mark.asyncio
     async def test_default_provider_not_declared_raises(self, post_bodies):
-        from draf.graph import Graph
-        from draf.node import LLM
+        from teff.graph import Graph
+        from teff.node import LLM
 
         g = Graph(
             {"llm": LLM(model="m", api_key_env="X")},
@@ -311,8 +311,8 @@ class TestHarnessProviders:
 
     @pytest.mark.asyncio
     async def test_graph_default_provider(self, post_bodies):
-        from draf.graph import Graph
-        from draf.node import LLM
+        from teff.graph import Graph
+        from teff.node import LLM
 
         g = Graph(
             {"llm": LLM(model="m", api_key_env="X")},
@@ -326,8 +326,8 @@ class TestHarnessProviders:
 
     @pytest.mark.asyncio
     async def test_run_default_provider_override(self, post_bodies):
-        from draf.graph import Graph
-        from draf.node import LLM
+        from teff.graph import Graph
+        from teff.node import LLM
 
         providers = {
             "claude": Provider(type="anthropic_compatible", base_url="http://proxy")
@@ -343,7 +343,7 @@ class TestHarnessProviders:
 
     @pytest.mark.asyncio
     async def test_harness_accepts_registry(self, post_bodies):
-        from draf.harness import Harness
+        from teff.harness import Harness
 
         reg = ProviderRegistry()
         reg.register(
@@ -366,8 +366,8 @@ class TestHarnessProviders:
 
     @pytest.mark.asyncio
     async def test_graph_run_accepts_registry(self, post_bodies):
-        from draf.graph import Graph
-        from draf.node import LLM
+        from teff.graph import Graph
+        from teff.node import LLM
 
         reg = ProviderRegistry()
         reg.register(
@@ -383,8 +383,8 @@ class TestHarnessProviders:
 
     @pytest.mark.asyncio
     async def test_graph_registry_used_by_default(self, post_bodies):
-        from draf.graph import Graph
-        from draf.node import LLM
+        from teff.graph import Graph
+        from teff.node import LLM
 
         reg = ProviderRegistry()
         reg.register(
@@ -404,8 +404,8 @@ class TestHarnessProviders:
 
     @pytest.mark.asyncio
     async def test_registry_unknown_provider_raises(self, post_bodies):
-        from draf.graph import Graph
-        from draf.node import LLM
+        from teff.graph import Graph
+        from teff.node import LLM
 
         reg = ProviderRegistry()
         g = Graph({"llm": LLM(model="m", provider="nope", api_key_env="X")}, [], "llm")
@@ -414,8 +414,8 @@ class TestHarnessProviders:
 
     @pytest.mark.asyncio
     async def test_flow_registry_compiles_into_graph(self, post_bodies):
-        from draf.flow import Flow
-        from draf.node import LLM
+        from teff.flow import Flow
+        from teff.node import LLM
 
         reg = ProviderRegistry()
         reg.register(
@@ -436,7 +436,7 @@ class TestHarnessProviders:
 
 class TestStrictModel:
     def test_from_config_requires_model_or_default_model(self):
-        from draf.harness import Harness
+        from teff.harness import Harness
 
         with pytest.raises(ConfigError, match="no model configured"):
             Harness.from_config(
@@ -444,7 +444,7 @@ class TestStrictModel:
             )
 
     def test_from_config_uses_default_model(self):
-        from draf.harness import Harness
+        from teff.harness import Harness
 
         h = Harness.from_config(
             {"provider": "openai", "api_key_env": "X"},
@@ -454,8 +454,8 @@ class TestStrictModel:
 
     @pytest.mark.asyncio
     async def test_graph_default_model_used_without_node_model(self, post_bodies):
-        from draf.graph import Graph
-        from draf.node import LLM
+        from teff.graph import Graph
+        from teff.node import LLM
 
         g = Graph(
             {"llm": LLM(provider="openai", api_key_env="X")},
@@ -489,7 +489,7 @@ edges: []
 """
 
     def test_providers_block_builds_graph_providers(self):
-        from draf.yaml import from_yaml
+        from teff.yaml import from_yaml
 
         g = from_yaml(self.YAML)
         assert g.default_provider == "vllm"
@@ -500,7 +500,7 @@ edges: []
         assert "openai" in g.providers
 
     def test_providers_block_round_trip(self):
-        from draf.yaml import from_yaml, workflow_to_yaml
+        from teff.yaml import from_yaml, workflow_to_yaml
 
         g = from_yaml(self.YAML)
         out = workflow_to_yaml(g)
@@ -513,7 +513,7 @@ edges: []
         assert "providers:" in out
 
     def test_preset_name_merges_preset(self):
-        from draf.yaml import from_yaml
+        from teff.yaml import from_yaml
 
         g = from_yaml(
             """\
@@ -534,7 +534,7 @@ edges: []
         assert p.chat_path == "/api/chat"
 
     def test_preset_merge_overrides_only_listed_fields(self):
-        from draf.yaml import from_yaml
+        from teff.yaml import from_yaml
 
         g = from_yaml(
             """\
@@ -556,7 +556,7 @@ edges: []
         assert p.chat_path == "/api/chat"
 
     def test_preset_merge_takes_custom_type(self):
-        from draf.yaml import from_yaml
+        from teff.yaml import from_yaml
 
         g = from_yaml(
             """\
@@ -575,14 +575,14 @@ edges: []
         assert g.providers["ollama"].type == "openai_compatible"
 
     def test_mapping_unknown_key_raises_config_error(self):
-        from draf.yaml import from_yaml
+        from teff.yaml import from_yaml
 
         bad = self.YAML.replace("base_url: http://proxy", "bogus: 1")
         with pytest.raises(ConfigError, match="unknown keys"):
             from_yaml(bad)
 
     def test_duplicate_name_raises(self):
-        from draf.yaml import from_yaml
+        from teff.yaml import from_yaml
 
         bad = self.YAML.replace(
             "  - name: claude-proxy", "  - name: claude-proxy\n  - name: claude-proxy"
@@ -591,7 +591,7 @@ edges: []
             from_yaml(bad)
 
     def test_preset_name_string_is_rejected(self):
-        from draf.yaml import from_yaml
+        from teff.yaml import from_yaml
 
         bad = self.YAML.replace(
             "  - name: openai\n    type: openai_compatible\n", "  - openai\n"
@@ -600,35 +600,35 @@ edges: []
             from_yaml(bad)
 
     def test_runtime_parser_rejects_bare_strings(self):
-        from draf.errors import ConfigError as CE
-        from draf.yaml import _providers_from_data
+        from teff.errors import ConfigError as CE
+        from teff.yaml import _providers_from_data
 
         with pytest.raises(CE, match="preset names are not allowed"):
             _providers_from_data({"providers": ["openai"]})
 
     def test_runtime_parser_rejects_non_mapping_entries(self):
-        from draf.errors import ConfigError as CE
-        from draf.yaml import _providers_from_data
+        from teff.errors import ConfigError as CE
+        from teff.yaml import _providers_from_data
 
         with pytest.raises(CE, match="must be a mapping"):
             _providers_from_data({"providers": [42]})
 
     def test_runtime_parser_requires_name(self):
-        from draf.errors import ConfigError as CE
-        from draf.yaml import _providers_from_data
+        from teff.errors import ConfigError as CE
+        from teff.yaml import _providers_from_data
 
         with pytest.raises(CE, match="requires a `name:`"):
             _providers_from_data({"providers": [{"type": "ollama"}]})
 
     def test_default_provider_must_be_declared(self):
-        from draf.yaml import from_yaml
+        from teff.yaml import from_yaml
 
         bad = self.YAML.replace("default_provider: vllm", "default_provider: nope")
         with pytest.raises(ConfigError, match="default_provider"):
             from_yaml(bad)
 
     def test_node_provider_must_be_declared(self):
-        from draf.yaml import from_yaml
+        from teff.yaml import from_yaml
 
         yaml_with_node_provider = """\
 name: p
@@ -647,7 +647,7 @@ edges: []
             from_yaml(yaml_with_node_provider)
 
     def test_builtin_node_provider_is_allowed(self):
-        from draf.yaml import from_yaml
+        from teff.yaml import from_yaml
 
         yaml_ok = """\
 name: p
@@ -669,15 +669,15 @@ edges: []
 
 def test_provider_submodules_import_cleanly():
     """Re-execute the provider submodules whose module-level code runs before
-    coverage starts (they are imported by the ``draf.testing`` pytest plugin).
+    coverage starts (they are imported by the ``teff.testing`` pytest plugin).
     Running the reload last avoids disturbing class identity for earlier tests."""
     import importlib
 
     for mod in (
-        "draf.provider.builtin.base",
-        "draf.provider.registry",
-        "draf.provider.resolve",
-        "draf.provider.providers",
+        "teff.provider.builtin.base",
+        "teff.provider.registry",
+        "teff.provider.resolve",
+        "teff.provider.providers",
     ):
         importlib.reload(importlib.import_module(mod))
     assert ProviderRegistry.from_presets("ollama").resolve("ollama").type == "ollama"

@@ -5,7 +5,7 @@ description: >
   (no per-app Python):
 
       REDIS_URL=... TELEGRAM_BOT_TOKEN=... TELEGRAM_CHAT_ID=... \
-      draf daemon -f workflow.yaml --interval 300
+      teff daemon -f workflow.yaml --interval 300
 
   The agent is the driver: it takes a distributed lock (so two instances
   never run the same tick), reads a priority table from a CSV, inspects the

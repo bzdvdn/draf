@@ -19,11 +19,11 @@ Usage:
 import asyncio
 from typing import TypedDict
 
-from draf.flow import Flow
-from draf.node import LLM
-from draf.node.interrupt import GraphInterrupt
-from draf.provider import ProviderRegistry
-from draf.state import State
+from teff.flow import Flow
+from teff.node import LLM
+from teff.node.interrupt import GraphInterrupt
+from teff.provider import ProviderRegistry
+from teff.state import State
 
 SYSTEM = "Ты инженер по ремонту. Составляй краткие планы работ по-русски, 3-5 пунктов."
 
@@ -72,7 +72,7 @@ async def main():
     )
 
     graph = flow.compile()
-    from draf.checkpoint import JSONFileCheckpointer
+    from teff.checkpoint import JSONFileCheckpointer
 
     cp = JSONFileCheckpointer("checkpoints")
 

@@ -1,6 +1,6 @@
 # RAG store: sqlite
 
-RAG agent over the Draf knowledge base using the `sqlite` vector store.
+RAG agent over the Teff knowledge base using the `sqlite` vector store.
 
 ## Dependencies
 

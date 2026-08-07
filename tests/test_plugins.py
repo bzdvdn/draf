@@ -3,8 +3,8 @@
 import pytest
 
 CUSTOM_NODE = """\
-from draf.node.registry import node
-from draf.tool.registry import tool
+from teff.node.registry import node
+from teff.tool.registry import tool
 
 
 @node("greet_node")
@@ -26,9 +26,9 @@ def _write_workflow(dirpath, body, name="wf.yaml"):
 
 class TestPlugins:
     def test_plugins_key_loads_custom_node_and_tool(self, tmp_path):
-        from draf.plugins import reset_plugins
-        from draf.yaml import load_workflow
-        from draf.yaml_schema import validate_workflow_file
+        from teff.plugins import reset_plugins
+        from teff.yaml import load_workflow
+        from teff.yaml_schema import validate_workflow_file
 
         reset_plugins()
         (tmp_path / "greet.py").write_text(CUSTOM_NODE, encoding="utf-8")
@@ -51,13 +51,13 @@ tools:
         assert [t.name for t in tools] == ["greet_tool"]
 
     def test_default_plugins_dir_auto_loaded(self, tmp_path):
-        from draf.plugins import reset_plugins
-        from draf.yaml_schema import validate_workflow_file
+        from teff.plugins import reset_plugins
+        from teff.yaml_schema import validate_workflow_file
 
         reset_plugins()
         (tmp_path / "plugins").mkdir()
         (tmp_path / "plugins" / "extra.py").write_text(
-            "from draf.node.registry import node\n\n"
+            "from teff.node.registry import node\n\n"
             '@node("extra_node")\n'
             "async def extra_node(ctx, state):\n"
             '    return {"ok": True}\n',
@@ -74,8 +74,8 @@ steps:
         assert validate_workflow_file(wf) == []
 
     def test_missing_plugin_raises_config_error(self, tmp_path):
-        from draf.errors import ConfigError
-        from draf.yaml_schema import validate_workflow_file
+        from teff.errors import ConfigError
+        from teff.yaml_schema import validate_workflow_file
 
         wf = _write_workflow(
             tmp_path,
@@ -91,7 +91,7 @@ steps:
             validate_workflow_file(wf)
 
     def test_unknown_type_without_plugin_still_fails(self, tmp_path):
-        from draf.yaml_schema import validate_workflow_file
+        from teff.yaml_schema import validate_workflow_file
 
         wf = _write_workflow(
             tmp_path,
@@ -105,7 +105,7 @@ steps:
         assert any("unknown node type" in e["message"] for e in errors)
 
     def test_load_plugin_idempotent(self, tmp_path):
-        from draf.plugins import load_plugin_dir, load_plugin_file, reset_plugins
+        from teff.plugins import load_plugin_dir, load_plugin_file, reset_plugins
 
         reset_plugins()
         p = tmp_path / "once.py"
@@ -116,13 +116,13 @@ steps:
         assert p.name.endswith(".py")
 
     def test_plugins_folder_custom_location(self, tmp_path):
-        from draf.plugins import reset_plugins
-        from draf.yaml_schema import validate_workflow_file
+        from teff.plugins import reset_plugins
+        from teff.yaml_schema import validate_workflow_file
 
         reset_plugins()
         (tmp_path / "vendor").mkdir()
         (tmp_path / "vendor" / "ext.py").write_text(
-            "from draf.node.registry import node\n\n"
+            "from teff.node.registry import node\n\n"
             '@node("vendor_node")\n'
             "async def vendor_node(ctx, state):\n"
             '    return {"ok": True}\n',
@@ -141,13 +141,13 @@ steps:
 
     def test_plugins_folder_defaults_to_plugins(self, tmp_path):
         """Without plugins_folder the default plugins/ dir is still used."""
-        from draf.plugins import reset_plugins
-        from draf.yaml_schema import validate_workflow_file
+        from teff.plugins import reset_plugins
+        from teff.yaml_schema import validate_workflow_file
 
         reset_plugins()
         (tmp_path / "plugins").mkdir()
         (tmp_path / "plugins" / "def.py").write_text(
-            "from draf.node.registry import node\n\n"
+            "from teff.node.registry import node\n\n"
             '@node("default_node")\n'
             "async def default_node(ctx, state):\n"
             '    return {"ok": True}\n',

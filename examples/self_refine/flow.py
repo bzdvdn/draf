@@ -2,7 +2,7 @@
 
 The same workflow as ``graph.py`` — draft → critic → extract, looping
 through ``fix`` until the critic passes — but assembled with
-:class:`draf.flow.Flow`.  The whole loop is one ``flow.loop()`` call
+:class:`teff.flow.Flow`.  The whole loop is one ``flow.loop()`` call
 instead of hand-wired back edges:
 
     flow.step(draft)          # writes "draft"
@@ -19,7 +19,7 @@ instead of hand-wired back edges:
 By default the run goes against a mocked HTTP transport with a scripted
 model: the critic rejects the first draft (``needs_work``) and accepts
 the second (``pass``), so exactly one revision happens — no API key and
-no Ollama needed.  Set ``DRAF_LIVE=1`` to hit a real Ollama instance.
+no Ollama needed.  Set ``TEFF_LIVE=1`` to hit a real Ollama instance.
 
 This file is fully self-contained (duplicates the mock from ``graph.py``)
 so it can be read and run on its own.
@@ -37,12 +37,12 @@ from typing import TypedDict
 
 import httpx
 
-from draf.flow import Flow
-from draf.graph import Graph
-from draf.logging import configure_logging
-from draf.node import LLM, Transform
-from draf.provider import ProviderRegistry
-from draf.trace import RunTracer
+from teff.flow import Flow
+from teff.graph import Graph
+from teff.logging import configure_logging
+from teff.node import LLM, Transform
+from teff.provider import ProviderRegistry
+from teff.trace import RunTracer
 
 MODEL = "llama3.1:8b"
 
@@ -174,7 +174,7 @@ def build_flow(model: str) -> Graph:
 
 
 async def main() -> None:
-    live = os.environ.get("DRAF_LIVE") == "1"
+    live = os.environ.get("TEFF_LIVE") == "1"
     calls = {"reviews": 0}
     if not live:
         patch_transport(calls)

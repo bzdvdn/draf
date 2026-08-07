@@ -26,12 +26,12 @@ import asyncio
 import os
 import tempfile
 
-from draf.checkpoint import JSONFileCheckpointer
-from draf.flow import Flow
-from draf.node import Node
-from draf.node.interrupt import GraphInterrupt
-from draf.provider import ProviderRegistry
-from draf.tool import Tool
+from teff.checkpoint import JSONFileCheckpointer
+from teff.flow import Flow
+from teff.node import Node
+from teff.node.interrupt import GraphInterrupt
+from teff.provider import ProviderRegistry
+from teff.tool import Tool
 
 
 class Calculator(Tool):
@@ -68,8 +68,8 @@ def build_flow_graph():
 
 def build_low_level_graph():
     """Low-level equivalent — the exact wiring ``flow.harness()`` builds."""
-    from draf.graph import Edge, Graph
-    from draf.node.agent import ReActAgent, ToolExec
+    from teff.graph import Edge, Graph
+    from teff.node.agent import ReActAgent, ToolExec
 
     return Graph(
         nodes={
@@ -147,8 +147,8 @@ class DenyFeedback(Node):
 
 def build_loop_graph():
     """`flow.loop()` decider: deny loops back to the prompt until approved."""
-    from draf.node import LLM
-    from draf.node.agent import ReActAgent, ToolExec
+    from teff.node import LLM
+    from teff.node.agent import ReActAgent, ToolExec
 
     agent_cfg = {"model": "llama3.1:8b", "input_key": "input", "output_key": "answer"}
     answer_cfg = {

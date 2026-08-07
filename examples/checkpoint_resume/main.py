@@ -12,9 +12,9 @@ Usage:
 import asyncio
 import os
 
-from draf.checkpoint import SQLiteCheckpointer
-from draf.flow import Flow
-from draf.node import Node, Transform
+from teff.checkpoint import SQLiteCheckpointer
+from teff.flow import Flow
+from teff.node import Node, Transform
 
 _HERE = os.path.dirname(os.path.abspath(__file__))
 DB_PATH = os.path.join(_HERE, "checkpoints.db")

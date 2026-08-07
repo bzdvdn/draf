@@ -1,13 +1,13 @@
 """Command — combine state updates with dynamic routing (raw Graph API).
 
 The same content-moderation gate as ``flow.py``, but assembled with the raw
-:class:`draf.graph.Graph` and explicit :class:`draf.graph.Edge` objects
-instead of the :class:`draf.flow.Flow` builder — it shows that ``goto`` can
+:class:`teff.graph.Graph` and explicit :class:`teff.graph.Edge` objects
+instead of the :class:`teff.flow.Flow` builder — it shows that ``goto`` can
 target *any* node even when there is no edge between them.
 
 The graph has an ordinary edge ``moderate -> review``, yet a
 ``goto="deliver"`` from ``moderate`` to ``deliver`` works because the routing
-comes from the returned :class:`draf.node.Command`, not the topology:
+comes from the returned :class:`teff.node.Command`, not the topology:
 
     start -> moderate --(no goto, plain dict)--> review -> deliver
                      --goto="deliver"-----------> deliver (bypasses edges)
@@ -23,10 +23,10 @@ from __future__ import annotations
 
 import asyncio
 
-from draf.graph import Edge, Graph
-from draf.logging import configure_logging
-from draf.node import Command, Transform
-from draf.node.node import Node
+from teff.graph import Edge, Graph
+from teff.logging import configure_logging
+from teff.node import Command, Transform
+from teff.node.node import Node
 
 
 class Moderate(Node):

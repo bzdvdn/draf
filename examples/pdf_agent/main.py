@@ -45,11 +45,11 @@ import subprocess
 import sys
 from pathlib import Path
 
-from draf.flow import Flow
-from draf.graph import Graph
-from draf.node import LLM
-from draf.provider import ProviderRegistry
-from draf.tool.builtin import ReadFileTool, ShellTool
+from teff.flow import Flow
+from teff.graph import Graph
+from teff.node import LLM
+from teff.provider import ProviderRegistry
+from teff.tool.builtin import ReadFileTool, ShellTool
 
 # The shell tool resolves `python` through PATH.  When running inside a venv,
 # make sure the subprocesses use the SAME interpreter that has the PDF deps

@@ -2,7 +2,7 @@
 
 Inspect what actually goes into every LLM call, across a whole graph run, in
 a local web UI — a self-hosted langfuse-style trace viewer built on the
-`draf.observability` package.
+`teff.observability` package.
 
 `POST /api/run` executes a small **`llm -> tools -> llm`** graph inside a
 `GraphObserver`, which captures:
@@ -27,14 +27,14 @@ tool rounds appears as `1 llm → 2 tool → 3 llm → 4 tool → 5 llm`, each s
 expandable to its full prompt/response and tool args/result.
 
 Everything lands in `traces.db` (SQLite). The dashboard at
-`GET /obs/ui` (mounted via `draf.observability.dashboard_router`) lists
+`GET /obs/ui` (mounted via `teff.observability.dashboard_router`) lists
 runs with filters and pagination; clicking a run opens a dedicated page
 (`GET /obs/runs/{id}`) with the node list, per-node tool calls and LLM
 payloads, prompt and response side by side, plus editable tags and notes in
 a side panel.
 
 The same chain is declarative, too — this `workflow.yaml` snippet reproduces
-the tool loop with no code (run it with `draf run -f` and it self-traces via
+the tool loop with no code (run it with `teff run -f` and it self-traces via
 the `observability:` block):
 
 ```yaml
@@ -107,23 +107,23 @@ with the full graph and the exact prompt/response of every model call.
 
 ## Where the pieces live
 
-- `draf/observability/model.py` — `Run` / `NodeSpan` / `LLMCall` /
+- `teff/observability/model.py` — `Run` / `NodeSpan` / `LLMCall` /
   `GraphTopology` data model (with `from_dict` round-tripping).
-- `draf/observability/collector.py` — `GraphObserver`, the wiring between
+- `teff/observability/collector.py` — `GraphObserver`, the wiring between
   `graph.run()` and an exporter (`tracer` + `on_llm_payload` channels).
-- `draf/observability/exporter.py` — `TraceExporter` interface,
+- `teff/observability/exporter.py` — `TraceExporter` interface,
   `JsonlExporter`, `SQLiteExporter` (also the query layer for the dashboard),
   `CompositeExporter` (fan-out).
-- `draf/observability/push.py` — `HttpExporter` (webhook / obs-server ingest),
+- `teff/observability/push.py` — `HttpExporter` (webhook / obs-server ingest),
   `LangfuseExporter`, `LangsmithExporter` — background push, no extra deps.
-- `draf/observability/api.py` — `dashboard_router(SQLiteExporter)` and
+- `teff/observability/api.py` — `dashboard_router(SQLiteExporter)` and
   `ingest_router(SQLiteExporter)` (`POST /obs/ingest`).
-- `draf/observability/builder.py` — `build_observability` /
+- `teff/observability/builder.py` — `build_observability` /
   `build_observer_factory`: turn a YAML `observability:` block into an
-  observer (`draf run` / `draf daemon` use this automatically).
-- `draf/observability/server.py` — `build_server` / `serve` (the `draf
+  observer (`teff run` / `teff daemon` use this automatically).
+- `teff/observability/server.py` — `build_server` / `serve` (the `teff
   obs-server` command: ingest + dashboard in one process).
-- `draf/observability/topology.py` — `topology_from_graph(graph)`.
+- `teff/observability/topology.py` — `topology_from_graph(graph)`.
 
 Swap `SQLiteExporter` for `JsonlExporter`, or implement `TraceExporter` to
 push runs to langfuse/langsmith — the collector never talks to a concrete
@@ -138,13 +138,13 @@ observability:
   db: ./data/traces.db
   export:
     - type: webhook
-      url: http://localhost:8001/obs/ingest   # another draf obs-server
+      url: http://localhost:8001/obs/ingest   # another teff obs-server
     - type: langfuse
       host: https://cloud.langfuse.com
       public_key_env: LANGFUSE_PUBLIC_KEY
       secret_key_env: LANGFUSE_SECRET_KEY
 ```
 
-`draf run -f workflow.yaml` (and `draf daemon`) pick this up automatically;
-on the collector side `draf obs-server --db traces.db` serves the same
+`teff run -f workflow.yaml` (and `teff daemon`) pick this up automatically;
+on the collector side `teff obs-server --db traces.db` serves the same
 dashboard.

@@ -7,9 +7,9 @@ Usage:
 
 import asyncio
 
-from draf.graph import Edge, Graph
-from draf.node import LLM, Transform
-from draf.state.state import reducers_from_yaml_schema
+from teff.graph import Edge, Graph
+from teff.node import LLM, Transform
+from teff.state.state import reducers_from_yaml_schema
 
 
 async def main():

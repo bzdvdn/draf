@@ -43,7 +43,7 @@ def patch_post(monkeypatch):
 class TestLLMCache:
     @pytest.mark.asyncio
     async def test_cache_hit_skips_network(self, patch_post):
-        from draf.harness import Harness
+        from teff.harness import Harness
 
         h = Harness(model="gpt-4", provider="openai", api_key_env="X", cache=True)
         h._headers = {}
@@ -57,7 +57,7 @@ class TestLLMCache:
 
     @pytest.mark.asyncio
     async def test_cache_distinguishes_messages(self, patch_post):
-        from draf.harness import Harness
+        from teff.harness import Harness
 
         h = Harness(model="gpt-4", provider="openai", api_key_env="X", cache=True)
         h._headers = {}
@@ -67,7 +67,7 @@ class TestLLMCache:
 
     @pytest.mark.asyncio
     async def test_shared_mapping_cache(self, patch_post):
-        from draf.harness import Harness
+        from teff.harness import Harness
 
         shared: dict = {}
         h1 = Harness(model="gpt-4", provider="openai", api_key_env="X", cache=shared)
@@ -82,7 +82,7 @@ class TestLLMCache:
 
     @pytest.mark.asyncio
     async def test_no_cache_by_default(self, patch_post):
-        from draf.harness import Harness
+        from teff.harness import Harness
 
         h = Harness(model="gpt-4", provider="openai", api_key_env="X")
         h._headers = {}
@@ -92,7 +92,7 @@ class TestLLMCache:
         assert patch_post["n"] == 2
 
     def test_from_config_cache_true(self):
-        from draf.harness import Harness
+        from teff.harness import Harness
 
         h = Harness.from_config({"model": "gpt-4", "cache": True, "provider": "openai"})
         assert h._cache is not None
@@ -100,7 +100,7 @@ class TestLLMCache:
 
 class TestAnthropic:
     def test_anthropic_body_builds_blocks(self):
-        from draf.harness import Harness
+        from teff.harness import Harness
 
         h = Harness(model="claude-3-5-sonnet", provider="anthropic", api_key_env="X")
         h._headers = {}
@@ -147,7 +147,7 @@ class TestAnthropic:
 
     @pytest.mark.asyncio
     async def test_anthropic_response_parsing(self, monkeypatch):
-        from draf.harness import Harness
+        from teff.harness import Harness
 
         calls = {"n": 0}
 
@@ -177,7 +177,7 @@ class TestAnthropic:
         assert reply.usage == {"prompt": 12, "completion": 5}
 
     def test_anthropic_stream_token(self):
-        from draf.harness import Harness
+        from teff.harness import Harness
 
         h = Harness(model="claude-3-5-sonnet", provider="anthropic", api_key_env="X")
         assert (
@@ -202,7 +202,7 @@ class TestAnthropic:
         assert h2._stream_token({"choices": [{"delta": {"content": "yo"}}]}) == "yo"
 
     def test_openai_compatible_presets(self):
-        from draf.harness import PROVIDER_DEFAULTS
+        from teff.harness import PROVIDER_DEFAULTS
 
         for provider in (
             "together",
@@ -218,7 +218,7 @@ class TestAnthropic:
 class TestConcurrency:
     @pytest.mark.asyncio
     async def test_global_semaphore_throttles(self, patch_post):
-        from draf.harness import Harness, set_provider_concurrency
+        from teff.harness import Harness, set_provider_concurrency
 
         set_provider_concurrency("openai", 2)
         try:
@@ -232,7 +232,7 @@ class TestConcurrency:
             set_provider_concurrency("openai", 0)
 
     def test_set_and_get_concurrency(self):
-        from draf.harness import provider_concurrency, set_provider_concurrency
+        from teff.harness import provider_concurrency, set_provider_concurrency
 
         set_provider_concurrency("openai", 3)
         assert provider_concurrency("openai") == 3
@@ -240,20 +240,20 @@ class TestConcurrency:
         assert provider_concurrency("openai") is None
 
     def test_max_parallel_grows_shared_semaphore(self):
-        from draf.harness import Harness, provider_concurrency
+        from teff.harness import Harness, provider_concurrency
 
         Harness(model="gpt-4", provider="openai", api_key_env="X", max_parallel=4)
         assert provider_concurrency("openai") == 4
         Harness(model="gpt-4", provider="openai", api_key_env="X", max_parallel=6)
         assert provider_concurrency("openai") == 6
-        from draf.harness import set_provider_concurrency
+        from teff.harness import set_provider_concurrency
 
         set_provider_concurrency("openai", 0)
 
 
 class TestFromConfigNumbers:
     def test_from_config_honors_zero_max_retries(self):
-        from draf.harness import Harness
+        from teff.harness import Harness
 
         h = Harness.from_config(
             {
@@ -266,7 +266,7 @@ class TestFromConfigNumbers:
         assert h.max_retries == 0
 
     def test_from_config_honors_zero_max_tool_rounds(self):
-        from draf.harness import Harness
+        from teff.harness import Harness
 
         h = Harness.from_config(
             {
@@ -279,7 +279,7 @@ class TestFromConfigNumbers:
         assert h.max_rounds == 0
 
     def test_from_config_default_max_retries(self):
-        from draf.harness import Harness
+        from teff.harness import Harness
 
         h = Harness.from_config(
             {"model": "gpt-4", "provider": "openai", "api_key_env": "X"}
@@ -287,7 +287,7 @@ class TestFromConfigNumbers:
         assert h.max_retries == 2
 
     def test_stream_token_empty_choices(self):
-        from draf.harness import Harness
+        from teff.harness import Harness
 
         h = Harness(model="gpt-4", provider="openai", api_key_env="X")
         assert h._stream_token({"choices": []}) == ""
@@ -295,7 +295,7 @@ class TestFromConfigNumbers:
 
 class TestCostReporting:
     def test_model_pricing_lookup(self):
-        from draf.trace import model_pricing, tokens_cost
+        from teff.trace import model_pricing, tokens_cost
 
         assert model_pricing("gpt-4o") == (2.5, 10.0)
         assert model_pricing("gpt-4o-2024-08-06") == (2.5, 10.0)
@@ -304,7 +304,7 @@ class TestCostReporting:
         assert tokens_cost("gpt-4o", 1_000_000, 1_000_000) == pytest.approx(12.5)
 
     def test_run_summary_cost_and_json(self):
-        from draf.trace import RunTracer
+        from teff.trace import RunTracer
 
         tracer = RunTracer()
         tracer.llm("openai", "gpt-4o", 1000, 2000, 10.0)
@@ -316,7 +316,7 @@ class TestCostReporting:
         assert "tokens" in d and "total" in d["tokens"]
 
     def test_trace_json_redacts_secrets(self):
-        from draf.trace import RunTracer
+        from teff.trace import RunTracer
 
         tracer = RunTracer()
         tracer.run_start()
@@ -331,7 +331,7 @@ class TestCostReporting:
         assert "api_key=***" in text
 
     def test_redacted_node_error_keeps_message(self):
-        from draf.trace import RunTracer
+        from teff.trace import RunTracer
 
         tracer = RunTracer()
         tracer.run_start()
@@ -341,12 +341,12 @@ class TestCostReporting:
 
 class TestCustomPricing:
     def teardown_method(self):
-        from draf.trace import clear_pricing
+        from teff.trace import clear_pricing
 
         clear_pricing()
 
     def test_set_model_pricing_overrides_builtin(self):
-        from draf.trace import model_pricing, set_model_pricing, tokens_cost
+        from teff.trace import model_pricing, set_model_pricing, tokens_cost
 
         set_model_pricing("openai", "gpt-4o", 99.0, 199.0)
         assert model_pricing("gpt-4o", "openai") == (99.0, 199.0)
@@ -357,7 +357,7 @@ class TestCustomPricing:
         assert model_pricing("gpt-4o") == (2.5, 10.0)
 
     def test_custom_provider_own_pricing(self):
-        from draf.trace import model_pricing, set_model_pricing
+        from teff.trace import model_pricing, set_model_pricing
 
         # OpenRouter-style names and rates live outside the built-in table.
         set_model_pricing("openrouter", "openai/gpt-4o", 3.0, 12.0)
@@ -366,7 +366,7 @@ class TestCustomPricing:
         assert model_pricing("openai/gpt-4o") == (0.0, 0.0)
 
     def test_provider_default_price(self):
-        from draf.trace import (
+        from teff.trace import (
             model_pricing,
             set_model_pricing,
             set_provider_pricing,
@@ -379,7 +379,7 @@ class TestCustomPricing:
         assert model_pricing("any-model", "kilo") == (1.0, 2.0)
 
     def test_prefix_match_within_provider(self):
-        from draf.trace import model_pricing, set_model_pricing
+        from teff.trace import model_pricing, set_model_pricing
 
         set_model_pricing("openrouter", "anthropic/claude-3.5-sonnet", 3.0, 15.0)
         assert model_pricing("anthropic/claude-3.5-sonnet-20240620", "openrouter") == (
@@ -388,7 +388,7 @@ class TestCustomPricing:
         )
 
     def test_load_pricing_from_dict(self):
-        from draf.trace import load_pricing, model_pricing
+        from teff.trace import load_pricing, model_pricing
 
         load_pricing(
             {
@@ -406,7 +406,7 @@ class TestCustomPricing:
         assert model_pricing("something-else", "openrouter") == (0.1, 0.4)
 
     def test_load_pricing_from_file(self, tmp_path):
-        from draf.trace import load_pricing, model_pricing
+        from teff.trace import load_pricing, model_pricing
 
         path = tmp_path / "pricing.yaml"
         path.write_text(
@@ -421,7 +421,7 @@ class TestCustomPricing:
         assert model_pricing("anything", "kilo") == (0.05, 0.15)
 
     def test_summary_uses_provider_pricing(self):
-        from draf.trace import RunTracer, set_model_pricing
+        from teff.trace import RunTracer, set_model_pricing
 
         set_model_pricing("openrouter", "openai/gpt-4o", 3.0, 12.0)
         tracer = RunTracer()

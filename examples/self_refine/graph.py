@@ -19,7 +19,7 @@ API so the loop is fully visible:
 By default the run goes against a mocked HTTP transport with a scripted
 model: the critic rejects the first draft (``needs_work``) and accepts
 the second (``pass``), so exactly one revision happens — no API key and
-no Ollama needed.  Set ``DRAF_LIVE=1`` to hit a real Ollama instance.
+no Ollama needed.  Set ``TEFF_LIVE=1`` to hit a real Ollama instance.
 
 Usage:
     python examples/self_refine/graph.py
@@ -34,11 +34,11 @@ from typing import TypedDict
 
 import httpx
 
-from draf.graph import Edge, Graph
-from draf.logging import configure_logging
-from draf.node import LLM, Transform
-from draf.provider import ProviderRegistry
-from draf.trace import RunTracer
+from teff.graph import Edge, Graph
+from teff.logging import configure_logging
+from teff.node import LLM, Transform
+from teff.provider import ProviderRegistry
+from teff.trace import RunTracer
 
 MODEL = "llama3.1:8b"
 
@@ -177,7 +177,7 @@ def build_graph(model: str) -> Graph:
 
 
 async def main() -> None:
-    live = os.environ.get("DRAF_LIVE") == "1"
+    live = os.environ.get("TEFF_LIVE") == "1"
     calls = {"reviews": 0}
     if not live:
         patch_transport(calls)

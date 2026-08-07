@@ -2,12 +2,12 @@
 
 `RAGTool` chunks, embeds, and retrieves documents from a pluggable vector
 store using raw HTTP embeddings. Documents load from CSV, TXT (glob), PDF
-(`draf[rag-pdf]`), and Excel (`draf[rag-excel]`). Install the store you use
-via its per-store extra (e.g. `draf[stores-qdrant]`) or `draf[embedding]`
+(`teff[rag-pdf]`), and Excel (`teff[rag-excel]`). Install the store you use
+via its per-store extra (e.g. `teff[stores-qdrant]`) or `teff[embedding]`
 for every store at once.
 
 ```python
-from draf import RAGTool
+from teff import RAGTool
 
 rag = RAGTool(
     {
@@ -87,7 +87,7 @@ await store.clear()  # wipe everything
 
 Two agent-callable `Tool`s round out the RAG story:
 
-- `PDFTool` — extract text from a PDF page by page (`pypdf`, `draf[rag-pdf]`).
+- `PDFTool` — extract text from a PDF page by page (`pypdf`, `teff[rag-pdf]`).
 - `ImageTool` — OCR through an OpenAI-compatible vision model.
 
 They are registered with the default tool registry, so a ReAct agent can use

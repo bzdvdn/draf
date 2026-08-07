@@ -1,6 +1,6 @@
 """Chat endpoints — single-shot reply and an SSE token stream.
 
-Handlers are thin: they read the :class:`~draf.assistant.Assistant` off
+Handlers are thin: they read the :class:`~teff.assistant.Assistant` off
 ``request.app.state`` and delegate one turn to it.  Sessions are scoped
 to a user id (``X-User-Id`` header) and durable across requests and process
 restarts.
@@ -10,7 +10,7 @@ Endpoints:
     POST   /api/chat/stream  SSE event stream over ``graph.stream()``
 
 Human-in-the-loop: pause handling lives in the framework's
-:class:`~draf.assistant.Assistant`.  Its ``turn``/``stream`` methods detect a
+:class:`~teff.assistant.Assistant`.  Its ``turn``/``stream`` methods detect a
 paused interrupt from the durable checkpoint and resume the run with the next
 message — so this endpoint never sees a ``GraphInterrupt`` or a ``pending``
 map.  It surfaces ``waiting``/``prompt`` to the client and the operator's
@@ -30,9 +30,9 @@ from fastapi import APIRouter, Depends, Header, HTTPException, Request
 from pydantic import BaseModel
 from sse_starlette.sse import EventSourceResponse
 
-from draf.checkpoint import DEFAULT_OWNER
-from draf.observability import GraphObserver
 from src.api.auth.router import require_api_key
+from teff.checkpoint import DEFAULT_OWNER
+from teff.observability import GraphObserver
 
 router = APIRouter(dependencies=[Depends(require_api_key)])
 

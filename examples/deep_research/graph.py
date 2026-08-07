@@ -21,7 +21,7 @@ Deep Research, OpenAI Deep Research):
 The default run is fully offline: the LLM transport is mocked and the
 ``web_search`` / ``fetch_url`` tools are stand-ins returning canned
 snippets, so it needs no API key, no Ollama, and no network.  Set
-``DRAF_LIVE=1`` to use a real Ollama instance and the real DuckDuckGo
+``TEFF_LIVE=1`` to use a real Ollama instance and the real DuckDuckGo
 search + URL fetch tools.
 
 Usage:
@@ -37,13 +37,13 @@ from typing import TypedDict
 
 import httpx
 
-from draf.graph import Edge, Graph
-from draf.logging import configure_logging
-from draf.node import LLM, Transform
-from draf.node.agent import ReActAgent, ToolExec
-from draf.provider import ProviderRegistry
-from draf.tool import Tool
-from draf.trace import RunTracer
+from teff.graph import Edge, Graph
+from teff.logging import configure_logging
+from teff.node import LLM, Transform
+from teff.node.agent import ReActAgent, ToolExec
+from teff.provider import ProviderRegistry
+from teff.tool import Tool
+from teff.trace import RunTracer
 
 MODEL = "llama3.1:8b"
 TOPIC = "launching a personal blog in 2026"
@@ -219,10 +219,10 @@ def build_graph(model: str, live: bool) -> Graph:
         if not live
         else [
             __import__(
-                "draf.tool.builtin.web_search", fromlist=["WebSearchTool"]
+                "teff.tool.builtin.web_search", fromlist=["WebSearchTool"]
             ).WebSearchTool(),
             __import__(
-                "draf.tool.builtin.web_fetch", fromlist=["WebFetchTool"]
+                "teff.tool.builtin.web_fetch", fromlist=["WebFetchTool"]
             ).WebFetchTool(),
         ]
     )
@@ -328,7 +328,7 @@ def build_graph(model: str, live: bool) -> Graph:
 
 
 async def main() -> None:
-    live = os.environ.get("DRAF_LIVE") == "1"
+    live = os.environ.get("TEFF_LIVE") == "1"
     calls = {"reviews": 0}
     if not live:
         patch_transport(calls)
@@ -342,10 +342,10 @@ async def main() -> None:
             if not live
             else [
                 __import__(
-                    "draf.tool.builtin.web_search", fromlist=["WebSearchTool"]
+                    "teff.tool.builtin.web_search", fromlist=["WebSearchTool"]
                 ).WebSearchTool(),
                 __import__(
-                    "draf.tool.builtin.web_fetch", fromlist=["WebFetchTool"]
+                    "teff.tool.builtin.web_fetch", fromlist=["WebFetchTool"]
                 ).WebFetchTool(),
             ]
         ),

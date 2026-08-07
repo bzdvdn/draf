@@ -5,7 +5,6 @@ domain tools they orchestrate are kept off its tool list and scoped inside
 each sub-agent's own ReAct loop.
 """
 
-from draf.tool.builtin import AskHuman
 from src.tools.agents import (
     ExtractProjectInfo,
     PrepareEstimate,
@@ -28,6 +27,7 @@ from src.tools.room import (
     CalculatePerimeter,
     CalculateWallArea,
 )
+from teff.tool.builtin import AskHuman
 
 #: Tools the coordinator may call directly.
 COORDINATOR_TOOLS = [

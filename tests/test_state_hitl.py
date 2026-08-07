@@ -4,10 +4,10 @@ import asyncio
 
 import pytest
 
-from draf.checkpoint import JSONFileCheckpointer
-from draf.flow import Flow
-from draf.node import Transform
-from draf.node.interrupt import GraphInterrupt
+from teff.checkpoint import JSONFileCheckpointer
+from teff.flow import Flow
+from teff.node import Transform
+from teff.node.interrupt import GraphInterrupt
 
 
 def _build_flow():
@@ -113,7 +113,7 @@ class TestUpdateState:
 class TestAssistantWrappers:
     @pytest.mark.asyncio
     async def test_assistant_get_update_roundtrip(self, tmp_path):
-        from draf.assistant import Assistant
+        from teff.assistant import Assistant
 
         g = _build_flow()
         cp = JSONFileCheckpointer(str(tmp_path))

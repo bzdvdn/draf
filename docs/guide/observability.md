@@ -31,7 +31,7 @@ langfuse / langsmith. Traces never block or crash the workflow.
 ## Zero-code: the `observability:` block
 
 The easiest path is declarative — a top-level block in `workflow.yaml` that
-`draf run` and `draf daemon` pick up automatically:
+`teff run` and `teff daemon` pick up automatically:
 
 ```yaml
 name: my-workflow
@@ -63,7 +63,7 @@ steps:
 Browse the store in the browser:
 
 ```bash
-draf obs-server --db ./data/traces.db --port 8001
+teff obs-server --db ./data/traces.db --port 8001
 # open http://localhost:8001/obs/ui
 ```
 
@@ -73,7 +73,7 @@ draf obs-server --db ./data/traces.db --port 8001
 events (`tracer`) and the raw LLM payloads (`on_llm_payload`):
 
 ```python
-from draf.observability import GraphObserver, SQLiteExporter, topology_from_graph
+from teff.observability import GraphObserver, SQLiteExporter, topology_from_graph
 
 observer = GraphObserver(
     "repair-agent",
@@ -93,11 +93,11 @@ That's the whole wiring. `graph.stream()` works the same way.
 ## The dashboard UI
 
 The SQLite exporter doubles as the dashboard query layer. Mount the UI on any
-FastAPI app — this is exactly what `draf obs-server` does:
+FastAPI app — this is exactly what `teff obs-server` does:
 
 ```python
 from fastapi import FastAPI
-from draf.observability import SQLiteExporter, attach_dashboard, attach_ingest
+from teff.observability import SQLiteExporter, attach_dashboard, attach_ingest
 
 app = FastAPI()
 exporter = SQLiteExporter("./data/traces.db")
@@ -114,7 +114,7 @@ attach_ingest(app, exporter)  # POST /obs/ingest (accepts Run.to_dict())
 
 ![Trace dashboard — run detail](../assets/observability/run-detail-dark.png)
 
-## Centralising traces: `draf obs-server`
+## Centralising traces: `teff obs-server`
 
 Workflows that have **no API** (declared purely as `workflow.yaml`) push their
 traces to a central collector over HTTP; the collector serves the same
@@ -128,20 +128,20 @@ observability:
 ```
 
 ```bash
-draf obs-server --db /data/traces.db --host 0.0.0.0 --port 8001
+teff obs-server --db /data/traces.db --host 0.0.0.0 --port 8001
 ```
 
 Bind the collector to anything but loopback (`127.0.0.1`/`localhost`) and it
 **refuses to start without an API key** — pass one with `--api-key` or the
-`DRAF_OBS_API_KEY` env var. Traces can embed full prompts and responses, so
+`TEFF_OBS_API_KEY` env var. Traces can embed full prompts and responses, so
 the dashboard and its `/obs/*` API are protected by that same key; turn them
 redacted at the source with `GraphObserver(..., redact=True)` (the default).
 
 Or run the published image:
 
 ```bash
-docker run -d -p 8001:8001 -v draf-traces:/data \
-  bzdvdn/draf-obs:latest --db /data/traces.db --host 0.0.0.0
+docker run -d -p 8001:8001 -v teff-traces:/data \
+  bzdvdn/teff-obs:latest --db /data/traces.db --host 0.0.0.0
 ```
 
 Any number of machines can push into one server — cron jobs, daemons,

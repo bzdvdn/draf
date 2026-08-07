@@ -1,6 +1,6 @@
 # Top-level helpers
 
-Small but useful functions exported from the top-level `draf` package. The
+Small but useful functions exported from the top-level `teff` package. The
 bigger surfaces are covered in their own pages: [Nodes](nodes.md),
 [Tools](tools.md), [Providers](providers.md), [State guide](../guide/state.md).
 
@@ -12,8 +12,8 @@ top-level `default_provider:`), so nodes that don't name a provider inherit
 it:
 
 ```python
-from draf.flow import Flow
-from draf.provider import ProviderRegistry
+from teff.flow import Flow
+from teff.provider import ProviderRegistry
 
 flow = Flow(
     "my-flow",
@@ -31,7 +31,7 @@ tools come from `load_workflow`). Environment `${ENV}` interpolation is
 applied:
 
 ```python
-from draf import from_yaml
+from teff import from_yaml
 
 graph = from_yaml("""
 steps:
@@ -44,7 +44,7 @@ result = await graph.run({"text": "hi"})
 ```
 
 For the full workflow loader (graph + tools + state + reducers) use
-`draf.yaml.load_workflow` — see [YAML workflows](../guide/yaml-workflows.md).
+`teff.yaml.load_workflow` — see [YAML workflows](../guide/yaml-workflows.md).
 
 ## Typed state & reducers
 
@@ -63,7 +63,7 @@ schema using `Annotated` metadata:
 
 ```python
 from typing import Annotated, TypedDict
-from draf import State
+from teff import State
 
 
 class MyState(TypedDict):
@@ -111,7 +111,7 @@ Redact credential-looking substrings from a value for safe logging. Used by
 the tracer and cost reports so API keys never leak:
 
 ```python
-from draf.errors import redact
+from teff.errors import redact
 
 redact("Bearer sk-1234-secret")  # -> "Bearer ***"
 ```
@@ -120,24 +120,24 @@ See also [Providers: cost & token reports](providers.md#cost-token-reports).
 
 ## Full export list
 
-For the authoritative list of everything `draf` exports, see
-[`draf/__init__.py`](../api/draf.md).
+For the authoritative list of everything `teff` exports, see
+[`teff/__init__.py`](../api/teff.md).
 
 ## The complete public surface
 
 Auto-generated from docstrings, one page per module:
 
-- [draf](../api/index.md) — top level: nodes, tools, graph, errors, pricing.
-- [checkpoint](../api/draf.checkpoint.base.md) — `base`/`file`/`sqlite`/`pg`
+- [teff](../api/index.md) — top level: nodes, tools, graph, errors, pricing.
+- [checkpoint](../api/teff.checkpoint.base.md) — `base`/`file`/`sqlite`/`pg`
   checkpointer classes.
-- [trace](../api/draf.trace.md) — `RunTracer`, `TraceEvent`, `RunSummary`,
+- [trace](../api/teff.trace.md) — `RunTracer`, `TraceEvent`, `RunSummary`,
   `TokenUsage`, `tokens_cost`.
-- [stream](../api/draf.stream.md) — `StreamEvent`.
-- [eval](../api/draf.eval.md) — `run_eval`, `load_dataset`, `extract_output`.
-- [prompt](../api/draf.prompt.md) — `render_template`.
-- [yaml](../api/draf.yaml.md) / [yaml_schema](../api/draf.yaml_schema.md) —
+- [stream](../api/teff.stream.md) — `StreamEvent`.
+- [eval](../api/teff.eval.md) — `run_eval`, `load_dataset`, `extract_output`.
+- [prompt](../api/teff.prompt.md) — `render_template`.
+- [yaml](../api/teff.yaml.md) / [yaml_schema](../api/teff.yaml_schema.md) —
   `load_workflow`, `workflow_to_yaml`, `validate_workflow(_file)`.
-- [harness](../api/draf.harness.md) — `Harness`, provider concurrency.
+- [harness](../api/teff.harness.md) — `Harness`, provider concurrency.
 - Every node, tool, RAG store, and plugin module.
 
 Browse them all from the [API Overview](../api/index.md).

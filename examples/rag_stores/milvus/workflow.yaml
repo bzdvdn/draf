@@ -1,7 +1,7 @@
 name: rag-milvus
 description: >
-  RAG over the Draf knowledge base (docs.csv) using the Milvus store.
-  Requires `draf[stores-milvus]` (pymilvus). Uses local Milvus Lite
+  RAG over the Teff knowledge base (docs.csv) using the Milvus store.
+  Requires `teff[stores-milvus]` (pymilvus). Uses local Milvus Lite
   (a file-based `uri`), so no server is needed.
 
 tools:
@@ -13,7 +13,7 @@ tools:
       store:
         type: milvus
         uri: ./milvus.db
-        collection: draf
+        collection: teff
         dim: 768
       documents:
         - type: csv
@@ -21,7 +21,7 @@ tools:
 
 state:
   initial:
-    query: What is the mascot of Draf, and what does it ride?
+    query: What is the mascot of Teff, and what does it ride?
 
 providers:
   - name: ollama
@@ -35,7 +35,7 @@ steps:
       provider: ollama
       model: llama3.1:8b
       system: >
-        You are a RAG assistant over the Draf knowledge base. Always call
+        You are a RAG assistant over the Teff knowledge base. Always call
         the 'rag' tool to search before answering, and answer strictly
         from the retrieved snippets.
       input_key: query

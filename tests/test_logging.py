@@ -4,11 +4,11 @@ import logging
 
 import pytest
 
-from draf.provider import ProviderRegistry
+from teff.provider import ProviderRegistry
 
 
 def _make_node(state_update=None):
-    from draf.node import Node
+    from teff.node import Node
 
     class Simple(Node):
         type = "simple"
@@ -23,15 +23,15 @@ def _make_node(state_update=None):
 
 class TestLoggerNaming:
     def test_get_logger_prefixes_draf(self):
-        from draf.logging import get_logger
+        from teff.logging import get_logger
 
-        assert get_logger("my_app").name == "draf.my_app"
-        assert get_logger("draf.graph.execution").name == "draf.graph.execution"
-        assert get_logger().name == "draf"
-        assert get_logger("").name == "draf"
+        assert get_logger("my_app").name == "teff.my_app"
+        assert get_logger("teff.graph.execution").name == "teff.graph.execution"
+        assert get_logger().name == "teff"
+        assert get_logger("").name == "teff"
 
     def test_get_logger_does_not_add_handlers(self):
-        from draf.logging import get_logger
+        from teff.logging import get_logger
 
         logger = get_logger("app")
         assert logger.handlers == []
@@ -39,7 +39,7 @@ class TestLoggerNaming:
 
 class TestRunContext:
     def test_run_id_ctx_sets_and_restores(self):
-        from draf.logging import new_run_id, run_id, run_id_ctx
+        from teff.logging import new_run_id, run_id, run_id_ctx
 
         assert run_id() == ""
         rid = new_run_id()
@@ -49,17 +49,17 @@ class TestRunContext:
         assert run_id() == ""
 
     def test_context_propagates_to_child_tasks(self):
-        from draf.logging import run_id_ctx
+        from teff.logging import run_id_ctx
 
         outer = []
 
         async def inner():
-            from draf.logging import run_id
+            from teff.logging import run_id
 
             outer.append(run_id())
 
         async def main():
-            from draf.logging import run_id
+            from teff.logging import run_id
 
             with run_id_ctx(run_id="task-a"):
                 await asyncio.create_task(inner())
@@ -71,9 +71,9 @@ class TestRunContext:
 
 class TestContextFilter:
     def test_attaches_ids_to_record(self):
-        from draf.logging import ContextFilter, node_id_ctx, run_id_ctx
+        from teff.logging import ContextFilter, node_id_ctx, run_id_ctx
 
-        record = logging.LogRecord("draf.x", logging.INFO, "", 0, "msg", (), None)
+        record = logging.LogRecord("teff.x", logging.INFO, "", 0, "msg", (), None)
         f = ContextFilter()
         with (
             run_id_ctx(run_id="r1", session_id="s1"),
@@ -88,11 +88,11 @@ class TestContextFilter:
 
 class TestFormatters:
     def test_text_formatter_renders_context(self):
-        from draf.logging import ContextFilter, TextFormatter
+        from teff.logging import ContextFilter, TextFormatter
 
         fmt = TextFormatter()
         record = logging.LogRecord(
-            "draf.x", logging.INFO, "", 0, "node_start", (), None
+            "teff.x", logging.INFO, "", 0, "node_start", (), None
         )
         ContextFilter().filter(record)
         record.run_id = "r1"
@@ -104,10 +104,10 @@ class TestFormatters:
         assert out.endswith("node_start")
 
     def test_text_formatter_omits_empty_context(self):
-        from draf.logging import TextFormatter
+        from teff.logging import TextFormatter
 
         fmt = TextFormatter()
-        record = logging.LogRecord("draf.x", logging.INFO, "", 0, "run_start", (), None)
+        record = logging.LogRecord("teff.x", logging.INFO, "", 0, "run_start", (), None)
         record.run_id = ""
         record.session_id = ""
         record.node_id = ""
@@ -116,11 +116,11 @@ class TestFormatters:
         assert "[run=" not in out
 
     def test_json_formatter_round_trips(self):
-        from draf.logging import ContextFilter, JsonFormatter
+        from teff.logging import ContextFilter, JsonFormatter
 
         fmt = JsonFormatter()
         record = logging.LogRecord(
-            "draf.x", logging.INFO, "", 0, "node_start", (), None
+            "teff.x", logging.INFO, "", 0, "node_start", (), None
         )
         ContextFilter().filter(record)
         record.run_id = "r1"
@@ -133,28 +133,28 @@ class TestFormatters:
 
 class TestConfigureLogging:
     def test_idempotent(self):
-        from draf import configure_logging
+        from teff import configure_logging
 
         configure_logging("INFO")
         configure_logging("DEBUG", format="json")
         root = logging.getLogger()
-        draf_handlers = [h for h in root.handlers if getattr(h, "_draf_handler", False)]
-        assert len(draf_handlers) == 1
-        assert draf_handlers[0].level == logging.DEBUG
+        teff_handlers = [h for h in root.handlers if getattr(h, "_teff_handler", False)]
+        assert len(teff_handlers) == 1
+        assert teff_handlers[0].level == logging.DEBUG
 
     def test_default_level_from_env(self, monkeypatch):
-        from draf import configure_logging
+        from teff import configure_logging
 
-        monkeypatch.setenv("DRAF_LOG_LEVEL", "WARNING")
+        monkeypatch.setenv("TEFF_LOG_LEVEL", "WARNING")
         configure_logging()
         assert logging.getLogger().level == logging.WARNING
 
     def test_filters_on_handler(self):
-        from draf import configure_logging
+        from teff import configure_logging
 
         configure_logging("INFO")
         root = logging.getLogger()
-        handler = next(h for h in root.handlers if getattr(h, "_draf_handler", False))
+        handler = next(h for h in root.handlers if getattr(h, "_teff_handler", False))
         filters = [type(f).__name__ for f in handler.filters]
         assert "ContextFilter" in filters
         assert "_DrafOnlyFilter" in filters
@@ -166,8 +166,8 @@ class TestGraphLogging:
 
     @pytest.mark.asyncio
     async def test_info_skeleton(self, caplog):
-        from draf import configure_logging
-        from draf.graph import Graph
+        from teff import configure_logging
+        from teff.graph import Graph
 
         configure_logging("INFO")
         caplog.set_level(logging.INFO)
@@ -180,12 +180,12 @@ class TestGraphLogging:
         assert any(m.startswith("node_end") for m in messages)
         assert any(m.startswith("run_end status=ok") for m in messages)
         run_start = next(r for r in caplog.records if r.message.startswith("run_start"))
-        assert run_start.name.startswith("draf")
+        assert run_start.name.startswith("teff")
 
     @pytest.mark.asyncio
     async def test_edge_logged(self, caplog):
-        from draf import configure_logging
-        from draf.graph import Edge, Graph
+        from teff import configure_logging
+        from teff.graph import Edge, Graph
 
         configure_logging("INFO")
         caplog.set_level(logging.INFO)
@@ -202,9 +202,9 @@ class TestGraphLogging:
 
     @pytest.mark.asyncio
     async def test_node_error_logged(self, caplog):
-        from draf import configure_logging
-        from draf.graph import Graph
-        from draf.node import Node
+        from teff import configure_logging
+        from teff.graph import Graph
+        from teff.node import Node
 
         class Boom(Node):
             type = "boom"
@@ -226,9 +226,9 @@ class TestGraphLogging:
 
     @pytest.mark.asyncio
     async def test_checkpoint_is_debug_only(self, caplog, tmp_path):
-        from draf import configure_logging
-        from draf.checkpoint import JSONFileCheckpointer
-        from draf.graph import Graph
+        from teff import configure_logging
+        from teff.checkpoint import JSONFileCheckpointer
+        from teff.graph import Graph
 
         configure_logging("INFO")
         caplog.set_level(logging.DEBUG)
@@ -248,10 +248,10 @@ class TestGraphLogging:
 
     @pytest.mark.asyncio
     async def test_run_id_context_visible_in_node(self, caplog):
-        from draf import configure_logging
-        from draf.graph import Graph
-        from draf.logging import run_id
-        from draf.node import Node
+        from teff import configure_logging
+        from teff.graph import Graph
+        from teff.logging import run_id
+        from teff.node import Node
 
         class Probe(Node):
             type = "probe"
@@ -268,8 +268,8 @@ class TestGraphLogging:
 
     @pytest.mark.asyncio
     async def test_json_format_logs_correlation(self, capsys):
-        from draf import configure_logging
-        from draf.graph import Graph
+        from teff import configure_logging
+        from teff.graph import Graph
 
         configure_logging("INFO", format="json")
         g = Graph(nodes={"a": _make_node({})}, edges=[], entry_point="a")
@@ -291,9 +291,9 @@ class TestGraphLogging:
 class TestHarnessLogging:
     @pytest.mark.asyncio
     async def test_llm_call_info_and_debug_content(self, mock_llm, caplog):
-        from draf import configure_logging
-        from draf.flow import Flow
-        from draf.node import LLM
+        from teff import configure_logging
+        from teff.flow import Flow
+        from teff.node import LLM
 
         mock_llm.content = "reply with secret=sk-abc123 " + "word " * 400
         flow = Flow(
@@ -326,9 +326,9 @@ class TestHarnessLogging:
 
     @pytest.mark.asyncio
     async def test_llm_content_hidden_at_info(self, mock_llm, caplog):
-        from draf import configure_logging
-        from draf.flow import Flow
-        from draf.node import LLM
+        from teff import configure_logging
+        from teff.flow import Flow
+        from teff.node import LLM
 
         mock_llm.content = "super secret reply"
         flow = Flow(

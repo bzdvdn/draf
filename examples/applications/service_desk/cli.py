@@ -35,7 +35,7 @@ from service_desk.graphs.build import build_flow  # noqa: E402
 from service_desk.graphs.state import STATE_REDUCERS, initial_state  # noqa: E402
 from service_desk.storage import TRANSIENT_KEYS, build_checkpointer  # noqa: E402
 
-from draf import Assistant  # noqa: E402
+from teff import Assistant  # noqa: E402
 
 
 async def _stream(assistant: Assistant, session: str, message: str) -> None:

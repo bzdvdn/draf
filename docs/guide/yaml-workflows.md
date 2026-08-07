@@ -1,7 +1,7 @@
 # YAML workflows
 
 The canonical graph is YAML/JSON — code is optional. Workflows are loaded with
-`load_workflow`, validated with `draf validate`, and serialized back out with
+`load_workflow`, validated with `teff validate`, and serialized back out with
 `workflow_to_yaml` / `Flow.to_yaml()`.
 
 ## Structure
@@ -105,7 +105,7 @@ override the default with their own `provider:` / `model:`.
 
 A top-level `observability:` block turns on full-run tracing — topology,
 per-node spans and the complete LLM prompt/response — without writing any
-code. `draf run` and `draf daemon` pick it up automatically:
+code. `teff run` and `teff daemon` pick it up automatically:
 
 ```yaml
 name: my-workflow
@@ -134,12 +134,12 @@ steps:
   failing sink is retried and then logged, never crashes the run.
 - Secrets come from environment variables (`*_env`), never from the file.
 - Browse the local store in the browser:
-  `draf obs-server --db ./data/traces.db --port 8001` → `http://localhost:8001/obs/ui`.
-- A remote sink that targets `draf obs-server` needs no API at all — pure YAML
+  `teff obs-server --db ./data/traces.db --port 8001` → `http://localhost:8001/obs/ui`.
+- A remote sink that targets `teff obs-server` needs no API at all — pure YAML
   workflows push their traces over HTTP and the server renders the dashboard.
 
 The same wiring is available in code via
-`draf.observability.build_observability` / `build_observer_factory`.
+`teff.observability.build_observability` / `build_observer_factory`.
 
 ## The `${ENV}` interpolation
 
@@ -231,13 +231,85 @@ steps:
         use_tools: all
 ```
 
+## Parallel fan-out
+
+A `parallel` step runs independent branches concurrently and merges their
+results back via the state reducers.  Each branch is a single step mapping
+_or_ a list of step mappings (run sequentially within the branch):
+
+```yaml
+steps:
+  - id: fanout
+    type: parallel
+    config:
+      branches:
+        - {type: transform, config: {action: uppercase, input_key: q, output_key: web}}
+        - [{type: transform, config: {action: count_lines, input_key: q, output_key: upper}},
+           {type: transform, config: {action: uppercase, input_key: q, output_key: n}}]
+edges:
+  - from: fanout
+    to: finish
+```
+
+Branches receive an isolated copy of the state and may run on the same
+or different provider endpoints.  Use `state.schema ... reducer: append`
+when branches should accumulate (e.g. collecting `messages`) instead of
+overwriting a key.
+
+## Durable runs (`checkpoint:`)
+
+A top-level `checkpoint:` block enables durable runs whose state is saved
+before every node, so an interrupted or crashed workflow resumes instead of
+restarting:
+
+```yaml
+checkpoint:
+  type: sqlite              # file | sqlite | sqlite_history | pg | pg_history
+  path: data/checkpoints.db
+```
+
+`path` is resolved relative to the workflow file.  PG variants require
+`dsn:` (+ optional `table:`).  Use `teff run --checkpoint-id <id>` (or the
+`--checkpoint '...'` JSON flag to override the block per invocation).  This
+is the same durable machinery the `teff` CLI and the conversational
+turn/`Assistant` layer use.
+
+## Hook events (`hooks:`)
+
+Hooks observe node execution. Because they're Python callbacks, a workflow
+_names_ hooks registered in a plugin — declare the plugin under `plugins:`,
+register them with the `@hooks.hook` decorator, then reference by name:
+
+```python
+# plugins/telemetry.py
+from teff import hooks
+
+
+@hooks.hook("tick")
+def tick(node_id, node, state, **kwargs):
+    metrics.counter("graph.node", node_id=node_id, type=node.type)
+```
+
+```yaml
+plugins: [plugins/telemetry.py]
+hooks:
+  on_node_start: tick          # (node_id, node, state)
+  on_node_end: [tick, finalize] # also passes the node result
+  on_node_error: on_error        # also passes the exception
+```
+
+Each key takes a hook-name string or a list; an unknown name fails
+validation with a clear message.  Sync and async hooks are both supported
+(`graph.run` awaits async ones).  The same `hooks=` mapping can be passed
+programmatically.
+
 ## Inspecting a graph
 
 Render the topology back to YAML or as a Mermaid diagram:
 
 ```bash
-draf graph workflow.yaml          # YAML topology
-draf graph workflow.yaml --mermaid # Mermaid flowchart
+teff graph workflow.yaml          # YAML topology
+teff graph workflow.yaml --mermaid # Mermaid flowchart
 ```
 
 The Mermaid output marks the entry point, annotates edges with their
@@ -247,8 +319,8 @@ docs and review.
 ## Loading & validating
 
 ```python
-from draf.yaml import load_workflow
-from draf.yaml_schema import validate_workflow_file, format_errors
+from teff.yaml import load_workflow
+from teff.yaml_schema import validate_workflow_file, format_errors
 
 errors = validate_workflow_file("workflow.yaml")  # [] when ok
 if errors:
@@ -261,8 +333,8 @@ result = await graph.run(state, tools=tools, reducers=reducers)
 The CLI wraps both:
 
 ```bash
-draf validate workflow.yaml
-draf -f workflow.yaml
+teff validate workflow.yaml
+teff -f workflow.yaml
 ```
 
 ## Exporting a code-built graph
@@ -270,7 +342,7 @@ draf -f workflow.yaml
 Build with `Flow`, then serialize to a deployable workflow:
 
 ```python
-from draf.yaml import workflow_to_yaml, graph_to_yaml
+from teff.yaml import workflow_to_yaml, graph_to_yaml
 
 yaml_text = workflow_to_yaml(graph, tools=tools, initial=state, reducers=reducers)
 # graph_to_yaml(graph) is a shorthand when you only need the graph itself

@@ -21,8 +21,8 @@ getting an isolated copy of the state. Per-key reducers merge updates back so
 `append` branches accumulate instead of overwriting:
 
 ```python
-from draf.flow import Flow
-from draf.node import Transform
+from teff.flow import Flow
+from teff.node import Transform
 
 flow = (
     Flow("p")
@@ -94,4 +94,4 @@ node = LLM(
 ```
 
 Values are stringified; a placeholder referencing a missing state key raises
-`KeyError`. The underlying helper is `draf.prompt.render_template`.
+`KeyError`. The underlying helper is `teff.prompt.render_template`.

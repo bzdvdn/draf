@@ -6,7 +6,7 @@ description: >
   so this one needs Ollama running with llama3.1:8b:
 
       ollama pull llama3.1:8b
-      draf daemon -f workflow-agent.yaml --once
+      teff daemon -f workflow-agent.yaml --once
 
 steps:
   - id: agent

@@ -7,9 +7,9 @@ import textwrap
 
 import pytest
 
-from draf.node.llm import LLM
-from draf.tool import McpTool, mcp_tools
-from draf.tool.mcp import _connect_tools
+from teff.node.llm import LLM
+from teff.tool import McpTool, mcp_tools
+from teff.tool.mcp import _connect_tools
 
 pytest.importorskip("mcp")
 

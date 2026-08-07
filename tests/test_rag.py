@@ -12,7 +12,7 @@ class _FakeEmbedder:
 class TestVectorStore:
     @pytest.mark.asyncio
     async def test_abc_enforces_contract(self):
-        from draf.rag import VectorStore
+        from teff.rag import VectorStore
 
         with pytest.raises(TypeError):
 
@@ -23,7 +23,7 @@ class TestVectorStore:
 
     @pytest.mark.asyncio
     async def test_inmemory_store_and_search(self):
-        from draf.rag.stores import InMemoryVectorStore
+        from teff.rag.stores import InMemoryVectorStore
 
         store = InMemoryVectorStore(dim=4)
         await store.add([("d1", [1, 0, 0, 0], {"text": "hello"})])
@@ -33,14 +33,14 @@ class TestVectorStore:
 
     @pytest.mark.asyncio
     async def test_empty_search_returns_empty(self):
-        from draf.rag.stores import InMemoryVectorStore
+        from teff.rag.stores import InMemoryVectorStore
 
         store = InMemoryVectorStore(dim=4)
         results = await store.search([1, 0, 0, 0], k=5)
         assert results == []
 
     def test_match_filter_semantics(self):
-        from draf.rag.base import match_filter
+        from teff.rag.base import match_filter
 
         meta = {"category": "news", "tags": ["a", "b"], "views": 3}
         assert match_filter(meta, None)
@@ -63,7 +63,7 @@ class TestVectorStore:
 
     @pytest.mark.asyncio
     async def test_inmemory_filter_search(self):
-        from draf.rag.stores import InMemoryVectorStore
+        from teff.rag.stores import InMemoryVectorStore
 
         store = InMemoryVectorStore(dim=4)
         await store.add(
@@ -84,7 +84,7 @@ class TestVectorStore:
 
     @pytest.mark.asyncio
     async def test_inmemory_hybrid_ranking(self):
-        from draf.rag.stores import InMemoryVectorStore
+        from teff.rag.stores import InMemoryVectorStore
 
         store = InMemoryVectorStore(dim=4)
         await store.add(
@@ -100,7 +100,7 @@ class TestVectorStore:
 
     @pytest.mark.asyncio
     async def test_inmemory_extended_ops(self):
-        from draf.rag.stores import InMemoryVectorStore
+        from teff.rag.stores import InMemoryVectorStore
 
         store = InMemoryVectorStore(dim=4)
         await store.add(
@@ -125,14 +125,14 @@ class TestVectorStore:
 
 class TestEmbedder:
     def test_ollama_needs_no_api_key(self):
-        from draf.rag import Embedder
+        from teff.rag import Embedder
 
         e = Embedder(provider="ollama", model="nomic-embed-text")
         assert e._api_key == ""
         assert e._base_url == "http://localhost:11434/v1"
 
     def test_openai_requires_api_key(self, monkeypatch):
-        from draf.rag import Embedder
+        from teff.rag import Embedder
 
         monkeypatch.delenv("OPENAI_API_KEY", raising=False)
         monkeypatch.delenv("OPENAI_BASE_URL", raising=False)
@@ -154,7 +154,7 @@ class TestEmbedder:
         ],
     )
     def test_new_provider_defaults(self, monkeypatch, provider, env, model):
-        from draf.rag import Embedder
+        from teff.rag import Embedder
 
         monkeypatch.delenv(f"{provider.upper()}_API_KEY", raising=False)
         monkeypatch.delenv(f"{provider.upper()}_BASE_URL", raising=False)
@@ -174,7 +174,7 @@ class TestEmbedder:
         ],
     )
     def test_new_provider_requires_api_key(self, monkeypatch, provider, env):
-        from draf.rag import Embedder
+        from teff.rag import Embedder
 
         monkeypatch.delenv(f"{provider.upper()}_API_KEY", raising=False)
         monkeypatch.delenv(env, raising=False)
@@ -183,7 +183,7 @@ class TestEmbedder:
             Embedder(provider=provider)
 
     def test_from_config_uses_explicit_values(self, monkeypatch):
-        from draf.rag.embedder import embedder_from_config
+        from teff.rag.embedder import embedder_from_config
 
         monkeypatch.delenv("OLLAMA_API_KEY", raising=False)
         e = embedder_from_config(
@@ -199,8 +199,8 @@ class TestEmbedder:
         assert e._base_url == "http://explicit:11434/v1"
 
     def test_from_config_inherits_provider_base_url(self, monkeypatch):
-        from draf.provider import Provider, ProviderRegistry
-        from draf.rag.embedder import embedder_from_config
+        from teff.provider import Provider, ProviderRegistry
+        from teff.rag.embedder import embedder_from_config
 
         monkeypatch.delenv("OPENAI_API_KEY", raising=False)
         reg = ProviderRegistry()
@@ -215,8 +215,8 @@ class TestEmbedder:
         assert e._base_url == "http://embed:8080/v1"
 
     def test_from_config_ollama_adds_v1(self, monkeypatch):
-        from draf.provider import ProviderRegistry
-        from draf.rag.embedder import embedder_from_config
+        from teff.provider import ProviderRegistry
+        from teff.rag.embedder import embedder_from_config
 
         monkeypatch.delenv("OLLAMA_API_KEY", raising=False)
         reg = ProviderRegistry.from_presets("ollama")
@@ -225,8 +225,8 @@ class TestEmbedder:
         assert e._base_url == "http://localhost:11434/v1"
 
     def test_from_config_ollama_remote_host_inherited(self, monkeypatch):
-        from draf.provider import Provider, ProviderRegistry
-        from draf.rag.embedder import embedder_from_config
+        from teff.provider import Provider, ProviderRegistry
+        from teff.rag.embedder import embedder_from_config
 
         monkeypatch.delenv("OLLAMA_API_KEY", raising=False)
         reg = ProviderRegistry()
@@ -243,8 +243,8 @@ class TestEmbedder:
         assert e._base_url == "http://ollama-host:11434/v1"
 
     def test_from_config_explicit_base_url_wins(self, monkeypatch):
-        from draf.provider import ProviderRegistry
-        from draf.rag.embedder import embedder_from_config
+        from teff.provider import ProviderRegistry
+        from teff.rag.embedder import embedder_from_config
 
         monkeypatch.delenv("OLLAMA_API_KEY", raising=False)
         reg = ProviderRegistry.from_presets("ollama")
@@ -260,7 +260,7 @@ class TestEmbedder:
         assert e._base_url == "http://explicit:11434/v1"
 
     def test_rag_tool_config_resolves_default_model(self, monkeypatch):
-        from draf.rag import RAGTool
+        from teff.rag import RAGTool
 
         monkeypatch.setenv("MISTRAL_API_KEY", "test-key")
         rag = RAGTool(
@@ -276,7 +276,7 @@ class TestEmbedder:
 class TestSQLiteVectorStore:
     @pytest.mark.asyncio
     async def test_persists_across_instances(self, tmp_path):
-        from draf.rag.stores import SQLiteVectorStore
+        from teff.rag.stores import SQLiteVectorStore
 
         db = str(tmp_path / "v.db")
         s1 = SQLiteVectorStore(path=db, dim=3)
@@ -291,7 +291,7 @@ class TestSQLiteVectorStore:
 
     @pytest.mark.asyncio
     async def test_ranked_search(self, tmp_path):
-        from draf.rag.stores import SQLiteVectorStore
+        from teff.rag.stores import SQLiteVectorStore
 
         s = SQLiteVectorStore(path=str(tmp_path / "v.db"), dim=3)
         await s.add(
@@ -306,7 +306,7 @@ class TestSQLiteVectorStore:
 
     @pytest.mark.asyncio
     async def test_dim_mismatch_raises(self, tmp_path):
-        from draf.rag.stores import SQLiteVectorStore
+        from teff.rag.stores import SQLiteVectorStore
 
         s = SQLiteVectorStore(path=str(tmp_path / "v.db"), dim=3)
         with pytest.raises(ValueError, match="dim"):
@@ -315,7 +315,7 @@ class TestSQLiteVectorStore:
 
     @pytest.mark.asyncio
     async def test_delete(self, tmp_path):
-        from draf.rag.stores import SQLiteVectorStore
+        from teff.rag.stores import SQLiteVectorStore
 
         s = SQLiteVectorStore(path=str(tmp_path / "v.db"), dim=3)
         await s.add([("d1", [1.0, 0, 0], {})])
@@ -325,7 +325,7 @@ class TestSQLiteVectorStore:
 
     @pytest.mark.asyncio
     async def test_filter_search(self, tmp_path):
-        from draf.rag.stores import SQLiteVectorStore
+        from teff.rag.stores import SQLiteVectorStore
 
         s = SQLiteVectorStore(path=str(tmp_path / "v.db"), dim=4)
         await s.add(
@@ -348,7 +348,7 @@ class TestSQLiteVectorStore:
 
     @pytest.mark.asyncio
     async def test_hybrid_search(self, tmp_path):
-        from draf.rag.stores import SQLiteVectorStore
+        from teff.rag.stores import SQLiteVectorStore
 
         s = SQLiteVectorStore(path=str(tmp_path / "v.db"), dim=4)
         await s.add(
@@ -365,7 +365,7 @@ class TestSQLiteVectorStore:
 
     @pytest.mark.asyncio
     async def test_extended_ops(self, tmp_path):
-        from draf.rag.stores import SQLiteVectorStore
+        from teff.rag.stores import SQLiteVectorStore
 
         s = SQLiteVectorStore(path=str(tmp_path / "v.db"), dim=3)
         await s.add(
@@ -385,7 +385,7 @@ class TestSQLiteVectorStore:
         s.close()
 
     def test_rag_tool_with_sqlite_store(self, tmp_path):
-        from draf.rag import RAGTool
+        from teff.rag import RAGTool
 
         rag = RAGTool(
             {
@@ -397,7 +397,7 @@ class TestSQLiteVectorStore:
         assert type(rag.store).__name__ == "SQLiteVectorStore"
 
     def test_unknown_store_type_raises(self):
-        from draf.rag import RAGTool
+        from teff.rag import RAGTool
 
         with pytest.raises(ValueError, match="unsupported store type"):
             RAGTool(
@@ -410,7 +410,7 @@ class TestSQLiteVectorStore:
     def test_external_store_missing_dep_raises(self):
         import importlib.util
 
-        from draf.rag import RAGTool
+        from teff.rag import RAGTool
 
         deps = {
             "chroma": "chromadb",
@@ -429,7 +429,7 @@ class TestSQLiteVectorStore:
                 )
 
     def test_sqlite_store_from_config(self, tmp_path):
-        from draf.rag import RAGTool
+        from teff.rag import RAGTool
 
         rag = RAGTool(
             {
@@ -451,7 +451,7 @@ class TestFAISSVectorStore:
     @pytest.mark.asyncio
     async def test_search_filter_and_extended_ops(self, tmp_path):
         pytest.importorskip("faiss")
-        from draf.rag.stores import FAISSVectorStore
+        from teff.rag.stores import FAISSVectorStore
 
         store = FAISSVectorStore(dim=4, path=str(tmp_path / "idx.bin"))
         await store.add(
@@ -482,7 +482,7 @@ class TestFAISSVectorStore:
     @pytest.mark.asyncio
     async def test_persists_across_instances(self, tmp_path):
         pytest.importorskip("faiss")
-        from draf.rag.stores import FAISSVectorStore
+        from teff.rag.stores import FAISSVectorStore
 
         path = str(tmp_path / "idx.bin")
         s1 = FAISSVectorStore(dim=3, path=path)
@@ -496,7 +496,7 @@ class TestFAISSVectorStore:
     @pytest.mark.asyncio
     async def test_dim_mismatch_raises(self):
         pytest.importorskip("faiss")
-        from draf.rag.stores import FAISSVectorStore
+        from teff.rag.stores import FAISSVectorStore
 
         store = FAISSVectorStore(dim=3)
         with pytest.raises(ValueError, match="dim"):
@@ -510,7 +510,7 @@ class TestLanceVectorStore:
     @pytest.mark.asyncio
     async def test_search_filter_and_extended_ops(self, tmp_path):
         pytest.importorskip("lancedb")
-        from draf.rag.stores import LanceVectorStore
+        from teff.rag.stores import LanceVectorStore
 
         store = LanceVectorStore(path=str(tmp_path / "lance"), table="vectors", dim=4)
         await store.add(
@@ -541,7 +541,7 @@ class TestLanceVectorStore:
     @pytest.mark.asyncio
     async def test_dim_mismatch_raises(self, tmp_path):
         pytest.importorskip("lancedb")
-        from draf.rag.stores import LanceVectorStore
+        from teff.rag.stores import LanceVectorStore
 
         store = LanceVectorStore(path=str(tmp_path / "lance"), dim=3)
         with pytest.raises(ValueError, match="dim"):
@@ -563,7 +563,7 @@ class TestMilvusVectorStore:
             import milvus_lite  # noqa: F401
         except ImportError:
             pytest.skip("milvus-lite not installed")
-        from draf.rag.stores import MilvusVectorStore
+        from teff.rag.stores import MilvusVectorStore
 
         store = MilvusVectorStore(
             uri=str(tmp_path / "milvus.db"),
@@ -599,29 +599,29 @@ class TestMilvusVectorStore:
 class TestWeaviatePineconeConfig:
     def test_pinecone_missing_api_key_raises(self, monkeypatch):
         pytest.importorskip("pinecone")
-        from draf.rag.stores import PineconeVectorStore
+        from teff.rag.stores import PineconeVectorStore
 
         monkeypatch.delenv("PINECONE_API_KEY", raising=False)
         with pytest.raises(ValueError, match="API key"):
             PineconeVectorStore(api_key="")
 
     def test_new_store_types_mapped_in_config(self, monkeypatch):
-        from draf.rag import RAGTool
+        from teff.rag import RAGTool
 
         monkeypatch.setattr(
-            "draf.rag.stores.FAISSVectorStore", lambda **kw: "faiss-store"
+            "teff.rag.stores.FAISSVectorStore", lambda **kw: "faiss-store"
         )
         monkeypatch.setattr(
-            "draf.rag.stores.LanceVectorStore", lambda **kw: "lance-store"
+            "teff.rag.stores.LanceVectorStore", lambda **kw: "lance-store"
         )
         monkeypatch.setattr(
-            "draf.rag.stores.MilvusVectorStore", lambda **kw: "milvus-store"
+            "teff.rag.stores.MilvusVectorStore", lambda **kw: "milvus-store"
         )
         monkeypatch.setattr(
-            "draf.rag.stores.WeaviateVectorStore", lambda **kw: "weaviate-store"
+            "teff.rag.stores.WeaviateVectorStore", lambda **kw: "weaviate-store"
         )
         monkeypatch.setattr(
-            "draf.rag.stores.PineconeVectorStore", lambda **kw: "pinecone-store"
+            "teff.rag.stores.PineconeVectorStore", lambda **kw: "pinecone-store"
         )
 
         embedder = {"provider": "ollama", "model": "nomic-embed-text"}
@@ -643,7 +643,7 @@ class TestChromaVectorStore:
 
     @pytest.mark.asyncio
     async def test_filter_search_and_extended_ops(self, tmp_path):
-        from draf.rag.stores import ChromaVectorStore
+        from teff.rag.stores import ChromaVectorStore
 
         store = ChromaVectorStore(path=str(tmp_path / "chroma"), collection="test")
         await store.add(
@@ -669,8 +669,8 @@ class TestChromaVectorStore:
 
 class TestRAGTool:
     def test_constructs_with_all_deps(self):
-        from draf.rag import Chunker, Embedder, RAGTool
-        from draf.rag.stores import InMemoryVectorStore
+        from teff.rag import Chunker, Embedder, RAGTool
+        from teff.rag.stores import InMemoryVectorStore
 
         store = InMemoryVectorStore(dim=4)
         embedder = Embedder.__new__(Embedder)
@@ -684,8 +684,8 @@ class TestRAGTool:
         assert "search" in rag.description.lower()
 
     def test_rag_tool_custom_name(self):
-        from draf.rag import RAGTool
-        from draf.rag.stores import InMemoryVectorStore
+        from teff.rag import RAGTool
+        from teff.rag.stores import InMemoryVectorStore
 
         store = InMemoryVectorStore(768)
         rag = RAGTool(store=store, embedder=None, name="rag_docs")
@@ -700,7 +700,7 @@ class TestRAGTool:
         assert rag.name == "kb_main"
 
     def test_config_with_inline_documents(self, tmp_path):
-        from draf.rag import RAGTool
+        from teff.rag import RAGTool
 
         cfg = {
             "embedder": {"provider": "ollama", "model": "nomic-embed-text"},
@@ -719,7 +719,7 @@ class TestRAGTool:
         ]
 
     def test_config_with_csv_file(self, tmp_path):
-        from draf.rag import RAGTool
+        from teff.rag import RAGTool
 
         csv_path = tmp_path / "docs.csv"
         csv_path.write_text('id,topic,text\nd1,a,hello world\nd2,b,"two, words"\n')
@@ -736,7 +736,7 @@ class TestRAGTool:
         ]
 
     def test_config_with_csv_dict(self, tmp_path):
-        from draf.rag import RAGTool
+        from teff.rag import RAGTool
 
         csv_path = tmp_path / "docs.tsv"
         csv_path.write_text("id\tcontent\nd1\thello\n")
@@ -754,8 +754,8 @@ class TestRAGTool:
         assert rag._documents == [("hello", {"id": "d1"})]
 
     def test_lazy_seeding_seeds_once(self, tmp_path):
-        from draf.rag import RAGTool
-        from draf.rag.stores import InMemoryVectorStore
+        from teff.rag import RAGTool
+        from teff.rag.stores import InMemoryVectorStore
 
         class FakeEmbedder:
             async def embed(self, text: str) -> list[float]:
@@ -780,7 +780,7 @@ class TestRAGTool:
         assert len(store._vectors) == 1
 
     def test_mixed_loader_config(self, tmp_path):
-        from draf.rag import RAGTool
+        from teff.rag import RAGTool
 
         (tmp_path / "a.txt").write_text("first text file")
         (tmp_path / "b.txt").write_text("second text file")
@@ -801,7 +801,7 @@ class TestRAGTool:
         assert "csv row" in texts
 
     def test_unknown_document_type_raises(self):
-        from draf.rag import RAGTool
+        from teff.rag import RAGTool
 
         with pytest.raises(ValueError, match="unsupported document type"):
             RAGTool(
@@ -813,7 +813,7 @@ class TestRAGTool:
             )
 
     def test_config_rag_options(self):
-        from draf.rag import RAGTool
+        from teff.rag import RAGTool
 
         cfg = {
             "embedder": {"provider": "ollama", "model": "nomic-embed-text"},
@@ -834,8 +834,8 @@ class TestRAGTool:
         assert rag._parent_retrieval is True
 
     def test_constructor_options(self):
-        from draf.rag import RAGTool
-        from draf.rag.stores import InMemoryVectorStore
+        from teff.rag import RAGTool
+        from teff.rag.stores import InMemoryVectorStore
 
         rag = RAGTool(
             store=InMemoryVectorStore(4),
@@ -855,8 +855,8 @@ class TestRAGTool:
     def test_arun_similarity_threshold(self):
         import asyncio
 
-        from draf.rag import Chunker, RAGTool
-        from draf.rag.stores import InMemoryVectorStore
+        from teff.rag import Chunker, RAGTool
+        from teff.rag.stores import InMemoryVectorStore
 
         store = InMemoryVectorStore(dim=4)
         rag = RAGTool(
@@ -872,8 +872,8 @@ class TestRAGTool:
     def test_arun_max_tokens(self):
         import asyncio
 
-        from draf.rag import Chunker, RAGTool
-        from draf.rag.stores import InMemoryVectorStore
+        from teff.rag import Chunker, RAGTool
+        from teff.rag.stores import InMemoryVectorStore
 
         store = InMemoryVectorStore(dim=4)
         rag = RAGTool(
@@ -889,8 +889,8 @@ class TestRAGTool:
     def test_arun_uses_configured_filter(self):
         import asyncio
 
-        from draf.rag import Chunker, RAGTool
-        from draf.rag.stores import InMemoryVectorStore
+        from teff.rag import Chunker, RAGTool
+        from teff.rag.stores import InMemoryVectorStore
 
         store = InMemoryVectorStore(dim=4)
         rag = RAGTool(
@@ -915,8 +915,8 @@ class TestRAGTool:
     def test_parent_chunks_and_retrieval(self):
         import asyncio
 
-        from draf.rag import Chunker, RAGTool
-        from draf.rag.stores import InMemoryVectorStore
+        from teff.rag import Chunker, RAGTool
+        from teff.rag.stores import InMemoryVectorStore
 
         store = InMemoryVectorStore(dim=4)
         rag = RAGTool(
@@ -935,8 +935,8 @@ class TestRAGTool:
     def test_arun_hybrid_ranking(self):
         import asyncio
 
-        from draf.rag import Chunker, RAGTool
-        from draf.rag.stores import InMemoryVectorStore
+        from teff.rag import Chunker, RAGTool
+        from teff.rag.stores import InMemoryVectorStore
 
         store = InMemoryVectorStore(dim=4)
         rag = RAGTool(
@@ -960,7 +960,7 @@ class TestRAGTool:
 
 class TestDocumentLoaders:
     def test_csv_loader(self, tmp_path):
-        from draf.rag.tool import load_documents_csv
+        from teff.rag.tool import load_documents_csv
 
         p = tmp_path / "d.csv"
         p.write_text("id,topic,text\nd1,a,hello world\n")
@@ -969,7 +969,7 @@ class TestDocumentLoaders:
         ]
 
     def test_txt_loader_single_and_glob(self, tmp_path):
-        from draf.rag.tool import load_documents_txt
+        from teff.rag.tool import load_documents_txt
 
         (tmp_path / "one.txt").write_text("first")
         (tmp_path / "two.txt").write_text("second")
@@ -979,7 +979,7 @@ class TestDocumentLoaders:
         assert len(load_documents_txt(str(tmp_path / "*.txt"))) == 2
 
     def test_pdf_loader(self, tmp_path):
-        from draf.rag.tool import load_documents_pdf
+        from teff.rag.tool import load_documents_pdf
 
         pytest.importorskip("pypdf")
         from pypdf import PdfWriter
@@ -992,7 +992,7 @@ class TestDocumentLoaders:
         assert load_documents_pdf(str(p)) == []
 
     def test_excel_loader(self, tmp_path):
-        from draf.rag.tool import load_documents_excel
+        from teff.rag.tool import load_documents_excel
 
         pytest.importorskip("openpyxl")
         from openpyxl import Workbook
@@ -1007,7 +1007,7 @@ class TestDocumentLoaders:
         ]
 
     def test_excel_loader_custom_column(self, tmp_path):
-        from draf.rag.tool import load_documents_excel
+        from teff.rag.tool import load_documents_excel
 
         pytest.importorskip("openpyxl")
         from openpyxl import Workbook
@@ -1023,7 +1023,7 @@ class TestDocumentLoaders:
     def test_pdf_without_pypdf_raises_helpful_error(self, monkeypatch):
         import builtins
 
-        from draf.rag.tool import load_documents_pdf
+        from teff.rag.tool import load_documents_pdf
 
         real_import = builtins.__import__
 
@@ -1039,7 +1039,7 @@ class TestDocumentLoaders:
 
 class TestPDFTool:
     def test_blank_pdf_returns_no_text(self, tmp_path):
-        from draf.rag import PDFTool
+        from teff.rag import PDFTool
 
         pytest.importorskip("pypdf")
         from pypdf import PdfWriter
@@ -1052,29 +1052,29 @@ class TestPDFTool:
         assert PDFTool().run(str(p)) == "no text found in pdf"
 
     def test_missing_path_raises(self):
-        from draf.rag import PDFTool
+        from teff.rag import PDFTool
 
         with pytest.raises(ValueError, match="path is required"):
             PDFTool().run(path="")
 
     def test_config_max_chars_default(self):
-        from draf.rag import PDFTool
+        from teff.rag import PDFTool
 
         assert PDFTool().max_chars == 50000
         assert PDFTool({"max_chars": 10}).max_chars == 10
 
     def test_schema_requires_path(self):
-        from draf.harness import tool_to_schema
-        from draf.rag import PDFTool
+        from teff.harness import tool_to_schema
+        from teff.rag import PDFTool
 
         schema = tool_to_schema(PDFTool())
         assert "path" in schema["function"]["parameters"]["required"]
 
     def test_returns_pages_with_truncation(self, monkeypatch):
-        from draf.rag import PDFTool
+        from teff.rag import PDFTool
 
         docs = [("hello page", {"page": 1}), ("world page", {"page": 2})]
-        monkeypatch.setattr("draf.rag.pdf_tool.load_documents_pdf", lambda path: docs)
+        monkeypatch.setattr("teff.rag.pdf_tool.load_documents_pdf", lambda path: docs)
         result = PDFTool().run("fake.pdf")
         assert "--- page 1 ---\nhello page" in result
         assert "--- page 2 ---\nworld page" in result
@@ -1117,7 +1117,7 @@ class TestImageTool:
         return p
 
     def test_defaults_ollama_llava(self, monkeypatch):
-        from draf.rag import ImageTool
+        from teff.rag import ImageTool
 
         monkeypatch.delenv("OLLAMA_API_KEY", raising=False)
         monkeypatch.delenv("OLLAMA_BASE_URL", raising=False)
@@ -1127,7 +1127,7 @@ class TestImageTool:
         assert t.base_url == "http://localhost:11434/v1"
 
     def test_config_overrides(self, monkeypatch):
-        from draf.rag import ImageTool
+        from teff.rag import ImageTool
 
         monkeypatch.delenv("OPENAI_API_KEY", raising=False)
         t = ImageTool(
@@ -1148,7 +1148,7 @@ class TestImageTool:
 
         import httpx
 
-        from draf.rag import ImageTool
+        from teff.rag import ImageTool
 
         p = self._png(tmp_path)
         fake = self._FakeVisionClient()
@@ -1170,7 +1170,7 @@ class TestImageTool:
 
         import httpx
 
-        from draf.rag import ImageTool
+        from teff.rag import ImageTool
 
         p = self._png(tmp_path)
         fake = self._FakeVisionClient()
@@ -1185,7 +1185,7 @@ class TestImageTool:
 
         import httpx
 
-        from draf.rag import ImageTool
+        from teff.rag import ImageTool
 
         p = self._png(tmp_path)
         fake = self._FakeVisionClient()
@@ -1196,7 +1196,7 @@ class TestImageTool:
     def test_requires_path(self):
         import asyncio
 
-        from draf.rag import ImageTool
+        from teff.rag import ImageTool
 
         with pytest.raises(ValueError, match="path is required"):
             asyncio.run(ImageTool({}).arun(""))
@@ -1204,7 +1204,7 @@ class TestImageTool:
     def test_missing_file_raises(self, tmp_path):
         import asyncio
 
-        from draf.rag import ImageTool
+        from teff.rag import ImageTool
 
         with pytest.raises(FileNotFoundError):
             asyncio.run(ImageTool({}).arun(str(tmp_path / "nope.png")))
@@ -1214,7 +1214,7 @@ class TestImageTool:
 
         import httpx
 
-        from draf.rag import ImageTool
+        from teff.rag import ImageTool
 
         p = self._png(tmp_path)
 
@@ -1237,8 +1237,8 @@ class TestImageTool:
             asyncio.run(ImageTool({}).arun(str(p)))
 
     def test_schema_requires_path(self):
-        from draf.harness import tool_to_schema
-        from draf.rag import ImageTool
+        from teff.harness import tool_to_schema
+        from teff.rag import ImageTool
 
         schema = tool_to_schema(ImageTool({}))
         assert "path" in schema["function"]["parameters"]["required"]

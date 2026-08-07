@@ -1,13 +1,13 @@
 """Custom tool types for the plugins example.
 
-Registered via the ``@tool`` decorator exactly like draf's built-ins, so
+Registered via the ``@tool`` decorator exactly like teff's built-ins, so
 they show up in ``default_tool_registry`` and become usable both from
 nodes (``ctx.tools[...]``) and from ReAct agents (``use_tools: all``).
 """
 
 import re
 
-from draf.tool.registry import tool
+from teff.tool.registry import tool
 
 
 @tool("word_count", "Count the words in a text")

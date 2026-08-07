@@ -1,6 +1,6 @@
 """Knowledge base — domain-scoped RAG over the service-desk CSVs.
 
-A single durable :class:`~draf.rag.VectorStore` holds every specialist's
+A single durable :class:`~teff.rag.VectorStore` holds every specialist's
 knowledge; each row is tagged with its ``domain`` (incidents / billing /
 deploy) so a search is isolated to one specialist via an equality filter.
 Documents are embedded lazily on the first search (no network at build
@@ -13,7 +13,7 @@ from __future__ import annotations
 import csv
 from dataclasses import dataclass
 
-from draf.rag.stores import InMemoryVectorStore
+from teff.rag.stores import InMemoryVectorStore
 
 DOCUMENT_KEY = "text"
 
@@ -46,7 +46,7 @@ class KnowledgeBase:
     Args:
         embedder: Anything exposing ``async embed(text) -> list[float]`` and
             ``async embed_many(texts) -> list[list[float]]``.
-        store: :class:`~draf.rag.VectorStore` (defaults to in-memory).
+        store: :class:`~teff.rag.VectorStore` (defaults to in-memory).
         top_k: Default number of results per search.
     """
 

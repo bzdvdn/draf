@@ -1,13 +1,13 @@
 # RAG store: faiss
 
-RAG agent over the Draf knowledge base using the FAISS store.
+RAG agent over the Teff knowledge base using the FAISS store.
 
 ## Dependencies
 
 Install the vector-store extra:
 
 ```bash
-uv add "draf[stores-faiss]"     # or: pip install "draf[stores-faiss]"
+uv add "teff[stores-faiss]"     # or: pip install "teff[stores-faiss]"
 ```
 
 Ollama must be running locally with:

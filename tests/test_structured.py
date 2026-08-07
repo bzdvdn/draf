@@ -5,7 +5,7 @@ import pytest
 
 class TestJsonSchemaFromType:
     def test_dict_field_map(self):
-        from draf.schema import json_schema_from_type
+        from teff.schema import json_schema_from_type
 
         schema = json_schema_from_type({"name": str, "age": int})
         assert schema["type"] == "object"
@@ -14,7 +14,7 @@ class TestJsonSchemaFromType:
         assert schema["required"] == ["name", "age"]
 
     def test_raw_schema_passthrough(self):
-        from draf.schema import json_schema_from_type
+        from teff.schema import json_schema_from_type
 
         raw = {"type": "object", "properties": {"x": {"type": "string"}}}
         assert json_schema_from_type(raw) is raw
@@ -22,7 +22,7 @@ class TestJsonSchemaFromType:
     def test_typeddict(self):
         from typing import TypedDict
 
-        from draf.schema import json_schema_from_type
+        from teff.schema import json_schema_from_type
 
         class Person(TypedDict):
             name: str
@@ -35,7 +35,7 @@ class TestJsonSchemaFromType:
     def test_list_and_literal(self):
         from typing import Literal
 
-        from draf.schema import json_schema_from_type
+        from teff.schema import json_schema_from_type
 
         schema = json_schema_from_type({"tags": list[str], "kind": Literal["a", "b"]})
         assert schema["properties"]["tags"] == {
@@ -47,7 +47,7 @@ class TestJsonSchemaFromType:
 
 class TestValidateJson:
     def test_valid_object(self):
-        from draf.schema import validate_json
+        from teff.schema import validate_json
 
         schema = {
             "type": "object",
@@ -57,21 +57,21 @@ class TestValidateJson:
         assert validate_json({"name": "Иван", "age": 30}, schema) == []
 
     def test_missing_required(self):
-        from draf.schema import validate_json
+        from teff.schema import validate_json
 
         schema = {"type": "object", "required": ["name"]}
         errors = validate_json({"age": 1}, schema)
         assert any("name" in e and "missing" in e for e in errors)
 
     def test_wrong_type(self):
-        from draf.schema import validate_json
+        from teff.schema import validate_json
 
         schema = {"type": "object", "properties": {"age": {"type": "integer"}}}
         errors = validate_json({"age": "x"}, schema)
         assert any("age" in e for e in errors)
 
     def test_unexpected_property_rejected(self):
-        from draf.schema import validate_json
+        from teff.schema import validate_json
 
         schema = {
             "type": "object",
@@ -82,14 +82,14 @@ class TestValidateJson:
         assert any("b" in e for e in errors)
 
     def test_enum(self):
-        from draf.schema import validate_json
+        from teff.schema import validate_json
 
         schema = {"type": "string", "enum": ["да", "нет"]}
         assert validate_json("да", schema) == []
         assert validate_json("maybe", schema) != []
 
     def test_oneof_nullable(self):
-        from draf.schema import validate_json
+        from teff.schema import validate_json
 
         schema = {"oneOf": [{"type": "null"}, {"type": "string"}]}
         assert validate_json(None, schema) == []
@@ -97,7 +97,7 @@ class TestValidateJson:
         assert validate_json(42, schema) != []
 
     def test_array_items_and_min_items(self):
-        from draf.schema import validate_json
+        from teff.schema import validate_json
 
         schema = {"type": "array", "items": {"type": "integer"}, "minItems": 1}
         assert validate_json([1, 2], schema) == []
@@ -105,13 +105,13 @@ class TestValidateJson:
         assert validate_json([1, "x"], schema) != []
 
     def test_string_limits_and_pattern(self):
-        from draf.schema import validate_json
+        from teff.schema import validate_json
 
         assert validate_json("ab", {"type": "string", "minLength": 3}) != []
         assert validate_json("abc123", {"type": "string", "pattern": r"^\d+$"}) != []
 
     def test_boolean_integer_strict(self):
-        from draf.schema import validate_json
+        from teff.schema import validate_json
 
         assert validate_json(True, {"type": "integer"}) != []
         assert validate_json(1, {"type": "integer"}) == []
@@ -119,18 +119,18 @@ class TestValidateJson:
 
 class TestParseJsonObject:
     def test_direct_json(self):
-        from draf.schema import parse_json_object
+        from teff.schema import parse_json_object
 
         assert parse_json_object('{"a": 1}') == {"a": 1}
 
     def test_json_embedded_in_prose(self):
-        from draf.schema import parse_json_object
+        from teff.schema import parse_json_object
 
         text = 'Sure! Here is the JSON:\n```json\n{"name": "x"}\n```'
         assert parse_json_object(text) == {"name": "x"}
 
     def test_invalid_raises(self):
-        from draf.schema import parse_json_object
+        from teff.schema import parse_json_object
 
         with pytest.raises(ValueError):
             parse_json_object("not json at all")
@@ -183,7 +183,7 @@ def mock_llm(monkeypatch):
 class TestLLMStructuredOutput:
     @pytest.mark.asyncio
     async def test_valid_schema_returns_dict(self, mock_llm, monkeypatch):
-        from draf.node import LLM, ExecContext
+        from teff.node import LLM, ExecContext
 
         monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
         mock = mock_llm(['{"name": "Иван", "age": 30}'])
@@ -208,7 +208,7 @@ class TestLLMStructuredOutput:
 
     @pytest.mark.asyncio
     async def test_retries_on_invalid_then_succeeds(self, mock_llm, monkeypatch):
-        from draf.node import LLM, ExecContext
+        from teff.node import LLM, ExecContext
 
         monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
         mock = mock_llm(
@@ -241,7 +241,7 @@ class TestLLMStructuredOutput:
 
     @pytest.mark.asyncio
     async def test_raises_after_exhausting_retries(self, mock_llm, monkeypatch):
-        from draf.node import LLM, ExecContext, StructuredOutputError
+        from teff.node import LLM, ExecContext, StructuredOutputError
 
         monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
         mock = mock_llm(['{"name": 123}'] * 3)
@@ -267,7 +267,7 @@ class TestLLMStructuredOutput:
     async def test_output_type_typeddict(self, mock_llm, monkeypatch):
         from typing import TypedDict
 
-        from draf.node import LLM, ExecContext
+        from teff.node import LLM, ExecContext
 
         monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
         mock = mock_llm(['{"city": "Москва", "temp": 22.5}'])
@@ -290,7 +290,7 @@ class TestLLMStructuredOutput:
 
     @pytest.mark.asyncio
     async def test_ollama_uses_format_json(self, mock_llm, monkeypatch):
-        from draf.node import LLM, ExecContext
+        from teff.node import LLM, ExecContext
 
         monkeypatch.setenv("OLLAMA_API_KEY", "")
         mock = mock_llm([{"message": {"content": '{"ok": true}'}}])
@@ -311,7 +311,7 @@ class TestLLMStructuredOutput:
 
     @pytest.mark.asyncio
     async def test_parse_without_schema(self, mock_llm, monkeypatch):
-        from draf.node import LLM, ExecContext
+        from teff.node import LLM, ExecContext
 
         monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
         mock_llm(['here is the json: {"a": [1, 2]}'])
@@ -328,7 +328,7 @@ class TestLLMStructuredOutput:
 
     @pytest.mark.asyncio
     async def test_parse_failure_raises(self, mock_llm, monkeypatch):
-        from draf.node import LLM, ExecContext, StructuredOutputError
+        from teff.node import LLM, ExecContext, StructuredOutputError
 
         monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
         mock_llm(["not json"])
@@ -345,8 +345,8 @@ class TestLLMStructuredOutput:
 
     @pytest.mark.asyncio
     async def test_tracer_records_structured_events(self, mock_llm, monkeypatch):
-        from draf.node import LLM, ExecContext
-        from draf.trace import RunTracer
+        from teff.node import LLM, ExecContext
+        from teff.trace import RunTracer
 
         monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
         mock_llm(
@@ -377,8 +377,8 @@ class TestLLMStructuredOutput:
 
     @pytest.mark.asyncio
     async def test_stream_emits_structured_event(self, mock_llm, monkeypatch):
-        from draf.node import LLM, ExecContext
-        from draf.stream import StreamEvent
+        from teff.node import LLM, ExecContext
+        from teff.stream import StreamEvent
 
         monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
         mock_llm(['{"name": 123}', '{"name": "ok"}'])

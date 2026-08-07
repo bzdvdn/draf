@@ -56,10 +56,10 @@ From the repository root (requires Ollama running locally for the live turn):
 uv run pytest examples/simple_router_yaml/tests/
 
 # 2. run one turn against a local Ollama (streams tokens)
-uv run draf -f examples/simple_router_yaml/workflow.yaml
+uv run teff -f examples/simple_router_yaml/workflow.yaml
 
 # 3. inspect the topology
-uv run draf graph examples/simple_router_yaml/workflow.yaml --mermaid
+uv run teff graph examples/simple_router_yaml/workflow.yaml --mermaid
 ```
 
 ## Compare with the code version

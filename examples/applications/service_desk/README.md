@@ -1,7 +1,7 @@
 # Service Desk — the default `supervisor()` chat router
 
 A support-desk app that shows the *configuration-driven* supervisor: a single
-[`draf.node.Supervisor`](https://opencode.ai) node, added with
+[`teff.node.Supervisor`](https://opencode.ai) node, added with
 `Flow.supervisor()` and tuned entirely with config (no subclass), dispatches
 every user message to one specialist agent.  This is the counterpart to
 [`examples/applications/repair-ai-chat`](../repair-ai-chat), which shows the
@@ -71,7 +71,7 @@ service_desk/
 ├── main.py                # uvicorn entry (factory lives in service_desk/server.py)
 ├── service_desk/
 │   ├── api/              # FastAPI routers: chat (REST + SSE), runs, auth, health
-│   ├── config/           # env-driven settings (.env / DRAF_* vars)
+│   ├── config/           # env-driven settings (.env / TEFF_* vars)
 │   ├── graphs/           # state, prompts, supervisor flow builder
 │   ├── rag/              # KnowledgeBase (embed + index + domain-scoped search)
 │   ├── tools/            # search_*_knowledge tools bound to the KB
@@ -83,7 +83,7 @@ service_desk/
 
 ## Run
 
-Run from the repository root (the repo's `uv` project resolves `draf`).
+Run from the repository root (the repo's `uv` project resolves `teff`).
 Requires Ollama running locally for a live turn:
 
 ```
@@ -142,9 +142,9 @@ an ordinary interrupt — the client answers the follow-up and resumes in the
 same `session_id`. Sessions are durable (JSON-file checkpointer); restart the
 server and a client can continue a conversation or revisit its traces.
 
-Setup is env-driven via `DRAF_*` (see `service_desk/config/config.py`): model/provider,
-`DRAF_API_KEY` (open to all when unset), `DRAF_TRACES_DB` / `DRAF_TRACES_PREFIX`,
-`DRAF_HOST` / `DRAF_PORT`. Tests inject a stub knowledge base and in-memory
+Setup is env-driven via `TEFF_*` (see `service_desk/config/config.py`): model/provider,
+`TEFF_API_KEY` (open to all when unset), `TEFF_TRACES_DB` / `TEFF_TRACES_PREFIX`,
+`TEFF_HOST` / `TEFF_PORT`. Tests inject a stub knowledge base and in-memory
 trace DB so the whole server is exercised without a network.
 
 ## Why the supervisor, not a ReAct coordinator

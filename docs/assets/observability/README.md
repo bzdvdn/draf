@@ -11,7 +11,7 @@ must match exactly.
 
 How to capture:
 
-1. Start a traced workflow: `draf obs-server --db ./data/traces.db` and run a
+1. Start a traced workflow: `teff obs-server --db ./data/traces.db` and run a
    few `workflow.yaml` turns (or `examples/observability/app.py`).
 2. Open `http://localhost:8001/obs/ui`, pick a run, open its detail page.
 3. Screenshot both views (viewport ~1200px wide is fine). The dark theme is the

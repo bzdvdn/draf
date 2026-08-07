@@ -1,7 +1,7 @@
 name: rag-chroma
 description: >
-  RAG over the Draf knowledge base (docs.csv) using the ChromaDB store.
-  Requires `draf[stores-chroma]` (chromadb). Persists to a local directory.
+  RAG over the Teff knowledge base (docs.csv) using the ChromaDB store.
+  Requires `teff[stores-chroma]` (chromadb). Persists to a local directory.
 
 tools:
   - type: rag
@@ -12,14 +12,14 @@ tools:
       store:
         type: chroma
         path: ./chroma_db
-        collection: draf
+        collection: teff
       documents:
         - type: csv
           path: ../docs.csv
 
 state:
   initial:
-    query: What is the mascot of Draf, and what does it ride?
+    query: What is the mascot of Teff, and what does it ride?
 
 providers:
   - name: ollama
@@ -33,7 +33,7 @@ steps:
       provider: ollama
       model: llama3.1:8b
       system: >
-        You are a RAG assistant over the Draf knowledge base. Always call
+        You are a RAG assistant over the Teff knowledge base. Always call
         the 'rag' tool to search before answering, and answer strictly
         from the retrieved snippets.
       input_key: query

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from draf.checkpoint import JSONFileCheckpointer
+from teff.checkpoint import JSONFileCheckpointer
 
 #: Relative to the app root; points at ``data/checkpoints/``.
 DEFAULT_CHECKPOINT_DIR = Path(__file__).resolve().parents[2] / "data" / "checkpoints"

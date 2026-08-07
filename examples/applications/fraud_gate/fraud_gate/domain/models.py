@@ -22,7 +22,7 @@ class ReviewOutcome:
     """The business outcome of screening a payment.
 
     ``decision`` is ``approve`` | ``review`` | ``deny``.  When ``waiting`` is
-    true the run paused for a human analyst (:class:`~draf.node.Interrupt`);
+    true the run paused for a human analyst (:class:`~teff.node.Interrupt`);
     ``prompt`` carries the question and the caller should resume via
     :meth:`ReviewService.decide` with the analyst's answer.
     """

@@ -1,14 +1,14 @@
 """Offline tests for the ``service_desk`` example — no LLM, no network.
 
 Runs the supervisor ``route()`` flow against a mocked LLM transport to prove
-the default :class:`draf.node.Supervisor` guards, and exercises the
+the default :class:`teff.node.Supervisor` guards, and exercises the
 knowledge base against a stub embedder (no network):
 
 * the happy path — one supervisor call, then the ``done_keys`` guard
   finishes the turn deterministically;
 * ``fallback_agent`` — a premature ``finish`` on an empty turn routes to the
   fallback specialist instead of ending silently;
-* the deploy gateway — an :class:`draf.node.Interrupt` pauses inside the
+* the deploy gateway — an :class:`teff.node.Interrupt` pauses inside the
   route chain and resumes with the operator's answer;
 * multi-turn routing — a follow-up message resets the per-turn scratch and
   routes to a new specialist;
@@ -34,9 +34,9 @@ from service_desk.graphs.state import STATE_REDUCERS, initial_state  # noqa: E40
 from service_desk.storage import TRANSIENT_KEYS, build_checkpointer  # noqa: E402
 from service_desk.tools.knowledge import SearchIncidentKnowledge  # noqa: E402
 
-from draf import Assistant  # noqa: E402
-from draf.node.interrupt import GraphInterrupt  # noqa: E402
-from draf.rag.stores import InMemoryVectorStore  # noqa: E402
+from teff import Assistant  # noqa: E402
+from teff.node.interrupt import GraphInterrupt  # noqa: E402
+from teff.rag.stores import InMemoryVectorStore  # noqa: E402
 
 
 def _reply(content: str) -> dict:

@@ -13,7 +13,7 @@ description: >
 
       GITLAB_URL=... GITLAB_TOKEN=... \
       TELEGRAM_BOT_TOKEN=... TELEGRAM_CHAT_ID=... \
-      draf daemon -f workflow.yaml --interval 60
+      teff daemon -f workflow.yaml --interval 60
 
   kv_store keeps already-reviewed MRs across restarts, so `--checkpoint`
   is optional; add `--checkpoint '{"type":"file","path":"data/daemon"}'`

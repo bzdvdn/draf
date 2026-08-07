@@ -2,7 +2,7 @@
 
 The same workflow as ``graph.py`` — planner → Map executor → reviewer →
 extract, looping through ``replan`` until the reviewer accepts — but
-assembled with :class:`draf.flow.Flow`.  ``flow.map()`` replaces the
+assembled with :class:`teff.flow.Flow`.  ``flow.map()`` replaces the
 hand-built ``Map`` node and ``flow.loop()`` replaces the back edge:
 
     flow.step(planner)          # writes "steps_obj" (JSON object)
@@ -20,7 +20,7 @@ hand-built ``Map`` node and ``flow.loop()`` replaces the back edge:
 
 By default the run goes against a mocked HTTP transport (planner's first
 plan is rejected once, then accepted) — no API key, no Ollama.  Set
-``DRAF_LIVE=1`` to hit a real Ollama instance.
+``TEFF_LIVE=1`` to hit a real Ollama instance.
 
 This file is fully self-contained (duplicates the mock from ``graph.py``)
 so it can be read and run on its own.
@@ -38,12 +38,12 @@ from typing import TypedDict
 
 import httpx
 
-from draf.flow import Flow
-from draf.graph import Graph
-from draf.logging import configure_logging
-from draf.node import LLM, Map, Transform
-from draf.provider import ProviderRegistry
-from draf.trace import RunTracer
+from teff.flow import Flow
+from teff.graph import Graph
+from teff.logging import configure_logging
+from teff.node import LLM, Map, Transform
+from teff.provider import ProviderRegistry
+from teff.trace import RunTracer
 
 MODEL = "llama3.1:8b"
 GOAL = "launch a blog about Python"
@@ -230,7 +230,7 @@ def build_flow(model: str) -> Graph:
 
 
 async def main() -> None:
-    live = os.environ.get("DRAF_LIVE") == "1"
+    live = os.environ.get("TEFF_LIVE") == "1"
     calls = {"plans": 0, "reviews": 0}
     if not live:
         patch_transport(calls)

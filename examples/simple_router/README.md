@@ -1,6 +1,6 @@
 # The minimal `route()` example
 
-The smallest possible draf app built on
+The smallest possible teff app built on
 [`Flow.route()`](https://opencode.ai) — one supervisor that routes the
 user's message to one of two simple agents, then exits when it says
 `finish`.  It exists to show the *whole* supervisor pattern in one small
@@ -44,9 +44,9 @@ round, so the model sees what exists and routes (or finishes) accordingly.
 simple_router/
 ├── cli.py               # run one turn on the terminal
 ├── src/
-│   ├── config/          # env-driven settings (.env / DRAF_* vars)
+│   ├── config/          # env-driven settings (.env / TEFF_* vars)
 │   ├── graphs/          # state, prompts, supervisor flow builder
-│   ├── nodes/           # context builders (Supervisor comes from draf.node)
+│   ├── nodes/           # context builders (Supervisor comes from teff.node)
 │   ├── service/         # Assistant: one durable turn
 │   └── storage/         # JSON-file checkpointer + session helpers
 └── tests/               # offline tests (no LLM, no network)
@@ -54,7 +54,7 @@ simple_router/
 
 ## Run
 
-Run from the repository root (the repo's ``uv`` project resolves ``draf``;
+Run from the repository root (the repo's ``uv`` project resolves ``teff``;
 the tests and scripts add their own root to ``sys.path``).  Requires Ollama
 running locally for the live turn:
 

@@ -1,13 +1,13 @@
 # RAG store: qdrant
 
-RAG agent over the Draf knowledge base using the Qdrant store.
+RAG agent over the Teff knowledge base using the Qdrant store.
 
 ## Dependencies
 
 Install the vector-store extra:
 
 ```bash
-uv add "draf[stores-qdrant]"    # or: pip install "draf[stores-qdrant]"
+uv add "teff[stores-qdrant]"    # or: pip install "teff[stores-qdrant]"
 ```
 
 Start a Qdrant server. With Docker Compose (from `examples/rag_stores/`):
@@ -46,7 +46,7 @@ uv run python examples/rag_stores/flow.py qdrant
 ## Notes
 
 - The client connects to `store.host:store.port` (default
-  `localhost:6333`), collection `store.collection` (default `draf`).
+  `localhost:6333`), collection `store.collection` (default `teff`).
 - Qdrant is a standalone vector database — designed for larger
   collections, multi-tenant setups, and production scale.
 - The `docs.csv` documents are re-uploaded each run (upsert by point id),

@@ -2,7 +2,7 @@
 
 The same workflow as ``graph.py`` — planner → ReAct web research →
 writer → reviewer → extract, looping through ``fix`` until the reviewer
-accepts — but assembled with :class:`draf.flow.Flow`.  ``flow.react()``
+accepts — but assembled with :class:`teff.flow.Flow`.  ``flow.react()``
 replaces the hand-wired ``ReActAgent <-> ToolExec`` cycle and
 ``flow.loop()`` replaces the review/fix back edge:
 
@@ -24,7 +24,7 @@ replaces the hand-wired ``ReActAgent <-> ToolExec`` cycle and
 The default run is fully offline: the LLM transport is mocked and the
 ``web_search`` / ``fetch_url`` tools are stand-ins returning canned
 snippets, so it needs no API key, no Ollama, and no network.  Set
-``DRAF_LIVE=1`` to use a real Ollama instance and the real DuckDuckGo
+``TEFF_LIVE=1`` to use a real Ollama instance and the real DuckDuckGo
 search + URL fetch tools.
 
 This file is fully self-contained (duplicates the mock from ``graph.py``)
@@ -43,13 +43,13 @@ from typing import TypedDict
 
 import httpx
 
-from draf.flow import Flow
-from draf.graph import Graph
-from draf.logging import configure_logging
-from draf.node import LLM, Transform
-from draf.provider import ProviderRegistry
-from draf.tool import Tool
-from draf.trace import RunTracer
+from teff.flow import Flow
+from teff.graph import Graph
+from teff.logging import configure_logging
+from teff.node import LLM, Transform
+from teff.provider import ProviderRegistry
+from teff.tool import Tool
+from teff.trace import RunTracer
 
 MODEL = "llama3.1:8b"
 TOPIC = "launching a personal blog in 2026"
@@ -126,10 +126,10 @@ def build_tools(live: bool) -> list[Tool]:
     if live:
         return [
             __import__(
-                "draf.tool.builtin.web_search", fromlist=["WebSearchTool"]
+                "teff.tool.builtin.web_search", fromlist=["WebSearchTool"]
             ).WebSearchTool(),
             __import__(
-                "draf.tool.builtin.web_fetch", fromlist=["WebFetchTool"]
+                "teff.tool.builtin.web_fetch", fromlist=["WebFetchTool"]
             ).WebFetchTool(),
         ]
     return [FakeWebSearch(), FakeWebFetch()]
@@ -314,7 +314,7 @@ def build_flow(model: str, live: bool) -> Graph:
 
 
 async def main() -> None:
-    live = os.environ.get("DRAF_LIVE") == "1"
+    live = os.environ.get("TEFF_LIVE") == "1"
     calls = {"reviews": 0}
     if not live:
         patch_transport(calls)

@@ -1,7 +1,7 @@
 """Typed graph state for the fraud-gate example.
 
 A payment enters as a JSON message, is analysed by an LLM
-(:mod:`fraud_gate.graphs.prompts`) and routed with :class:`draf.node.Command`.
+(:mod:`fraud_gate.graphs.prompts`) and routed with :class:`teff.node.Command`.
 The transaction fields are stored as **flat, top-level state keys** because
 node prompts render ``{key}`` placeholders directly from state (no nested
 dereferencing).
@@ -17,7 +17,7 @@ from __future__ import annotations
 
 from typing import Annotated, Any, TypedDict
 
-from draf.state import reducers_from_typeddict
+from teff.state import reducers_from_typeddict
 
 
 def add_messages(current: list | None, new: list | None) -> list:

@@ -1,7 +1,7 @@
 """Typed application settings loaded from the environment / ``.env``.
 
-Override any value with an environment variable prefixed ``DRAF_``
-(e.g. ``DRAF_MODEL=llama3.1:8b``) or a line in a local ``.env``.
+Override any value with an environment variable prefixed ``TEFF_``
+(e.g. ``TEFF_MODEL=llama3.1:8b``) or a line in a local ``.env``.
 """
 
 from __future__ import annotations
@@ -15,7 +15,7 @@ class Settings(BaseSettings):
     """Runtime configuration for the simple router."""
 
     model_config = SettingsConfigDict(
-        env_prefix="DRAF_",
+        env_prefix="TEFF_",
         env_file=".env",
         env_file_encoding="utf-8",
         extra="ignore",

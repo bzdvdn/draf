@@ -1,7 +1,7 @@
 """Time travel, built with the Flow builder instead of raw Graph edges.
 
 The same story-writing graph as ``graph.py`` (setup → conflict → twist →
-ending), but assembled with :class:`draf.flow.Flow` — four ``flow.step()``
+ending), but assembled with :class:`teff.flow.Flow` — four ``flow.step()``
 calls and no hand-written ``Edge`` objects:
 
     flow.step(setup).step(conflict).step(twist).step(ending)
@@ -28,10 +28,10 @@ from __future__ import annotations
 import asyncio
 import os
 
-from draf.checkpoint import SQLiteHistoryCheckpointer
-from draf.flow import Flow
-from draf.graph import Graph
-from draf.node import Transform
+from teff.checkpoint import SQLiteHistoryCheckpointer
+from teff.flow import Flow
+from teff.graph import Graph
+from teff.node import Transform
 
 _HERE = os.path.dirname(os.path.abspath(__file__))
 DB_PATH = os.path.join(_HERE, "time_travel.db")

@@ -9,9 +9,9 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from draf.rag.embedder import Embedder
-from draf.rag.stores import SQLiteVectorStore
 from service_desk.rag.knowledge import KnowledgeBase
+from teff.rag.embedder import Embedder
+from teff.rag.stores import SQLiteVectorStore
 
 #: Vector-store dimension for ``nomic-embed-text`` (the default embedder).
 EMBED_DIM = 768
@@ -33,7 +33,7 @@ def build_deps(provider: str = "ollama", embedder=None, store=None) -> Knowledge
     """Build the knowledge base bound to an embedder (default per *provider*).
 
     Pass *embedder* / *store* to inject stubs in offline tests; otherwise a
-    real :class:`~draf.rag.embedder.Embedder` and a durable SQLite store are
+    real :class:`~teff.rag.embedder.Embedder` and a durable SQLite store are
     used and documents embed lazily on the first search (never at build time).
     """
     if embedder is None:

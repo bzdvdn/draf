@@ -3,7 +3,7 @@ import pytest
 
 class TestTool:
     def test_subclass_with_run(self):
-        from draf.tool import Tool
+        from teff.tool import Tool
 
         class MyTool(Tool):
             name = "mytool"
@@ -20,7 +20,7 @@ class TestTool:
     def test_arun_falls_back_to_run(self):
         import asyncio
 
-        from draf.tool import Tool
+        from teff.tool import Tool
 
         class MyTool(Tool):
             name = "calc"
@@ -36,8 +36,8 @@ class TestTool:
 
 class TestCoerceArgs:
     def test_coerces_strings_to_declared_types(self):
-        from draf.tool import Tool
-        from draf.tool.tool import coerce_args
+        from teff.tool import Tool
+        from teff.tool.tool import coerce_args
 
         class MyTool(Tool):
             name = "typed"
@@ -51,8 +51,8 @@ class TestCoerceArgs:
         assert args == {"count": 3, "ratio": 1.5, "flag": True}
 
     def test_coerces_against_async_arun(self):
-        from draf.tool import Tool
-        from draf.tool.tool import coerce_args
+        from teff.tool import Tool
+        from teff.tool.tool import coerce_args
 
         class MyTool(Tool):
             name = "asynct"
@@ -66,8 +66,8 @@ class TestCoerceArgs:
         assert args == {"k": 1}
 
     def test_leaves_correct_types_untouched(self):
-        from draf.tool import Tool
-        from draf.tool.tool import coerce_args
+        from teff.tool import Tool
+        from teff.tool.tool import coerce_args
 
         class MyTool(Tool):
             name = "already"
@@ -81,8 +81,8 @@ class TestCoerceArgs:
         assert args == {"n": 7}
 
     def test_coerces_optional_float(self):
-        from draf.tool import Tool
-        from draf.tool.tool import coerce_args
+        from teff.tool import Tool
+        from teff.tool.tool import coerce_args
 
         class MyTool(Tool):
             name = "optfloat"
@@ -99,8 +99,8 @@ class TestCoerceArgs:
         assert isinstance(args["max_price"], float)
 
     def test_leaves_optional_none_untouched(self):
-        from draf.tool import Tool
-        from draf.tool.tool import coerce_args
+        from teff.tool import Tool
+        from teff.tool.tool import coerce_args
 
         class MyTool(Tool):
             name = "optnone"
@@ -118,8 +118,8 @@ class TestCoerceArgs:
     def test_unwraps_typing_optional(self):
         import typing
 
-        from draf.tool import Tool
-        from draf.tool.tool import coerce_args
+        from teff.tool import Tool
+        from teff.tool.tool import coerce_args
 
         class MyTool(Tool):
             name = "typingopt"
@@ -138,7 +138,7 @@ class TestCoerceArgs:
 
 class TestToolDecorator:
     def test_registers_and_creates(self):
-        from draf.tool import default_tool_registry, tool
+        from teff.tool import default_tool_registry, tool
 
         @tool("hello", description="Says hello")
         def greet(name: str = "") -> str:
@@ -153,7 +153,7 @@ class TestToolDecorator:
     def test_async_tool(self):
         import asyncio
 
-        from draf.tool import default_tool_registry, tool
+        from teff.tool import default_tool_registry, tool
 
         @tool("async_hello")
         async def greet(name: str = "") -> str:
@@ -166,7 +166,7 @@ class TestToolDecorator:
 
 class TestToolRegistry:
     def test_register_and_list(self):
-        from draf.tool import Tool, ToolRegistry
+        from teff.tool import Tool, ToolRegistry
 
         class FT(Tool):
             name = "ft"
@@ -182,8 +182,8 @@ class TestToolRegistry:
         assert t.run() == "ok"
 
     def test_create_passes_config_dict_to_config_constructor(self):
-        from draf.tool import ToolRegistry
-        from draf.tool.builtin import SQLQueryTool
+        from teff.tool import ToolRegistry
+        from teff.tool.builtin import SQLQueryTool
 
         reg = ToolRegistry()
         reg.register(SQLQueryTool)
@@ -192,8 +192,8 @@ class TestToolRegistry:
         assert t.path == "x.db"
 
     def test_create_passes_config_as_kwargs_to_keyword_constructor(self):
-        from draf.tool import ToolRegistry
-        from draf.tool.builtin import ShellTool, WebSearchTool
+        from teff.tool import ToolRegistry
+        from teff.tool.builtin import ShellTool, WebSearchTool
 
         reg = ToolRegistry()
         reg.register(ShellTool)
@@ -207,7 +207,7 @@ class TestToolRegistry:
 
 class TestBuiltinTools:
     def test_calculator(self):
-        from draf.tool.builtin import CalculatorTool
+        from teff.tool.builtin import CalculatorTool
 
         t = CalculatorTool()
         assert t.run(expression="2+2") == "4"
@@ -216,14 +216,14 @@ class TestBuiltinTools:
 
     @pytest.mark.asyncio
     async def test_shell(self):
-        from draf.tool.builtin import ShellTool
+        from teff.tool.builtin import ShellTool
 
         t = ShellTool()
         r = await t.arun(command="echo ok")
         assert "ok" in r
 
     def test_file_tools(self, tmp_path):
-        from draf.tool.builtin.file import EditFileTool, ReadFileTool, WriteFileTool
+        from teff.tool.builtin.file import EditFileTool, ReadFileTool, WriteFileTool
 
         path = str(tmp_path / "test.txt")
         wt = WriteFileTool()
@@ -238,7 +238,7 @@ class TestBuiltinTools:
 class TestExtendedBuiltinTools:
     @pytest.mark.asyncio
     async def test_web_fetch_empty_url(self):
-        from draf.tool.builtin import WebFetchTool
+        from teff.tool.builtin import WebFetchTool
 
         with pytest.raises(ValueError, match="url"):
             await WebFetchTool().arun()
@@ -249,7 +249,7 @@ class TestExtendedBuiltinTools:
 
         import httpx
 
-        from draf.tool.builtin import WebFetchTool
+        from teff.tool.builtin import WebFetchTool
 
         real_import = builtins.__import__
 
@@ -284,7 +284,7 @@ class TestExtendedBuiltinTools:
             await WebFetchTool().arun(url="http://example.com")
 
     def test_pdf_read_requires_path(self):
-        from draf.tool.builtin import PDFReadTool
+        from teff.tool.builtin import PDFReadTool
 
         with pytest.raises(ValueError, match="path"):
             PDFReadTool().run()
@@ -292,7 +292,7 @@ class TestExtendedBuiltinTools:
     def test_pdf_read_missing_pypdf(self, monkeypatch):
         import builtins
 
-        from draf.tool.builtin import PDFReadTool
+        from teff.tool.builtin import PDFReadTool
 
         real_import = builtins.__import__
 
@@ -309,19 +309,19 @@ class TestExtendedBuiltinTools:
                 PDFReadTool().run(path=f.name)
 
     def test_s3_list_requires_bucket(self):
-        from draf.tool.builtin import S3Tool
+        from teff.tool.builtin import S3Tool
 
         with pytest.raises(ValueError, match="bucket"):
             S3Tool().run()
 
     def test_s3_get_requires_key(self):
-        from draf.tool.builtin import S3GetTool
+        from teff.tool.builtin import S3GetTool
 
         with pytest.raises(ValueError, match="key"):
             S3GetTool({"bucket": "b"}).run()
 
     def test_s3_put_requires_key(self):
-        from draf.tool.builtin import S3PutTool
+        from teff.tool.builtin import S3PutTool
 
         with pytest.raises(ValueError, match="key"):
             S3PutTool({"bucket": "b"}).run()
@@ -329,7 +329,7 @@ class TestExtendedBuiltinTools:
     def test_s3_missing_boto3(self, monkeypatch):
         import builtins
 
-        from draf.tool.builtin import S3Tool
+        from teff.tool.builtin import S3Tool
 
         real_import = builtins.__import__
 
@@ -343,13 +343,13 @@ class TestExtendedBuiltinTools:
             S3Tool({"bucket": "b"}).run()
 
     def test_slack_requires_token(self):
-        from draf.tool.builtin import SlackSendTool
+        from teff.tool.builtin import SlackSendTool
 
         with pytest.raises(ValueError, match="token"):
             SlackSendTool().run(text="hi")
 
     def test_slack_requires_channel(self):
-        from draf.tool.builtin import SlackSendTool
+        from teff.tool.builtin import SlackSendTool
 
         with pytest.raises(ValueError, match="channel"):
             SlackSendTool({"token": "x"}).run(text="hi")
@@ -357,7 +357,7 @@ class TestExtendedBuiltinTools:
     def test_slack_missing_sdk(self, monkeypatch):
         import builtins
 
-        from draf.tool.builtin import SlackSendTool
+        from teff.tool.builtin import SlackSendTool
 
         real_import = builtins.__import__
 
@@ -373,7 +373,7 @@ class TestExtendedBuiltinTools:
     def test_sql_query_sqlite_select(self, tmp_path):
         import sqlite3
 
-        from draf.tool.builtin import SQLQueryTool
+        from teff.tool.builtin import SQLQueryTool
 
         db = tmp_path / "test.db"
         conn = sqlite3.connect(str(db))
@@ -392,13 +392,13 @@ class TestExtendedBuiltinTools:
         assert "alice" not in result
 
     def test_sql_query_sqlite_requires_path(self):
-        from draf.tool.builtin import SQLQueryTool
+        from teff.tool.builtin import SQLQueryTool
 
         with pytest.raises(ValueError, match="path"):
             SQLQueryTool({"db_type": "sqlite"}).run(query="SELECT 1")
 
     def test_sql_query_rejects_writes(self, tmp_path):
-        from draf.tool.builtin import SQLQueryTool
+        from teff.tool.builtin import SQLQueryTool
 
         with pytest.raises(ValueError, match="read-only"):
             SQLQueryTool({"db_type": "sqlite", "path": str(tmp_path / "x.db")}).run(
@@ -406,7 +406,7 @@ class TestExtendedBuiltinTools:
             )
 
     def test_sql_query_requires_query(self):
-        from draf.tool.builtin import SQLQueryTool
+        from teff.tool.builtin import SQLQueryTool
 
         with pytest.raises(ValueError, match="query"):
             SQLQueryTool().run()
@@ -414,7 +414,7 @@ class TestExtendedBuiltinTools:
     def test_sql_query_postgres_missing_psycopg(self, monkeypatch):
         import builtins
 
-        from draf.tool.builtin import SQLQueryTool
+        from teff.tool.builtin import SQLQueryTool
 
         real_import = builtins.__import__
 
@@ -430,7 +430,7 @@ class TestExtendedBuiltinTools:
             )
 
     def test_registered_in_default_registry(self):
-        from draf.tool.registry import default_tool_registry
+        from teff.tool.registry import default_tool_registry
 
         for name in (
             "fetch_url",
@@ -459,7 +459,7 @@ class TestExtendedBuiltinTools:
 
 class TestFsEnvTools:
     def test_list_dir(self, tmp_path):
-        from draf.tool.builtin import ListDirTool
+        from teff.tool.builtin import ListDirTool
 
         (tmp_path / "a.txt").write_text("x")
         (tmp_path / "sub").mkdir()
@@ -468,7 +468,7 @@ class TestFsEnvTools:
         assert "sub" in result
 
     def test_list_dir_recursive(self, tmp_path):
-        from draf.tool.builtin import ListDirTool
+        from teff.tool.builtin import ListDirTool
 
         (tmp_path / "sub").mkdir()
         (tmp_path / "sub" / "b.txt").write_text("x")
@@ -476,13 +476,13 @@ class TestFsEnvTools:
         assert "b.txt" in result
 
     def test_list_dir_not_a_directory(self, tmp_path):
-        from draf.tool.builtin import ListDirTool
+        from teff.tool.builtin import ListDirTool
 
         with pytest.raises(ValueError, match="not a directory"):
             ListDirTool().run(path=str(tmp_path / "nope"))
 
     def test_glob(self, tmp_path):
-        from draf.tool.builtin import GlobTool
+        from teff.tool.builtin import GlobTool
 
         (tmp_path / "one.txt").write_text("x")
         (tmp_path / "two.md").write_text("x")
@@ -491,20 +491,20 @@ class TestFsEnvTools:
         assert "two.md" not in result
 
     def test_glob_requires_pattern(self):
-        from draf.tool.builtin import GlobTool
+        from teff.tool.builtin import GlobTool
 
         with pytest.raises(ValueError, match="pattern"):
             GlobTool().run()
 
     def test_getenv(self, monkeypatch):
-        from draf.tool.builtin import GetEnvTool
+        from teff.tool.builtin import GetEnvTool
 
-        monkeypatch.setenv("DRAF_TEST_VAR", "hello")
-        assert GetEnvTool().run(name="DRAF_TEST_VAR") == "hello"
-        assert GetEnvTool().run(name="DRAF_MISSING") == "not set"
+        monkeypatch.setenv("TEFF_TEST_VAR", "hello")
+        assert GetEnvTool().run(name="TEFF_TEST_VAR") == "hello"
+        assert GetEnvTool().run(name="TEFF_MISSING") == "not set"
 
     def test_getenv_masks_secrets(self, monkeypatch):
-        from draf.tool.builtin import GetEnvTool
+        from teff.tool.builtin import GetEnvTool
 
         monkeypatch.setenv("MY_API_KEY", "supersecret")
         assert GetEnvTool().run(name="MY_API_KEY") == "***"
@@ -513,19 +513,19 @@ class TestFsEnvTools:
         )
 
     def test_getenv_requires_name(self):
-        from draf.tool.builtin import GetEnvTool
+        from teff.tool.builtin import GetEnvTool
 
         with pytest.raises(ValueError, match="name"):
             GetEnvTool().run()
 
     def test_current_time(self):
-        from draf.tool.builtin import CurrentTimeTool
+        from teff.tool.builtin import CurrentTimeTool
 
         result = CurrentTimeTool().run()
         assert "T" in result
 
     def test_current_time_unknown_tz(self):
-        from draf.tool.builtin import CurrentTimeTool
+        from teff.tool.builtin import CurrentTimeTool
 
         with pytest.raises(ValueError, match="timezone"):
             CurrentTimeTool().run(timezone="Not/AZone")
@@ -533,25 +533,25 @@ class TestFsEnvTools:
 
 class TestDataTools:
     def test_json_parse(self):
-        from draf.tool.builtin import JsonParseTool
+        from teff.tool.builtin import JsonParseTool
 
         assert JsonParseTool().run(text='{"a": 1}') == '{\n  "a": 1\n}'
 
     def test_json_parse_invalid(self):
-        from draf.tool.builtin import JsonParseTool
+        from teff.tool.builtin import JsonParseTool
 
         with pytest.raises(ValueError, match="invalid JSON"):
             JsonParseTool().run(text="{bad}")
 
     def test_yaml_parse(self):
-        from draf.tool.builtin import YamlParseTool
+        from teff.tool.builtin import YamlParseTool
 
         result = YamlParseTool().run(text="a: 1\nb:\n  - x\n  - y")
         assert '"a": 1' in result
         assert '"x"' in result
 
     def test_kv_store_roundtrip(self, tmp_path):
-        from draf.tool.builtin import KVStoreTool
+        from teff.tool.builtin import KVStoreTool
 
         path = str(tmp_path / "kv.json")
         tool = KVStoreTool({"path": path})
@@ -562,13 +562,13 @@ class TestDataTools:
         assert tool.run(action="get", key="name") == "not found"
 
     def test_kv_store_unknown_action(self, tmp_path):
-        from draf.tool.builtin import KVStoreTool
+        from teff.tool.builtin import KVStoreTool
 
         with pytest.raises(ValueError, match="action"):
             KVStoreTool({"path": str(tmp_path / "kv.json")}).run(action="bogus")
 
     def test_python_eval_arithmetic(self):
-        from draf.tool.builtin import PythonEvalTool
+        from teff.tool.builtin import PythonEvalTool
 
         tool = PythonEvalTool()
         assert tool.run(expression="2 + 3 * 4") == "14"
@@ -578,7 +578,7 @@ class TestDataTools:
         assert tool.run(expression="2 ** 10") == "1024"
 
     def test_python_eval_rejects_unsafe(self):
-        from draf.tool.builtin import PythonEvalTool
+        from teff.tool.builtin import PythonEvalTool
 
         tool = PythonEvalTool()
         with pytest.raises(ValueError, match="not allowed"):
@@ -592,7 +592,7 @@ class TestHttpTool:
     async def test_http_request(self, monkeypatch):
         import httpx
 
-        from draf.tool.builtin import HttpRequestTool
+        from teff.tool.builtin import HttpRequestTool
 
         class FakeResponse:
             status_code = 200
@@ -622,7 +622,7 @@ class TestHttpTool:
 
     @pytest.mark.asyncio
     async def test_http_request_requires_url(self):
-        from draf.tool.builtin import HttpRequestTool
+        from teff.tool.builtin import HttpRequestTool
 
         with pytest.raises(ValueError, match="url"):
             await HttpRequestTool().arun()
@@ -632,7 +632,7 @@ class TestSQLSchemaTools:
     def test_sql_list_tables(self, tmp_path):
         import sqlite3
 
-        from draf.tool.builtin import SQLListTablesTool
+        from teff.tool.builtin import SQLListTablesTool
 
         db = tmp_path / "db.sqlite"
         conn = sqlite3.connect(str(db))
@@ -648,7 +648,7 @@ class TestSQLSchemaTools:
     def test_sql_describe(self, tmp_path):
         import sqlite3
 
-        from draf.tool.builtin import SQLDescribeTool
+        from teff.tool.builtin import SQLDescribeTool
 
         db = tmp_path / "db.sqlite"
         conn = sqlite3.connect(str(db))
@@ -663,7 +663,7 @@ class TestSQLSchemaTools:
         assert "name" in result
 
     def test_sql_describe_requires_table(self):
-        from draf.tool.builtin import SQLDescribeTool
+        from teff.tool.builtin import SQLDescribeTool
 
         with pytest.raises(ValueError, match="table"):
             SQLDescribeTool().run()
@@ -671,13 +671,13 @@ class TestSQLSchemaTools:
 
 class TestNotifyTools:
     def test_send_email_requires_host(self):
-        from draf.tool.builtin import SendEmailTool
+        from teff.tool.builtin import SendEmailTool
 
         with pytest.raises(ValueError, match="host"):
             SendEmailTool().run(to="a@b.c", subject="hi", body="x")
 
     def test_send_email_requires_from(self):
-        from draf.tool.builtin import SendEmailTool
+        from teff.tool.builtin import SendEmailTool
 
         with pytest.raises(ValueError, match="from_addr"):
             SendEmailTool({"host": "smtp.example.com"}).run(
@@ -686,14 +686,14 @@ class TestNotifyTools:
 
     @pytest.mark.asyncio
     async def test_send_telegram_requires_token(self):
-        from draf.tool.builtin import SendTelegramTool
+        from teff.tool.builtin import SendTelegramTool
 
         with pytest.raises(ValueError, match="token"):
             await SendTelegramTool().arun(text="hi")
 
     @pytest.mark.asyncio
     async def test_send_telegram_requires_chat_id(self):
-        from draf.tool.builtin import SendTelegramTool
+        from teff.tool.builtin import SendTelegramTool
 
         with pytest.raises(ValueError, match="chat_id"):
             await SendTelegramTool({"token": "x"}).arun(text="hi")
@@ -702,7 +702,7 @@ class TestNotifyTools:
     async def test_send_telegram(self, monkeypatch):
         import httpx
 
-        from draf.tool.builtin import SendTelegramTool
+        from teff.tool.builtin import SendTelegramTool
 
         class FakeResponse:
             def raise_for_status(self):
@@ -731,7 +731,7 @@ class TestNotifyTools:
 class TestShellSandbox:
     @pytest.mark.asyncio
     async def test_blocked_commands(self):
-        from draf.tool.builtin import ShellTool
+        from teff.tool.builtin import ShellTool
 
         t = ShellTool()
         with pytest.raises(PermissionError, match="blocked"):
@@ -741,7 +741,7 @@ class TestShellSandbox:
 
     @pytest.mark.asyncio
     async def test_allowed_commands_whitelist(self):
-        from draf.tool.builtin import ShellTool
+        from teff.tool.builtin import ShellTool
 
         t = ShellTool(allowed_commands=["echo"])
         with pytest.raises(PermissionError, match="not allowed"):
@@ -751,7 +751,7 @@ class TestShellSandbox:
 
     @pytest.mark.asyncio
     async def test_allowed_commands_overrides_blocked(self):
-        from draf.tool.builtin import ShellTool
+        from teff.tool.builtin import ShellTool
 
         t = ShellTool(allowed_commands=["dd"])
         with pytest.raises(PermissionError, match="blocked"):
@@ -759,7 +759,7 @@ class TestShellSandbox:
 
     @pytest.mark.asyncio
     async def test_empty_command_raises(self):
-        from draf.tool.builtin import ShellTool
+        from teff.tool.builtin import ShellTool
 
         t = ShellTool()
         with pytest.raises(ValueError, match="empty"):
@@ -770,7 +770,7 @@ class TestShellSandbox:
         """Blocklist bypasses via &&/;/|/backticks/$(...) are impossible:
         the tool runs execve, and tokens with shell metacharacters are
         refused outright."""
-        from draf.tool.builtin import ShellTool
+        from teff.tool.builtin import ShellTool
 
         t = ShellTool()
         for cmd in (

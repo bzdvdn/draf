@@ -1,7 +1,7 @@
 """Prompts for the fraud-gate LLM nodes.
 
 Both nodes use ``{key}`` placeholders rendered from top-level state keys (see
-:func:`draf.prompt.render_template`).  The analyser reads the payment's free
+:func:`teff.prompt.render_template`).  The analyser reads the payment's free
 ``note`` and returns a structured :class:`~fraud_gate.graphs.state.RiskVerdict`;
 the finalizer turns the routing decision into a short human-facing summary.
 """

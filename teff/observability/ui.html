@@ -1,0 +1,406 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Runs · teff traces</title>
+<script>
+(function(){try{var s=localStorage.getItem('teff-theme');var d=s?s==='dark':true;document.documentElement.classList.toggle('dark',d);}catch(e){document.documentElement.classList.add('dark');}})();
+</script>
+<style>
+  :root {
+    --bg: #f7f7f9;
+    --panel: #ffffff;
+    --border: #e6e6ee;
+    --border-strong: #d3d3de;
+    --text: #17171f;
+    --muted: #6f6f7e;
+    --accent: #4f46e5;
+    --accent-soft: #eef0ff;
+    --ok: #15803d;
+    --err: #b91c1c;
+    --amber: #d97706;
+    --info: #15803d;
+    --ok-soft: #e9f7ef;
+    --err-soft: #fdeeee;
+    --amber-soft: #fef3e2;
+    --info-soft: #e9f7ef;
+    --chip: #eef0ff;
+    --chip-text: #4338ca;
+    --hover: #f4f4f8;
+    --pre-bg: #fafafc;
+    --pre-border: #ececf2;
+    --shadow: 0 1px 2px rgba(16, 16, 30, .04), 0 1px 6px rgba(16, 16, 30, .05);
+    --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  }
+  html.dark {
+    --bg: #0f1016;
+    --panel: #171820;
+    --border: #262733;
+    --border-strong: #33344a;
+    --text: #e7e7f0;
+    --muted: #9a9aae;
+    --accent: #8b93ff;
+    --accent-soft: #232448;
+    --ok: #3ecf7c;
+    --err: #f97c7c;
+    --amber: #fbbf24;
+    --info: #3ecf7c;
+    --ok-soft: #123522;
+    --err-soft: #3c1718;
+    --amber-soft: #3a2c0e;
+    --info-soft: #123522;
+    --chip: #262a48;
+    --chip-text: #a9b1ff;
+    --hover: #1f202b;
+    --pre-bg: #101116;
+    --pre-border: #2a2b38;
+    --shadow: 0 1px 2px rgba(0, 0, 0, .4), 0 1px 8px rgba(0, 0, 0, .3);
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Inter, sans-serif;
+    font-size: 14px; line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+  header {
+    position: sticky; top: 0; z-index: 10;
+    background: var(--panel); border-bottom: 1px solid var(--border);
+    backdrop-filter: saturate(1.4) blur(6px);
+  }
+  .header-inner {
+    max-width: 1180px; margin: 0 auto; padding: 0 28px; height: 56px;
+    display: flex; align-items: center; gap: 14px;
+  }
+  .logo { display: flex; align-items: center; gap: 9px; color: var(--text); text-decoration: none; }
+  .logo svg { color: var(--accent); }
+  .logo b { font-size: 15px; letter-spacing: .1px; }
+  .logo .sub { color: var(--muted); font-family: var(--mono); font-size: 12px; font-weight: 400; }
+  .beta {
+    font-size: 10px; font-weight: 700; letter-spacing: .6px; text-transform: uppercase;
+    background: var(--accent-soft); color: var(--accent); border-radius: 20px; padding: 2px 8px;
+  }
+  .spacer { flex: 1; }
+  #theme {
+    border: 1px solid var(--border); background: var(--panel); color: var(--text);
+    border-radius: 8px; padding: 5px 11px; font-size: 12.5px; cursor: pointer;
+  }
+  #theme:hover { border-color: var(--accent); color: var(--accent); }
+  main { max-width: 1180px; margin: 0 auto; padding: 28px; }
+  .page-head { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 18px; gap: 16px; flex-wrap: wrap; }
+  .page-head h1 { font-size: 20px; margin: 0; font-weight: 650; letter-spacing: -.2px; }
+  .page-head .meta { color: var(--muted); font-size: 13px; font-family: var(--mono); }
+  .card {
+    background: var(--panel); border: 1px solid var(--border); border-radius: 12px;
+    box-shadow: var(--shadow); overflow: hidden;
+  }
+  .toolbar {
+    display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-end;
+    padding: 14px 16px; border-bottom: 1px solid var(--border);
+  }
+  .field { display: flex; flex-direction: column; gap: 4px; }
+  .field label { font-size: 11px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .5px; }
+  .field input, .field select {
+    border: 1px solid var(--border); border-radius: 8px; padding: 6px 10px;
+    font-size: 13px; font-family: inherit; background: var(--panel); color: var(--text);
+    outline: none; min-width: 130px;
+  }
+  .field input:focus, .field select:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+  .pills { display: flex; gap: 4px; border: 1px solid var(--border); border-radius: 9px; padding: 3px; }
+  .pill {
+    border: none; background: none; border-radius: 6px; padding: 4px 12px; font-size: 13px;
+    cursor: pointer; color: var(--muted); font-weight: 500;
+  }
+  .pill:hover { color: var(--text); }
+  .pill.active { background: var(--accent-soft); color: var(--accent); font-weight: 600; }
+  .toolbar .btn {
+    border: 1px solid var(--border); background: var(--panel); color: var(--muted);
+    border-radius: 8px; padding: 6px 12px; font-size: 13px; cursor: pointer;
+  }
+  .toolbar .btn:hover { border-color: var(--accent); color: var(--accent); }
+  table { width: 100%; border-collapse: collapse; }
+  thead th {
+    text-align: left; font-size: 11px; font-weight: 600; letter-spacing: .6px;
+    text-transform: uppercase; color: var(--muted); padding: 10px 14px;
+    border-bottom: 1px solid var(--border); background: var(--panel);
+  }
+  tbody td { padding: 11px 14px; border-bottom: 1px solid var(--border); font-size: 13px; vertical-align: middle; }
+  tbody tr:last-child td { border-bottom: none; }
+  tbody tr.row { cursor: pointer; }
+  tbody tr.row:hover td { background: var(--hover); }
+  .status { display: inline-flex; align-items: center; gap: 7px; font-weight: 600; font-size: 12.5px; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; flex: none; }
+  .dot.ok { background: var(--ok); }
+  .dot.err { background: var(--err); }
+  .dot.amber { background: var(--amber); }
+  .dot.info { background: var(--info); }
+  .status.ok { color: var(--ok); }
+  .status.err { color: var(--err); }
+  .status.amber { color: var(--amber); }
+  .status.info { color: var(--info); }
+  .mono { font-family: var(--mono); }
+  .run-id { font-weight: 600; color: var(--accent); }
+  .name { font-weight: 550; }
+  .muted { color: var(--muted); }
+  .num { font-variant-numeric: tabular-nums; color: var(--muted); }
+  .tags { display: flex; gap: 5px; flex-wrap: wrap; max-width: 240px; }
+  .chip {
+    display: inline-flex; align-items: center; gap: 4px; background: var(--chip);
+    color: var(--chip-text); border-radius: 20px; padding: 1px 9px; font-size: 11.5px; font-weight: 550;
+    border: none; cursor: pointer;
+  }
+  .chip:hover { filter: brightness(1.04); }
+  .empty { padding: 48px 20px; text-align: center; color: var(--muted); }
+  .empty .big { font-size: 26px; display: block; margin-bottom: 8px; }
+  .empty code { background: var(--accent-soft); color: var(--accent); border-radius: 6px; padding: 1px 7px; font-family: var(--mono); }
+  .pager {
+    display: flex; align-items: center; gap: 12px; padding: 12px 16px;
+    border-top: 1px solid var(--border); color: var(--muted); font-size: 12.5px;
+  }
+  .pager button {
+    border: 1px solid var(--border); background: var(--panel); color: var(--text);
+    border-radius: 8px; padding: 5px 12px; cursor: pointer; font-size: 12.5px; font-family: inherit;
+  }
+  .pager button:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+  .pager button:disabled { opacity: .4; cursor: default; }
+  .pager .pageinfo { font-variant-numeric: tabular-nums; }
+  .pager select {
+    border: 1px solid var(--border); background: var(--panel); color: var(--text);
+    border-radius: 8px; padding: 5px 8px; font-size: 12.5px; font-family: inherit;
+  }
+</style>
+</head>
+<body>
+<header>
+  <div class="header-inner">
+    <a class="logo" href="__BASE_PATH__/ui">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+        <circle cx="5" cy="12" r="2.6" fill="currentColor"/>
+        <circle cx="19" cy="5" r="2.6" fill="currentColor"/>
+        <circle cx="19" cy="19" r="2.6" fill="currentColor"/>
+        <path d="M7.4 11 16.6 6M7.4 13l9.2 5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+      </svg>
+      <b>teff <span style="color:var(--accent)">traces</span></b>
+      <span class="sub">graph run observer</span>
+      <span class="beta">beta</span>
+    </a>
+    <div class="spacer"></div>
+    <button id="theme" title="toggle dark mode">dark</button>
+  </div>
+</header>
+<main>
+  <div class="page-head">
+    <h1>Runs</h1>
+    <span class="meta" id="summary">loading…</span>
+  </div>
+  <div class="card">
+    <div class="toolbar">
+      <div class="field">
+        <label>status</label>
+        <div class="pills" id="status-pills">
+          <button class="pill active" data-v="">all</button>
+          <button class="pill" data-v="ok">ok</button>
+          <button class="pill" data-v="interrupted">paused</button>
+          <button class="pill" data-v="err">failed</button>
+        </div>
+      </div>
+      <div class="field">
+        <label>name</label>
+        <input id="f-name" type="search" placeholder="search…" style="min-width:150px"/>
+      </div>
+      <div class="field">
+        <label>owner</label>
+        <input id="f-owner" type="search" placeholder="search…" style="min-width:130px"/>
+      </div>
+      <div class="field">
+        <label>tag</label>
+        <select id="f-tag"><option value="">all</option></select>
+      </div>
+      <div class="spacer"></div>
+      <button class="btn" id="reset">clear filters</button>
+    </div>
+    <div id="runs"></div>
+    <div class="pager">
+      <button id="prev" disabled>← prev</button>
+      <span class="pageinfo" id="pageinfo">–</span>
+      <button id="next" disabled>next →</button>
+      <div style="flex:1"></div>
+      <span>per page</span>
+      <select id="f-limit">
+        <option value="10">10</option><option value="25" selected>25</option>
+        <option value="50">50</option><option value="100">100</option>
+      </select>
+    </div>
+  </div>
+</main>
+<script>
+const BASE = "__BASE_PATH__";
+const state = { status: '', name: '', owner: '', tag: '', limit: 25, offset: 0, total: 0, runs: [] };
+
+function applyTheme(dark) {
+  document.documentElement.classList.toggle('dark', dark);
+  document.getElementById('theme').textContent = dark ? 'light' : 'dark';
+  try { localStorage.setItem('teff-theme', dark ? 'dark' : 'light'); } catch (_) {}
+}
+function initTheme() {
+  let saved = null;
+  try { saved = localStorage.getItem('teff-theme'); } catch (_) {}
+  const dark = saved ? saved === 'dark' : true;
+  applyTheme(dark);
+}
+document.getElementById('theme').addEventListener('click', () =>
+  applyTheme(!document.body.classList.contains('dark')));
+
+function readStateFromUrl() {
+  const p = new URLSearchParams(window.location.search);
+  if (p.has('status') && ['', 'ok', 'interrupted', 'err'].includes(p.get('status'))) state.status = p.get('status');
+  if (p.has('name')) state.name = p.get('name');
+  if (p.has('owner')) state.owner = p.get('owner');
+  if (p.has('tag')) state.tag = p.get('tag');
+  const lim = Number(p.get('limit'));
+  if (p.has('limit') && [10, 25, 50, 100].includes(lim)) state.limit = lim;
+  const off = Number(p.get('offset'));
+  if (p.has('offset') && Number.isFinite(off) && off >= 0) state.offset = off;
+}
+
+function syncUrl() {
+  const p = new URLSearchParams();
+  if (state.status) p.set('status', state.status);
+  if (state.name) p.set('name', state.name);
+  if (state.owner) p.set('owner', state.owner);
+  if (state.tag) p.set('tag', state.tag);
+  if (state.limit !== 25) p.set('limit', String(state.limit));
+  if (state.offset > 0) p.set('offset', String(state.offset));
+  const q = p.toString();
+  history.replaceState(null, '', window.location.pathname + (q ? '?' + q : ''));
+}
+
+function applyStateToControls() {
+  document.querySelectorAll('#status-pills .pill').forEach(p =>
+    p.classList.toggle('active', p.dataset.v === state.status));
+  document.getElementById('f-name').value = state.name;
+  document.getElementById('f-owner').value = state.owner;
+  document.getElementById('f-tag').value = state.tag;
+  document.getElementById('f-limit').value = String(state.limit);
+}
+
+async function loadRuns() {
+  syncUrl();
+  const qs = new URLSearchParams({ limit: state.limit, offset: state.offset });
+  if (state.status) qs.set('status', state.status);
+  if (state.name) qs.set('name', state.name);
+  if (state.owner) qs.set('owner', state.owner);
+  if (state.tag) qs.set('tag', state.tag);
+  const res = await fetch(BASE + '/runs?' + qs.toString());
+  const data = await res.json();
+  state.runs = data.items || [];
+  state.total = data.total || 0;
+  render();
+}
+
+function render() {
+  const el = document.getElementById('runs');
+  document.getElementById('summary').textContent = `${state.total} run${state.total === 1 ? '' : 's'}`;
+  if (!state.runs.length) {
+    el.innerHTML = '<div class="empty"><span class="big">∅</span>No runs match.<br/>Run a graph, then <code>POST /api/run</code> to see traces.</div>';
+    updatePager();
+    return;
+  }
+  let html = '<table><thead><tr>' +
+      '<th>status</th><th>run</th><th>name</th><th>owner</th><th>tags</th>' +
+      '<th style="text-align:right">time</th><th style="text-align:right">tokens</th><th style="text-align:right">created</th>' +
+      '</tr></thead><tbody>';
+  for (const r of state.runs) {
+    const cls = r.status === 'ok' ? 'ok' : r.status === 'interrupted' ? 'amber' : 'err';
+    const tags = (r.tags || []).map(t =>
+      `<button class="chip" onclick="event.stopPropagation();filterTag('${escapeHtml(t)}')">${escapeHtml(t)}</button>`).join('');
+    const rid = String(r.run_id || '');
+    const rowClick = rid ? ` onclick="openRun('${rid}')"` : '';
+    html += `<tr class="row"${rowClick}>` +
+        `<td><span class="status ${cls}"><span class="dot ${cls}"></span>${escapeHtml(r.status)}</span></td>` +
+        `<td class="mono run-id" title="${escapeHtml(rid)}">#${rid.slice(0, 8)}</td>` +
+        `<td class="name">${escapeHtml(r.name)}</td>` +
+        `<td>${r.owner ? escapeHtml(r.owner) : '<span class="muted">—</span>'}</td>` +
+        `<td class="tags">${tags || '<span class="muted">—</span>'}</td>` +
+        `<td class="num" style="text-align:right">${Number(r.total_ms).toFixed(0)} ms</td>` +
+        `<td class="num" style="text-align:right">${(Number(r.prompt_tokens) || 0) + (Number(r.completion_tokens) || 0)}</td>` +
+        `<td class="num" style="text-align:right">${fmtTime(r.created_at)}</td></tr>`;
+  }
+  el.innerHTML = html + '</tbody></table>';
+  updatePager();
+}
+
+function updatePager() {
+  const pages = Math.max(1, Math.ceil(state.total / state.limit));
+  const page = Math.floor(state.offset / state.limit) + 1;
+  document.getElementById('prev').disabled = state.offset <= 0;
+  document.getElementById('next').disabled = page >= pages;
+  document.getElementById('pageinfo').textContent =
+    `${Math.min(state.total, state.offset + 1)}–${Math.min(state.total, state.offset + state.limit)} of ${state.total} · page ${page}/${pages}`;
+}
+
+function openRun(id) { window.location.href = BASE + '/ui/runs/' + id; }
+function filterTag(tag) {
+  state.tag = tag; state.offset = 0;
+  document.getElementById('f-tag').value = tag;
+  loadRuns();
+}
+function fmtTime(unix) {
+  try { return new Date(unix * 1000).toLocaleString(undefined, { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }); }
+  catch (_) { return '—'; }
+}
+
+async function refreshTagFilter() {
+  const sel = document.getElementById('f-tag');
+  const current = sel.value;
+  const res = await fetch(BASE + '/runs?limit=500');
+  const data = await res.json();
+  const all = new Set();
+  for (const r of (data.items || [])) for (const t of (r.tags || [])) all.add(t);
+  sel.innerHTML = '<option value="">all</option>' + [...all].sort().map(t =>
+    `<option value="${escapeHtml(t)}"${t === current ? ' selected' : ''}>${escapeHtml(t)}</option>`).join('');
+}
+
+function escapeHtml(s) {
+  return String(s ?? '').replace(/[&<>"']/g,
+    (ch) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
+}
+function debounce(fn, ms) {
+  let t;
+  return (...args) => { clearTimeout(t); t = setTimeout(() => fn(...args), ms || 200); };
+}
+
+document.getElementById('status-pills').addEventListener('click', (e) => {
+  const pill = e.target.closest('.pill');
+  if (!pill) return;
+  document.querySelectorAll('#status-pills .pill').forEach(p => p.classList.remove('active'));
+  pill.classList.add('active');
+  state.status = pill.dataset.v; state.offset = 0;
+  loadRuns();
+});
+document.getElementById('f-name').addEventListener('input', debounce((e) => { state.name = e.target.value.trim(); state.offset = 0; loadRuns(); }));
+document.getElementById('f-owner').addEventListener('input', debounce((e) => { state.owner = e.target.value.trim(); state.offset = 0; loadRuns(); }));
+document.getElementById('f-tag').addEventListener('change', (e) => { state.tag = e.target.value; state.offset = 0; loadRuns(); });
+document.getElementById('f-limit').addEventListener('change', (e) => { state.limit = Number(e.target.value); state.offset = 0; loadRuns(); });
+document.getElementById('prev').addEventListener('click', () => { state.offset = Math.max(0, state.offset - state.limit); loadRuns(); });
+document.getElementById('next').addEventListener('click', () => { state.offset += state.limit; loadRuns(); });
+document.getElementById('reset').addEventListener('click', () => {
+  document.querySelectorAll('#status-pills .pill').forEach(p => p.classList.toggle('active', p.dataset.v === ''));
+  document.getElementById('f-name').value = '';
+  document.getElementById('f-owner').value = '';
+  document.getElementById('f-tag').value = '';
+  state.status = ''; state.name = ''; state.owner = ''; state.tag = '';
+  state.offset = 0;
+  loadRuns();
+});
+
+initTheme();
+readStateFromUrl();
+applyStateToControls();
+refreshTagFilter();
+loadRuns();
+</script>
+</body>
+</html>

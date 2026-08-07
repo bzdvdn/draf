@@ -37,7 +37,7 @@ uv run uvicorn --app-dir examples/fastapi_server app:app --port 8000
 ```
 
 Checkpoints land in `examples/fastapi_server/data/checkpoints/<user>/`.
-Override the location with the `DRAF_CHAT_CHECKPOINT_DIR` env var.
+Override the location with the `TEFF_CHAT_CHECKPOINT_DIR` env var.
 
 ## Endpoints
 

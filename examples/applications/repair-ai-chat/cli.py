@@ -30,8 +30,8 @@ from src.graphs.build import build_flow  # noqa: E402
 from src.graphs.state import STATE_REDUCERS, initial_state  # noqa: E402
 from src.storage import TRANSIENT_KEYS, build_checkpointer  # noqa: E402
 
-from draf import Assistant  # noqa: E402
-from draf.checkpoint import DEFAULT_OWNER  # noqa: E402
+from teff import Assistant  # noqa: E402
+from teff.checkpoint import DEFAULT_OWNER  # noqa: E402
 
 #: State keys that add noise to the debug ledger — always hidden.
 _HIDDEN_KEYS = {"next_agent", "input", "supervisor_rounds", "tool_approval"}
@@ -206,8 +206,8 @@ async def _load(
     from src.core.deps import DEFAULT_CATALOG_DB, PRODUCT_FIELDMAP
     from src.rag.catalog import MaterialCatalog
 
-    from draf.rag.embedder import Embedder
-    from draf.rag.stores import SQLiteVectorStore
+    from teff.rag.embedder import Embedder
+    from teff.rag.stores import SQLiteVectorStore
 
     store = SQLiteVectorStore(path=str(catalog_db or DEFAULT_CATALOG_DB), dim=768)
     catalog = MaterialCatalog(embedder=Embedder(provider=provider), store=store)

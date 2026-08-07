@@ -1,7 +1,7 @@
 # Fraud Gate AI
 
 A production-style **payment screening** FastAPI app built to show
-[`Command`](../../../draf/node/command.py) — Draf's dynamic per-node routing.
+[`Command`](../../../teff/node/command.py) — Teff's dynamic per-node routing.
 
 A payment comes in, an **LLM analyser** reads its free-text note and returns a
 structured risk score, and the **router node** picks the next step at runtime

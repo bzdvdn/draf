@@ -33,7 +33,7 @@ Run it:
 
 ```python
 import asyncio
-from draf.yaml import load_workflow
+from teff.yaml import load_workflow
 
 
 async def main():
@@ -48,8 +48,8 @@ asyncio.run(main())
 Or from the command line:
 
 ```bash
-draf -f workflow.yaml
-draf validate workflow.yaml   # check before running
+teff -f workflow.yaml
+teff validate workflow.yaml   # check before running
 ```
 
 ## Flow API (Python)
@@ -59,9 +59,9 @@ equivalent of the YAML above:
 
 ```python
 import asyncio
-from draf.flow import Flow, Case
-from draf.node import LLM, Transform
-from draf.provider import ProviderRegistry
+from teff.flow import Flow, Case
+from teff.node import LLM, Transform
+from teff.provider import ProviderRegistry
 
 
 async def main():

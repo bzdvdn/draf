@@ -165,7 +165,7 @@ async def test_assistant_turn_is_durable(transport, tmp_path):
     from src.graphs.state import STATE_REDUCERS, initial_state
     from src.storage import TRANSIENT_KEYS, build_checkpointer
 
-    from draf import Assistant
+    from teff import Assistant
 
     flow = build_flow()
     assistant = Assistant(
@@ -195,7 +195,7 @@ def test_cli_run_shows_final_answer(transport, tmp_path, monkeypatch):
     from typer.testing import CliRunner
 
     get_settings.cache_clear()
-    monkeypatch.setenv("DRAF_CHECKPOINT_DIR", str(tmp_path))
+    monkeypatch.setenv("TEFF_CHECKPOINT_DIR", str(tmp_path))
     result = CliRunner().invoke(app, ["run", "list files"])
     assert result.exit_code == 0, result.output
     assert "== assistant ==" in result.output

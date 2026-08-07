@@ -9,10 +9,10 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 import pytest
 
-from draf.errors import ConfigError
-from draf.observability.exporter import CompositeExporter, SQLiteExporter, TraceExporter
-from draf.observability.model import LLMCall, NodeSpan, Run
-from draf.observability.push import (
+from teff.errors import ConfigError
+from teff.observability.exporter import CompositeExporter, SQLiteExporter, TraceExporter
+from teff.observability.model import LLMCall, NodeSpan, Run
+from teff.observability.push import (
     HttpExporter,
     LangfuseExporter,
     LangsmithExporter,
@@ -208,7 +208,7 @@ def test_langsmith_exporter_mapping(http_server):
 
 
 def test_build_observability_persists_to_db(tmp_path):
-    from draf.observability import build_observability
+    from teff.observability import build_observability
 
     db = tmp_path / "data" / "traces.db"
     observer = build_observability({"db": str(db)}, name="wf")
@@ -224,7 +224,7 @@ def test_build_observability_persists_to_db(tmp_path):
 
 
 def test_build_observability_fans_out_to_db_and_webhook(tmp_path, http_server):
-    from draf.observability import build_observability
+    from teff.observability import build_observability
 
     db = tmp_path / "t.db"
     url = _base(http_server) + "/ingest"
@@ -245,21 +245,21 @@ def test_build_observability_fans_out_to_db_and_webhook(tmp_path, http_server):
 
 
 def test_build_observability_none_without_config():
-    from draf.observability import build_observability
+    from teff.observability import build_observability
 
     assert build_observability(None) is None
     assert build_observability({}) is None
 
 
 def test_build_remote_exporter_unknown_type():
-    from draf.observability import build_remote_exporter
+    from teff.observability import build_remote_exporter
 
     with pytest.raises(ConfigError):
         build_remote_exporter({"type": "bogus"})
 
 
 def test_build_remote_exporter_missing_secret():
-    from draf.observability import build_remote_exporter
+    from teff.observability import build_remote_exporter
 
     with pytest.raises(ConfigError):
         build_remote_exporter(
@@ -268,7 +268,7 @@ def test_build_remote_exporter_missing_secret():
 
 
 def test_build_observer_factory_shares_exporter(tmp_path):
-    from draf.observability import build_observer_factory
+    from teff.observability import build_observer_factory
 
     factory = build_observer_factory({"db": str(tmp_path / "t.db")}, name="wf")
     assert factory is not None
@@ -285,7 +285,7 @@ def test_build_observer_factory_shares_exporter(tmp_path):
 
 
 def test_workflow_yaml_accepts_observability_block():
-    from draf.yaml_schema import validate_workflow
+    from teff.yaml_schema import validate_workflow
 
     errors = validate_workflow(
         {
@@ -309,7 +309,7 @@ def test_ingest_router_persists_run(tmp_path):
     from fastapi import FastAPI
     from starlette.testclient import TestClient
 
-    from draf.observability.api import attach_ingest
+    from teff.observability.api import attach_ingest
 
     app = FastAPI()
     exp = SQLiteExporter(str(tmp_path / "t.db"))
@@ -327,7 +327,7 @@ def test_ingest_router_persists_run(tmp_path):
 def test_obs_server_app(tmp_path):
     from starlette.testclient import TestClient
 
-    from draf.observability.server import build_server
+    from teff.observability.server import build_server
 
     client = TestClient(build_server(str(tmp_path / "t.db")))
     assert client.get("/obs/ui").status_code == 200
@@ -345,8 +345,8 @@ def test_obs_ui_run_detail_page_lives_under_dashboard_path(tmp_path):
     from fastapi import FastAPI
     from starlette.testclient import TestClient
 
-    from draf.observability import SQLiteExporter
-    from draf.observability.api import dashboard_router
+    from teff.observability import SQLiteExporter
+    from teff.observability.api import dashboard_router
 
     exp = SQLiteExporter(str(tmp_path / "t.db"))
     exp.export(_sample_run())
@@ -370,14 +370,14 @@ def test_obs_ui_run_detail_page_lives_under_dashboard_path(tmp_path):
 
 
 # ---------------------------------------------------------------------------
-# CLI: draf run traces a YAML workflow automatically
+# CLI: teff run traces a YAML workflow automatically
 # ---------------------------------------------------------------------------
 
 
 def test_cli_run_persists_trace(tmp_path):
     from typer.testing import CliRunner
 
-    from draf.cli import app
+    from teff.cli import app
 
     wf = tmp_path / "wf.yaml"
     wf.write_text(
@@ -416,7 +416,7 @@ def test_cli_run_persists_trace(tmp_path):
 def test_cli_run_without_observability_is_untouched(tmp_path):
     from typer.testing import CliRunner
 
-    from draf.cli import app
+    from teff.cli import app
 
     wf = tmp_path / "wf.yaml"
     wf.write_text(

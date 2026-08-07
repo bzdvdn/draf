@@ -2,7 +2,7 @@
 
 ## Design principles
 
-See [`CONSTITUTION.md`](https://github.com/bzdvdn/draf/blob/main/CONSTITUTION.md)
+See [`CONSTITUTION.md`](https://github.com/bzdvdn/teff/blob/main/CONSTITUTION.md)
 for the framework's principles and non-negotiable rules — the short version:
 
 - **Workflow as data.** YAML/JSON are canonical; code is optional.
@@ -23,11 +23,11 @@ hardcode API keys in a workflow file.
 ## Typed errors
 
 Loading or running a broken workflow throws errors from a public hierarchy
-rooted at `draf.DrafError`; subclasses multiple-inherit from builtins for
+rooted at `teff.TeffError`; subclasses multiple-inherit from builtins for
 back-compat:
 
 ```
-DrafError
+TeffError
 ├── ConfigError             (also KeyError)      — invalid config / unknown types
 ├── WorkflowError           (also RuntimeError)  — workflow-level failures
 │   ├── NodeError                                 — a node raised (node_id/type)
@@ -40,7 +40,7 @@ DrafError
 ## Workflow validation
 
 ```python
-from draf.yaml_schema import validate_workflow_file, format_errors
+from teff.yaml_schema import validate_workflow_file, format_errors
 
 errors = validate_workflow_file("workflow.yaml")
 if errors:
@@ -48,12 +48,12 @@ if errors:
 ```
 
 ```bash
-draf validate workflow.yaml    # exits non-zero on errors
+teff validate workflow.yaml    # exits non-zero on errors
 ```
 
 To validate an already-parsed dict (no file) use
-`draf.yaml_schema.validate_workflow(data, node_types=..., tool_types=...)` —
-same error list. See the [API reference](api/draf.yaml_schema.md).
+`teff.yaml_schema.validate_workflow(data, node_types=..., tool_types=...)` —
+same error list. See the [API reference](api/teff.yaml_schema.md).
 
 ## Development
 

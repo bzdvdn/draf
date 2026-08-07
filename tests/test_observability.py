@@ -4,7 +4,7 @@ import json
 
 import pytest
 
-from draf.harness.loop import ModelReply
+from teff.harness.loop import ModelReply
 
 
 class _FakeHarness:
@@ -96,7 +96,7 @@ class _ToolCallHarness(_CtxHarness):
 
 @pytest.fixture
 def fake_agent_harness(monkeypatch):
-    from draf.node import agent as agent_mod
+    from teff.node import agent as agent_mod
 
     monkeypatch.setattr(agent_mod, "Harness", _CtxHarness)
     yield _CtxHarness
@@ -108,7 +108,7 @@ async def _run_single(graph, owner="ana"):
 
 
 def test_run_model_to_dict():
-    from draf.observability import Run
+    from teff.observability import Run
 
     run = Run(name="r", status="ok", total_ms=1.0, owner="ana")
     data = run.to_dict()
@@ -118,7 +118,7 @@ def test_run_model_to_dict():
 
 
 def test_tool_call_model_roundtrip():
-    from draf.observability import NodeSpan, SpanEvent, ToolCall
+    from teff.observability import NodeSpan, SpanEvent, ToolCall
 
     span = NodeSpan(
         node_id="agent",
@@ -151,7 +151,7 @@ async def _emit_payload(observer, messages, response="done"):
 def test_collector_captures_tool_calls():
     import asyncio
 
-    from draf.observability import GraphObserver
+    from teff.observability import GraphObserver
 
     observer = GraphObserver("t")
     observer.tracer.node_start("agent", "react_agent")
@@ -191,7 +191,7 @@ def test_collector_captures_tool_calls():
 def test_collector_backfills_tool_result_without_duplication():
     import asyncio
 
-    from draf.observability import GraphObserver
+    from teff.observability import GraphObserver
 
     observer = GraphObserver("t")
     observer.tracer.node_start("agent", "react_agent")
@@ -270,7 +270,7 @@ def test_collector_backfills_tool_result_without_duplication():
 def test_collector_accepts_graph_signal_tool_shape():
     import asyncio
 
-    from draf.observability import GraphObserver
+    from teff.observability import GraphObserver
 
     observer = GraphObserver("t")
     observer.tracer.node_start("agent", "react_agent")
@@ -300,10 +300,10 @@ def test_collector_accepts_graph_signal_tool_shape():
 def test_full_loop_captures_tool_call(monkeypatch):
     import asyncio
 
-    from draf.flow import Flow
-    from draf.node import agent as agent_mod
-    from draf.observability import GraphObserver
-    from draf.tool.tool import Tool
+    from teff.flow import Flow
+    from teff.node import agent as agent_mod
+    from teff.observability import GraphObserver
+    from teff.tool.tool import Tool
 
     class Uppercase(Tool):
         name = "uppercase"
@@ -355,8 +355,8 @@ def test_full_loop_captures_tool_call(monkeypatch):
 
 
 def test_topology_from_graph():
-    from draf.flow import Flow
-    from draf.observability import topology_from_graph
+    from teff.flow import Flow
+    from teff.observability import topology_from_graph
 
     flow = Flow("t")
     flow.llm(model="m", system="s", output_key="o")
@@ -369,8 +369,8 @@ def test_topology_from_graph():
 def test_observer_without_exporter(fake_agent_harness):
     import asyncio
 
-    from draf.flow import Flow
-    from draf.observability import GraphObserver
+    from teff.flow import Flow
+    from teff.observability import GraphObserver
 
     flow = Flow("t")
     flow.react(model="m", system="s", messages_key="messages")
@@ -401,10 +401,10 @@ async def _run_single_with(observer, graph):
 def test_sqlite_exporter_roundtrip(tmp_path, monkeypatch):
     import asyncio
 
-    from draf.flow import Flow
-    from draf.node import agent as agent_mod
-    from draf.observability import GraphObserver, SQLiteExporter, topology_from_graph
-    from draf.tool.tool import Tool
+    from teff.flow import Flow
+    from teff.node import agent as agent_mod
+    from teff.observability import GraphObserver, SQLiteExporter, topology_from_graph
+    from teff.tool.tool import Tool
 
     class Uppercase(Tool):
         name = "uppercase"
@@ -484,7 +484,7 @@ def test_sqlite_exporter_roundtrip(tmp_path, monkeypatch):
 
 
 def test_sqlite_filters_and_pagination(tmp_path):
-    from draf.observability import Run, SQLiteExporter
+    from teff.observability import Run, SQLiteExporter
 
     db = tmp_path / "traces.db"
     exp = SQLiteExporter(str(db))
@@ -556,7 +556,7 @@ def test_sqlite_filters_and_pagination(tmp_path):
 
 
 def test_sqlite_update_run(tmp_path):
-    from draf.observability import Run, SQLiteExporter
+    from teff.observability import Run, SQLiteExporter
 
     db = tmp_path / "traces.db"
     exp = SQLiteExporter(str(db))
@@ -588,7 +588,7 @@ def test_sqlite_update_run(tmp_path):
 def test_sqlite_migrates_missing_columns(tmp_path):
     import sqlite3
 
-    from draf.observability import SQLiteExporter
+    from teff.observability import SQLiteExporter
 
     db = tmp_path / "old.db"
     conn = sqlite3.connect(str(db))
@@ -612,8 +612,8 @@ def test_sqlite_migrates_missing_columns(tmp_path):
 def test_jsonl_exporter(tmp_path, fake_agent_harness):
     import asyncio
 
-    from draf.flow import Flow
-    from draf.observability import GraphObserver, JsonlExporter
+    from teff.flow import Flow
+    from teff.observability import GraphObserver, JsonlExporter
 
     flow = Flow("j")
     flow.react(model="m", system="s", messages_key="messages")

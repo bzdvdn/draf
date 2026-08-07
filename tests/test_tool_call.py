@@ -1,8 +1,8 @@
 import pytest
 
-from draf.node import ExecContext
-from draf.node.tool_call import ToolCall
-from draf.tool import Tool
+from teff.node import ExecContext
+from teff.node.tool_call import ToolCall
+from teff.tool import Tool
 
 
 class EchoTool(Tool):

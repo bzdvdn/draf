@@ -12,7 +12,7 @@ from __future__ import annotations
 
 from typing import Annotated, Any, TypedDict
 
-from draf.state import reducers_from_typeddict
+from teff.state import reducers_from_typeddict
 
 
 def add_messages(current: list | None, new: list | None) -> list:

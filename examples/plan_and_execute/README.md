@@ -52,16 +52,16 @@ status: ok  llm_calls: 10
 ```
 
 To run against a real model, start Ollama with `llama3.1:8b` and set
-`DRAF_LIVE=1`:
+`TEFF_LIVE=1`:
 
 ```bash
 ollama pull llama3.1:8b
-DRAF_LIVE=1 uv run python examples/plan_and_execute/graph.py
+TEFF_LIVE=1 uv run python examples/plan_and_execute/graph.py
 ```
 
 The YAML workflow runs against real Ollama too:
 
 ```bash
 ollama pull llama3.1:8b
-uv run draf run examples/plan_and_execute/workflow.yaml
+uv run teff run examples/plan_and_execute/workflow.yaml
 ```

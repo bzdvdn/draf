@@ -1,7 +1,7 @@
 """Review service — the domain orchestration behind the API gate.
 
 Owns the business flow: generate a durable session, drive one review through
-the :class:`~draf.assistant.Assistant`, read the durable session state and
+the :class:`~teff.assistant.Assistant`, read the durable session state and
 normalise it into pure :mod:`~fraud_gate.domain.models` value objects.  The
 HTTP router stays thin — it only marshals pydantic request/response schemas
 and delegates here.
@@ -21,8 +21,8 @@ import uuid
 from collections.abc import Callable
 from typing import Any
 
-from draf import Assistant
 from fraud_gate.domain.models import Conflict, DecideOutcome, ReviewOutcome
+from teff import Assistant
 
 
 def _session_id(provided: str | None) -> str:

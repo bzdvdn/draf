@@ -1,13 +1,13 @@
 # RAG store: lance
 
-RAG agent over the Draf knowledge base using the LanceDB store.
+RAG agent over the Teff knowledge base using the LanceDB store.
 
 ## Dependencies
 
 Install the vector-store extra:
 
 ```bash
-uv add "draf[stores-lance]"     # or: pip install "draf[stores-lance]"
+uv add "teff[stores-lance]"     # or: pip install "teff[stores-lance]"
 ```
 
 Ollama must be running locally with:

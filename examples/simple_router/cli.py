@@ -23,9 +23,9 @@ from src.graphs.build import build_flow  # noqa: E402
 from src.graphs.state import STATE_REDUCERS, initial_state  # noqa: E402
 from src.storage import TRANSIENT_KEYS, build_checkpointer  # noqa: E402
 
-from draf import Assistant  # noqa: E402
+from teff import Assistant  # noqa: E402
 
-app = typer.Typer(name="simple_router", help="Minimal draf route() example.")
+app = typer.Typer(name="simple_router", help="Minimal teff route() example.")
 
 
 def _build_assistant():

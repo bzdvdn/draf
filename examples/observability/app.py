@@ -3,7 +3,7 @@
 Starts a FastAPI app that serves two things on one process:
 
 - ``POST /api/run`` — executes a small ``llm -> tools -> llm`` graph inside a
-  :class:`~draf.observability.GraphObserver`: a ReAct agent (``assistant/agent``
+  :class:`~teff.observability.GraphObserver`: a ReAct agent (``assistant/agent``
   ``react_agent`` node ↔ ``assistant/tool`` ``tool_exec`` node) answers with
   the two tools ``current_time`` and ``uppercase``, then a final ``summarize``
   LLM node condenses the draft.  The observer records the graph topology,
@@ -11,7 +11,7 @@ Starts a FastAPI app that serves two things on one process:
   response, and — newly — each tool call (name, args, result) as a
   first-class entry, all into a SQLite trace store.
 - ``GET /obs/...`` — the read-only dashboard built by
-  :func:`draf.observability.dashboard_router` over the same store.
+  :func:`teff.observability.dashboard_router` over the same store.
 
 Open ``http://localhost:8000/obs/ui`` after a few runs to inspect what was
 sent to the model, per node, per run — including the tool-call chain.
@@ -33,11 +33,11 @@ from fastapi import FastAPI
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
-from draf.flow import Flow
-from draf.observability import GraphObserver, SQLiteExporter, topology_from_graph
-from draf.observability.api import dashboard_router
-from draf.provider import ProviderRegistry
-from draf.tool.tool import Tool
+from teff.flow import Flow
+from teff.observability import GraphObserver, SQLiteExporter, topology_from_graph
+from teff.observability.api import dashboard_router
+from teff.provider import ProviderRegistry
+from teff.tool.tool import Tool
 
 SYSTEM = "Ты краткий ассистент по DevOps."
 TRACES_DB = "./traces.db"

@@ -3,7 +3,7 @@ import pytest
 
 class TestNodeABC:
     def test_abstract_base_cannot_be_instantiated(self):
-        from draf.node import Node
+        from teff.node import Node
 
         with pytest.raises(TypeError):
             Node()
@@ -11,7 +11,7 @@ class TestNodeABC:
     def test_subclass_with_execute_works(self):
         import asyncio
 
-        from draf.node import Node
+        from teff.node import Node
 
         class MyNode(Node):
             type = "my"
@@ -31,7 +31,7 @@ class TestNodeDecorator:
     def test_registers_in_default_registry(self):
         import asyncio
 
-        from draf.node import default_registry, node
+        from teff.node import default_registry, node
 
         @node("test_simple")
         async def fn(ctx, state):
@@ -46,7 +46,7 @@ class TestNodeDecorator:
     def test_with_typed_config(self):
         import asyncio
 
-        from draf.node import default_registry, node
+        from teff.node import default_registry, node
 
         @node("test_config", config=dict)
         async def fn(ctx, cfg, state):
@@ -58,7 +58,7 @@ class TestNodeDecorator:
         assert r == {"val": 42}
 
     def test_non_async_function_raises(self):
-        from draf.node import node
+        from teff.node import node
 
         with pytest.raises(TypeError, match="must be async"):
 
@@ -79,13 +79,13 @@ class _DummyNode:
 
 class TestNodeRegistry:
     def test_isolated_from_default(self):
-        from draf.node import NodeRegistry
+        from teff.node import NodeRegistry
 
         reg = NodeRegistry()
         assert reg.list() == []
 
     def test_register_and_create(self):
-        from draf.node import NodeRegistry
+        from teff.node import NodeRegistry
 
         reg = NodeRegistry()
         reg.register("custom", lambda cfg: _DummyNode(cfg))
@@ -94,7 +94,7 @@ class TestNodeRegistry:
         assert isinstance(n, _DummyNode)
 
     def test_unknown_type_raises(self):
-        from draf.node import NodeRegistry
+        from teff.node import NodeRegistry
 
         reg = NodeRegistry()
         with pytest.raises(KeyError):
@@ -103,8 +103,8 @@ class TestNodeRegistry:
 
 class TestExecContext:
     def test_tool_lookup(self):
-        from draf.node import ExecContext
-        from draf.tool import Tool
+        from teff.node import ExecContext
+        from teff.tool import Tool
 
         class FT(Tool):
             name = "ft"
@@ -117,7 +117,7 @@ class TestExecContext:
         assert ctx.tool("ft").run() == "ok"
 
     def test_missing_tool_raises_keyerror(self):
-        from draf.node import ExecContext
+        from teff.node import ExecContext
 
         ctx = ExecContext(state={}, tools={})
         with pytest.raises(KeyError):
@@ -127,7 +127,7 @@ class TestExecContext:
 class TestRetry:
     @pytest.mark.asyncio
     async def test_retry_succeeds_on_second_attempt(self):
-        from draf.node import ExecContext, Node, Retry
+        from teff.node import ExecContext, Node, Retry
 
         attempt = 0
 
@@ -149,7 +149,7 @@ class TestRetry:
 
     @pytest.mark.asyncio
     async def test_retry_exhausts_and_raises(self):
-        from draf.node import ExecContext, Node, Retry
+        from teff.node import ExecContext, Node, Retry
 
         class AlwaysFail(Node):
             type = "af"
@@ -164,7 +164,7 @@ class TestRetry:
 
     @pytest.mark.asyncio
     async def test_retry_passthrough_on_success(self):
-        from draf.node import ExecContext, Node, Retry
+        from teff.node import ExecContext, Node, Retry
 
         class Fast(Node):
             type = "fast"
@@ -179,8 +179,8 @@ class TestRetry:
 
     @pytest.mark.asyncio
     async def test_retry_does_not_retry_graph_interrupt(self):
-        from draf.node import ExecContext, Node, Retry
-        from draf.node.interrupt import GraphInterrupt
+        from teff.node import ExecContext, Node, Retry
+        from teff.node.interrupt import GraphInterrupt
 
         attempt = 0
 
@@ -200,7 +200,7 @@ class TestRetry:
 
     @pytest.mark.asyncio
     async def test_retry_backoff_scales_delay(self):
-        from draf.node import ExecContext, Node, Retry
+        from teff.node import ExecContext, Node, Retry
 
         sleeps = []
         import asyncio
@@ -235,7 +235,7 @@ class TestRetry:
     async def test_retry_timeout_bounds_each_attempt(self):
         import asyncio
 
-        from draf.node import ExecContext, Node, Retry
+        from teff.node import ExecContext, Node, Retry
 
         class Slow(Node):
             type = "slow"
@@ -251,7 +251,7 @@ class TestRetry:
 
     @pytest.mark.asyncio
     async def test_retry_on_matching_exception(self):
-        from draf.node import ExecContext, Node, Retry
+        from teff.node import ExecContext, Node, Retry
 
         attempt = 0
 
@@ -273,7 +273,7 @@ class TestRetry:
 
     @pytest.mark.asyncio
     async def test_retry_on_non_matching_raises_immediately(self):
-        from draf.node import ExecContext, Node, Retry
+        from teff.node import ExecContext, Node, Retry
 
         attempt = 0
 
@@ -293,8 +293,8 @@ class TestRetry:
 
     @pytest.mark.asyncio
     async def test_wrap_with_retry_noop_without_config(self):
-        from draf.node import Node
-        from draf.node.retry import Retry, wrap_with_retry
+        from teff.node import Node
+        from teff.node.retry import Retry, wrap_with_retry
 
         class Plain(Node):
             type = "plain"
@@ -311,14 +311,14 @@ class TestRetry:
 
 class TestGate:
     async def _run(self, gate, state):
-        from draf.node import ExecContext
+        from teff.node import ExecContext
 
         ctx = ExecContext(state=state, tools={})
         return await gate.execute(ctx, state)
 
     @pytest.mark.asyncio
     async def test_passing_verdict_writes_pass_value_and_increments_rounds(self):
-        from draf.node import Gate
+        from teff.node import Gate
 
         state = {"verdict": {"ok": True}}
         out = await self._run(Gate(), state)
@@ -327,7 +327,7 @@ class TestGate:
 
     @pytest.mark.asyncio
     async def test_failing_verdict_writes_fail_value(self):
-        from draf.node import Gate
+        from teff.node import Gate
 
         state = {"verdict": {"ok": False}}
         out = await self._run(Gate(), state)
@@ -336,7 +336,7 @@ class TestGate:
 
     @pytest.mark.asyncio
     async def test_message_copied_on_fail_and_cleared_on_pass(self):
-        from draf.node import Gate
+        from teff.node import Gate
 
         gate = Gate(message_key="feedback")
         out = await self._run(gate, {"verdict": {"ok": False, "message": "  x  "}})
@@ -346,7 +346,7 @@ class TestGate:
 
     @pytest.mark.asyncio
     async def test_forces_pass_after_max_rounds(self):
-        from draf.node import Gate
+        from teff.node import Gate
 
         gate = Gate(max_rounds=3)
         state = {"verdict": {"ok": False}, "rounds": 2}
@@ -356,14 +356,14 @@ class TestGate:
 
     @pytest.mark.asyncio
     async def test_missing_verdict_is_treated_as_pass(self):
-        from draf.node import Gate
+        from teff.node import Gate
 
         out = await self._run(Gate(), {"verdict": None})
         assert out["decision"] == "yes"
 
     @pytest.mark.asyncio
     async def test_configurable_key_names_and_values(self):
-        from draf.node import Gate
+        from teff.node import Gate
 
         gate = Gate(
             input_key="qa",
@@ -383,14 +383,14 @@ class TestGate:
 
 class TestValidate:
     async def _run(self, validate, state):
-        from draf.node import ExecContext
+        from teff.node import ExecContext
 
         ctx = ExecContext(state=state, tools={})
         return await validate.execute(ctx, state)
 
     @pytest.mark.asyncio
     async def test_equals_match_writes_pass_and_extracts_value(self):
-        from draf.node import Validate
+        from teff.node import Validate
 
         v = Validate(
             input_key="answer",
@@ -406,7 +406,7 @@ class TestValidate:
 
     @pytest.mark.asyncio
     async def test_equals_miss_writes_fail_and_clears_value(self):
-        from draf.node import Validate
+        from teff.node import Validate
 
         v = Validate(
             input_key="answer",
@@ -421,7 +421,7 @@ class TestValidate:
 
     @pytest.mark.asyncio
     async def test_any_of_matches_normalized_value(self):
-        from draf.node import Validate
+        from teff.node import Validate
 
         v = Validate(
             input_key="answer", strategy="any_of", any_of=["да", "ок", "конечно"]
@@ -431,7 +431,7 @@ class TestValidate:
 
     @pytest.mark.asyncio
     async def test_regex_extracts_capture_group(self):
-        from draf.node import Validate
+        from teff.node import Validate
 
         v = Validate(
             input_key="answer",
@@ -446,7 +446,7 @@ class TestValidate:
 
     @pytest.mark.asyncio
     async def test_check_callable_tuple_result(self):
-        from draf.node import Validate
+        from teff.node import Validate
 
         def check(value):
             return value == "12345", "captured"
@@ -467,7 +467,7 @@ class TestValidate:
 
     @pytest.mark.asyncio
     async def test_forces_pass_after_max_rounds(self):
-        from draf.node import Validate
+        from teff.node import Validate
 
         v = Validate(
             input_key="answer",
@@ -482,7 +482,7 @@ class TestValidate:
 
 class TestAsk:
     def test_detects_strategy_from_kwargs(self):
-        from draf.node import Ask
+        from teff.node import Ask
 
         assert Ask(equals="да").strategy == "equals"
         assert Ask(any_of=["да", "ок"]).strategy == "any_of"
@@ -490,7 +490,7 @@ class TestAsk:
         assert Ask(system="s", schema={}).strategy == "model"
 
     def test_classmethod_constructors(self):
-        from draf.node import Ask
+        from teff.node import Ask
 
         assert Ask.equals("да")._expected == "да"
         assert Ask.any_of("да", "ок")._allowed == ["да", "ок"]
@@ -504,7 +504,7 @@ class TestAsk:
         )
 
     def test_model_ask_needs_classifier(self):
-        from draf.node import Ask
+        from teff.node import Ask
 
         assert Ask.model(
             system="s", user="u", schema={}, model="m", provider="p"
@@ -512,7 +512,7 @@ class TestAsk:
         assert not Ask.equals("да").needs_classifier()
 
     def test_validate_node_wiring(self):
-        from draf.node import Ask
+        from teff.node import Ask
 
         v = Ask.equals("да", decision_key="go", value_key="code").validate_node(
             "answer"
@@ -524,7 +524,7 @@ class TestAsk:
         assert v.config["strategy"] == "equals"
 
     def test_validate_registerable_and_type(self):
-        from draf.node import default_registry
+        from teff.node import default_registry
 
         v = default_registry.create(
             "validate",

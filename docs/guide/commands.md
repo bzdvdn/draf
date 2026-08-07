@@ -2,11 +2,11 @@
 
 A `Command` is a node return value that does **two** things at once: it
 merges a state update **and** names the node the graph should run next.
-It is Draf's LangGraph-style dynamic edge — a node picks its successor at
+It is Teff's LangGraph-style dynamic edge — a node picks its successor at
 runtime instead of being wired to fixed routes.
 
 ```python
-from draf.node import Command
+from teff.node import Command
 
 
 class AdminGate(Node):

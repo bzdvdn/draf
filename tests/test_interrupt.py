@@ -4,10 +4,10 @@ import asyncio
 
 import pytest
 
-from draf.flow import Flow
-from draf.graph import Edge
-from draf.node import Interrupt, Transform
-from draf.node.interrupt import GraphInterrupt
+from teff.flow import Flow
+from teff.graph import Edge
+from teff.node import Interrupt, Transform
+from teff.node.interrupt import GraphInterrupt
 
 
 def _build_flow():
@@ -41,7 +41,7 @@ class TestInterruptNode:
 
 class TestInterruptResume:
     def test_resume_after_checkpoint(self, tmp_path):
-        from draf.checkpoint import JSONFileCheckpointer
+        from teff.checkpoint import JSONFileCheckpointer
 
         g = _build_flow()
         cp = JSONFileCheckpointer(str(tmp_path))
@@ -72,7 +72,7 @@ class TestInterruptResume:
         assert "__interrupt__" not in result
 
     def test_resume_without_answer_reraises(self, tmp_path):
-        from draf.checkpoint import JSONFileCheckpointer
+        from teff.checkpoint import JSONFileCheckpointer
 
         g = _build_flow()
         cp = JSONFileCheckpointer(str(tmp_path))
@@ -91,8 +91,8 @@ class TestInterruptResume:
         assert ret is flow
 
     def test_resume_reroutes_by_answer(self, tmp_path):
-        from draf import Edge, Graph
-        from draf.checkpoint import JSONFileCheckpointer
+        from teff import Edge, Graph
+        from teff.checkpoint import JSONFileCheckpointer
 
         g = Graph(
             nodes={
@@ -141,7 +141,7 @@ class TestInterruptYAML:
     def test_interrupt_from_yaml(self, tmp_path):
         import yaml
 
-        from draf.yaml import from_yaml
+        from teff.yaml import from_yaml
 
         data = {
             "name": "y-interrupt",
@@ -190,7 +190,7 @@ class TestInterruptYAML:
     def test_yaml_loop_with_resume(self, tmp_path):
         import yaml
 
-        from draf.yaml import from_yaml
+        from teff.yaml import from_yaml
 
         data = {
             "name": "y-loop",
@@ -225,7 +225,7 @@ class TestInterruptYAML:
                 {"from": "edit", "to": "ask"},
             ],
         }
-        from draf.checkpoint import JSONFileCheckpointer
+        from teff.checkpoint import JSONFileCheckpointer
 
         g = from_yaml(yaml.safe_dump(data))
         cp = JSONFileCheckpointer(str(tmp_path))
@@ -286,7 +286,7 @@ class TestFlowLoop:
         assert Edge(body_id, ask_id) in g.edges
 
     def test_loop_with_interrupt_resumes(self, tmp_path):
-        from draf.checkpoint import JSONFileCheckpointer
+        from teff.checkpoint import JSONFileCheckpointer
 
         g = self._build_loop_flow()
         cp = JSONFileCheckpointer(str(tmp_path))
@@ -331,11 +331,11 @@ class TestFlowLoop:
                 return {"final": "ok"}
             return {"score": state.get("score", 0) + 1}
 
-        from draf.node import node
+        from teff.node import node
 
         node("score")(checker)
         node("bump")(checker)
-        from draf.node.registry import default_registry
+        from teff.node.registry import default_registry
 
         flow = Flow("self-check")
         flow.step(default_registry.create("score"))
@@ -351,8 +351,8 @@ class TestFlowLoop:
 
 class TestInterruptTrace:
     def test_tracer_records_interrupt(self, tmp_path):
-        from draf import RunTracer
-        from draf.checkpoint import JSONFileCheckpointer
+        from teff import RunTracer
+        from teff.checkpoint import JSONFileCheckpointer
 
         g = _build_flow()
         cp = JSONFileCheckpointer(str(tmp_path))

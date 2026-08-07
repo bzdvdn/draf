@@ -12,4 +12,4 @@ First alpha release.
 - Long-term memory: `MemoryStore`, `MemoryExtractor`, per-owner context.
 - RAG: chunker, embedders, vector stores (Chroma, Qdrant, PG, FAISS, ...).
 - Observability: run tracing, token pricing, tool-call tracking.
-- CLI: `draf new <name>` scaffolding, YAML validation.
+- CLI: `teff new <name>` scaffolding, YAML validation.

@@ -8,7 +8,7 @@ checks out in parallel, and pauses for human approval before shipping:
   (planner / estimator / tester) and, once all sections are ready, to a
   *human approval* step;
 * a single ``Supervisor`` node — the core
-  :class:`draf.node.Supervisor`, subclassed with the release policy: it
+  :class:`teff.node.Supervisor`, subclassed with the release policy: it
   renders the section progress into the model context, gets a *proposal*,
   then enforces the policy (``approved``, then fill order) and bounds the
   loop with a ``supervisor_rounds`` counter — so a stray free-form answer
@@ -37,13 +37,13 @@ from __future__ import annotations
 import asyncio
 from typing import TypedDict
 
-from draf.flow import Flow, agent_step
-from draf.logging import configure_logging
-from draf.node import LLM, Interrupt, Map
-from draf.node import Supervisor as BaseSupervisor
-from draf.node.interrupt import GraphInterrupt
-from draf.provider import ProviderRegistry
-from draf.trace import RunTracer
+from teff.flow import Flow, agent_step
+from teff.logging import configure_logging
+from teff.node import LLM, Interrupt, Map
+from teff.node import Supervisor as BaseSupervisor
+from teff.node.interrupt import GraphInterrupt
+from teff.provider import ProviderRegistry
+from teff.trace import RunTracer
 
 # ---------------------------------------------------------------------------
 # Graph
@@ -76,7 +76,7 @@ TESTER_SYSTEM = "Ты тестировщик. Перечисли результ�
 class Supervisor(BaseSupervisor):
     """Release-coordinator decider — the core ``Supervisor`` plus a policy.
 
-    The core :class:`draf.node.Supervisor` renders the section progress into
+    The core :class:`teff.node.Supervisor` renders the section progress into
     the model context, parses a single-word *proposal* and bounds the loop
     with a ``supervisor_rounds`` counter.  This subclass keeps that machinery
     and overrides the decision hooks with the release fill-order policy:
@@ -271,7 +271,7 @@ async def main() -> None:
 
     print("\n=== Run ===")
     tracer = RunTracer()
-    from draf.checkpoint import JSONFileCheckpointer
+    from teff.checkpoint import JSONFileCheckpointer
 
     cp = JSONFileCheckpointer("checkpoints")
     await cp.delete("release-run")  # always start from a clean sheet

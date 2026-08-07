@@ -2,14 +2,14 @@
 
 Tools implement `Tool` (or use `@tool`) and are shared across nodes. Agents
 receive them through `graph.run(state, tools=tools)` or YAML `tools:`. A
-library of built-in tools registers itself when `draf.tool.builtin` is
+library of built-in tools registers itself when `teff.tool.builtin` is
 imported (the YAML helpers and examples do this for you). Marked tools need
-`pip install draf[tools]`.
+`pip install teff[tools]`.
 
 ## Registry
 
 ```python
-from draf.tool.registry import default_tool_registry
+from teff.tool.registry import default_tool_registry
 
 print(default_tool_registry.list())  # all registered names
 ```
@@ -51,8 +51,8 @@ print(default_tool_registry.list())  # all registered names
 | `lock` | `LockTool` | — | Distributed-ish lock acquire/release |
 | `redis` | `RedisTool` | `redis` | Redis get/set/hash/list ops |
 | `wait_for` | `WaitForTool` | — | Poll until a condition holds |
-| `rag` | `RAGTool` | `draf[stores-*]` | Retrieval over a vector store |
-| `memory` | `MemoryTool` | `draf[stores-*]` | Long-term memory (remember/recall/forget) |
+| `rag` | `RAGTool` | `teff[stores-*]` | Retrieval over a vector store |
+| `memory` | `MemoryTool` | `teff[stores-*]` | Long-term memory (remember/recall/forget) |
 
 ## Configuring tools
 
@@ -76,7 +76,7 @@ tools:
 The same works in Python:
 
 ```python
-from draf.tool.registry import default_tool_registry
+from teff.tool.registry import default_tool_registry
 
 sql = default_tool_registry.create("sql_query", {"db_type": "sqlite", "path": "./v.db"})
 shell = default_tool_registry.create(
@@ -87,8 +87,8 @@ shell = default_tool_registry.create(
 ## Writing a custom tool
 
 ```python
-from draf.tool.tool import Tool
-from draf.tool.registry import tool
+from teff.tool.tool import Tool
+from teff.tool.registry import tool
 
 
 @tool("slugify", "Convert a string to a lowercase URL slug")

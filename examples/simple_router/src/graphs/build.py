@@ -1,9 +1,9 @@
 """Supervisor graph builder — the minimal ``Flow.route()`` pattern.
 
 This is the smallest example of the supervisor loop: one decider node
-(:class:`draf.node.Supervisor`, added with :meth:`draf.flow.Flow.supervisor`)
+(:class:`teff.node.Supervisor`, added with :meth:`teff.flow.Flow.supervisor`)
 routes to one of two agents, each wrapped as a ``SubFlow`` via the
-framework's :func:`draf.flow.agent_step` (context builder -> ReAct harness
+framework's :func:`teff.flow.agent_step` (context builder -> ReAct harness
 -> append the reply to the shared ``messages``).  When the decider says
 ``finish`` the loop exits.  Read this file top to bottom to see the whole
 pattern.
@@ -11,9 +11,9 @@ pattern.
 
 from __future__ import annotations
 
-from draf.flow import Flow, agent_step
-from draf.provider import ProviderRegistry
 from src.graphs.prompts import CODER_PROMPT, SUPERVISOR_PROMPT, TALK_PROMPT
+from teff.flow import Flow, agent_step
+from teff.provider import ProviderRegistry
 
 MODEL_DEFAULT = "llama3.1:8b"
 

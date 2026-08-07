@@ -1,7 +1,7 @@
 """ReAct agent calling tools over MCP.
 
 Connects the graph to the local MCP server in ``server.py`` over stdio
-and exposes its tools to a :class:`~draf.node.agent.ReActAgent` loop.
+and exposes its tools to a :class:`~teff.node.agent.ReActAgent` loop.
 Any MCP server works the same way — point ``mcp_tools`` at a Streamable
 HTTP endpoint (``url=...``) or a stdio command (``command=...``).
 
@@ -16,9 +16,9 @@ import asyncio
 import sys
 from pathlib import Path
 
-from draf.flow import Flow
-from draf.provider import ProviderRegistry
-from draf.tool import mcp_tools
+from teff.flow import Flow
+from teff.provider import ProviderRegistry
+from teff.tool import mcp_tools
 
 SERVER = Path(__file__).resolve().parent / "server.py"
 

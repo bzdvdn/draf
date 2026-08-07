@@ -22,9 +22,9 @@ import asyncio
 import json
 from typing import TypedDict
 
-from draf.flow import Flow
-from draf.node.llm import StructuredOutputError
-from draf.provider import ProviderRegistry
+from teff.flow import Flow
+from teff.node.llm import StructuredOutputError
+from teff.provider import ProviderRegistry
 
 
 class RepairPlan(TypedDict):

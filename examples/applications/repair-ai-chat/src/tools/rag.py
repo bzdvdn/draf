@@ -1,6 +1,6 @@
 """RAG tools backed by the materials catalog."""
 
-from draf.tool.tool import Tool
+from teff.tool.tool import Tool
 
 
 class SearchMaterials(Tool):

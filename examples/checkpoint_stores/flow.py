@@ -14,8 +14,8 @@ import asyncio
 import os
 import sys
 
-from draf.flow import Flow
-from draf.node import Node, Transform
+from teff.flow import Flow
+from teff.node import Node, Transform
 
 _HERE = os.path.dirname(os.path.abspath(__file__))
 
@@ -58,15 +58,15 @@ class FailingNode(Node):
 def _make_checkpointer(config: dict):
     factory = config.get("factory")
     if factory == "json_file":
-        from draf.checkpoint import JSONFileCheckpointer
+        from teff.checkpoint import JSONFileCheckpointer
 
         return JSONFileCheckpointer(config.get("path"))
     if factory == "sqlite":
-        from draf.checkpoint import SQLiteCheckpointer
+        from teff.checkpoint import SQLiteCheckpointer
 
         return SQLiteCheckpointer(config.get("path"))
     if factory == "pg":
-        from draf.checkpoint.pg import PGCheckpointer
+        from teff.checkpoint.pg import PGCheckpointer
 
         return PGCheckpointer(config.get("dsn"))
     raise ValueError(f"unknown checkpoint factory: {factory}")

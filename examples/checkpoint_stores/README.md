@@ -1,6 +1,6 @@
 # Durable workflow examples
 
-The same crash/resume workflow running on every checkpoint backend draf
+The same crash/resume workflow running on every checkpoint backend teff
 supports.  The graph is three nodes — a transform, a node that fails
 once (simulating a transient crash), and another transform.  The first
 run crashes; a re-run with the same `checkpoint_id` resumes from the
@@ -10,7 +10,7 @@ saved checkpoint and completes.
 | --------- | -------------------------- | --------------- | -------------- | --------------------------------- |
 | `file`    | none (core)                | no              | yes (files)    | simple, local, per-thread files   |
 | `sqlite`  | none (stdlib `sqlite3`)    | no              | yes (file)     | single-file durable state         |
-| `pg`      | `draf[pg-checkpoint]`      | yes (PostgreSQL)| yes            | shared/durable at scale           |
+| `pg`      | `teff[pg-checkpoint]`      | yes (PostgreSQL)| yes            | shared/durable at scale           |
 
 Each subdirectory has its own README with the exact install steps:
 
@@ -38,7 +38,7 @@ The `pg` backend needs the extra and a running server; `file` and
 `sqlite` need nothing.
 
 ```bash
-uv add "draf[pg-checkpoint]"        # or: pip install "draf[pg-checkpoint]"
+uv add "teff[pg-checkpoint]"        # or: pip install "teff[pg-checkpoint]"
 ```
 
 Start PostgreSQL for `pg` (from `examples/checkpoint_stores/`):

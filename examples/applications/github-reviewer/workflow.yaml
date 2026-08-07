@@ -12,7 +12,7 @@ description: >
   Run it with the CLI's daemon mode:
 
       GITHUB_TOKEN=... TELEGRAM_BOT_TOKEN=... TELEGRAM_CHAT_ID=... \
-      draf daemon -f workflow.yaml --interval 60
+      teff daemon -f workflow.yaml --interval 60
 
   kv_store keeps already-reviewed PRs across restarts, so `--checkpoint`
   is optional; add `--checkpoint '{"type":"file","path":"data/daemon"}'`

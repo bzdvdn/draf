@@ -4,7 +4,7 @@ import pytest
 
 
 def _node(state_update):
-    from draf.node import Node
+    from teff.node import Node
 
     class Simple(Node):
         type = "simple"
@@ -19,8 +19,8 @@ def _node(state_update):
 class TestParallelNode:
     @pytest.mark.asyncio
     async def test_branches_merge_results(self):
-        from draf.graph import Graph
-        from draf.node import Parallel
+        from teff.graph import Graph
+        from teff.node import Parallel
 
         node = Parallel([[_node({"a": 1})], [_node({"b": 2})]])
         g = Graph(nodes={"p": node}, edges=[], entry_point="p")
@@ -30,8 +30,8 @@ class TestParallelNode:
 
     @pytest.mark.asyncio
     async def test_failing_branch_cancels_siblings(self):
-        from draf.graph import Graph
-        from draf.node import Node, Parallel
+        from teff.graph import Graph
+        from teff.node import Node, Parallel
 
         started = {"n": 0, "finished": 0}
 
@@ -61,8 +61,8 @@ class TestParallelNode:
 
     @pytest.mark.asyncio
     async def test_branches_run_concurrently(self):
-        from draf.graph import Graph
-        from draf.node import Node, Parallel
+        from teff.graph import Graph
+        from teff.node import Node, Parallel
 
         elapsed = {"t": 0.0}
 
@@ -86,8 +86,8 @@ class TestParallelNode:
 
     @pytest.mark.asyncio
     async def test_sequential_nodes_within_branch(self):
-        from draf.graph import Graph
-        from draf.node import Node, Parallel
+        from teff.graph import Graph
+        from teff.node import Node, Parallel
 
         class Count(Node):
             type = "count"
@@ -104,9 +104,9 @@ class TestParallelNode:
 
     @pytest.mark.asyncio
     async def test_append_reducer_accumulates_across_branches(self):
-        from draf.graph import Graph
-        from draf.node import Node, Parallel
-        from draf.state import reducers_from_yaml_schema
+        from teff.graph import Graph
+        from teff.node import Node, Parallel
+        from teff.state import reducers_from_yaml_schema
 
         class Msg(Node):
             type = "msg"
@@ -126,9 +126,9 @@ class TestParallelNode:
     async def test_typed_state_reducers_apply_inside_branches(self):
         from typing import Annotated, TypedDict
 
-        from draf.graph import Graph
-        from draf.node import Node, Parallel
-        from draf.state import State
+        from teff.graph import Graph
+        from teff.node import Node, Parallel
+        from teff.state import State
 
         class S(TypedDict):
             messages: Annotated[list, "append"]
@@ -146,8 +146,8 @@ class TestParallelNode:
 
     @pytest.mark.asyncio
     async def test_branch_exception_propagates(self):
-        from draf.graph import Graph
-        from draf.node import Node, Parallel
+        from teff.graph import Graph
+        from teff.node import Node, Parallel
 
         class Boom(Node):
             type = "boom"
@@ -162,8 +162,8 @@ class TestParallelNode:
 
     @pytest.mark.asyncio
     async def test_branch_state_isolation(self):
-        from draf.graph import Graph
-        from draf.node import Node, Parallel
+        from teff.graph import Graph
+        from teff.node import Node, Parallel
 
         class AddOne(Node):
             type = "ao"
@@ -182,8 +182,8 @@ class TestParallelNode:
 class TestFlowParallel:
     @pytest.mark.asyncio
     async def test_parallel_in_flow_with_converge(self):
-        from draf.flow import Flow
-        from draf.node import Transform
+        from teff.flow import Flow
+        from teff.node import Transform
 
         flow = (
             Flow("p")
@@ -202,8 +202,8 @@ class TestFlowParallel:
 
     @pytest.mark.asyncio
     async def test_parallel_with_embedded_flow(self):
-        from draf.flow import Flow
-        from draf.node import Transform
+        from teff.flow import Flow
+        from teff.node import Transform
 
         sub = Flow("sub").step(
             Transform(action="uppercase", input_key="text", output_key="out")
@@ -219,8 +219,8 @@ class TestFlowParallel:
 
     @pytest.mark.asyncio
     async def test_parallel_single_node_branch(self):
-        from draf.flow import Flow
-        from draf.node import Transform
+        from teff.flow import Flow
+        from teff.node import Transform
 
         flow = (
             Flow("p")
@@ -240,9 +240,9 @@ class TestFlowParallel:
 class TestParallelTelemetry:
     @pytest.mark.asyncio
     async def test_branch_nodes_traced_with_nested_ids(self):
-        from draf.graph import Graph
-        from draf.node import Node, Parallel
-        from draf.trace import RunTracer
+        from teff.graph import Graph
+        from teff.node import Node, Parallel
+        from teff.trace import RunTracer
 
         class Tag(Node):
             type = "tag"

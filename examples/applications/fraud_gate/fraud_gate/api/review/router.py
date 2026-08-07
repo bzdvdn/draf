@@ -19,12 +19,12 @@ import uuid
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Request
 
-from draf.checkpoint import DEFAULT_OWNER
-from draf.observability import GraphObserver
 from fraud_gate.api.auth.router import require_api_key
 from fraud_gate.api.review.schemas import DecideRequest, ReviewRequest
 from fraud_gate.domain.models import Conflict, DecideOutcome, ReviewOutcome
 from fraud_gate.domain.review_service import ReviewService
+from teff.checkpoint import DEFAULT_OWNER
+from teff.observability import GraphObserver
 
 router = APIRouter(dependencies=[Depends(require_api_key)])
 

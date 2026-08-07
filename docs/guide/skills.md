@@ -19,9 +19,9 @@ You are a city guide.  When asked to compare cities, call BOTH
 Mount it on any LLM-capable call — the `LLM` node or `react()` / `harness()`:
 
 ```python
-from draf.flow import Flow
-from draf.node import LLM
-from draf.provider import ProviderRegistry
+from teff.flow import Flow
+from teff.node import LLM
+from teff.provider import ProviderRegistry
 
 flow = Flow(
     "city-bot",
@@ -53,19 +53,19 @@ without skills: `True` (all), `False` (none), or a list of names.
 
 ## Core skills
 
-Draf ships built-in system skills (prefixed `draf-`, marked `[system]`), e.g.
-`draf-tool-discipline`, `draf-structured-output`, `draf-verification`. They
+Teff ships built-in system skills (prefixed `teff-`, marked `[system]`), e.g.
+`teff-tool-discipline`, `teff-structured-output`, `teff-verification`. They
 are loaded by name and visible in prompts as `[system]`:
 
 ```python
-from draf import core_skills, get_core_skill
+from teff import core_skills, get_core_skill
 
 for skill in core_skills():
     print(skill.name, skill.description)
 
-skill = get_core_skill("draf-verification")
+skill = get_core_skill("teff-verification")
 ```
 
 Custom skills (with a `SKILL.md`) shadow a core skill of the same name. See
-the [API reference](../api/draf.skill.md) for `resolve_skills` and
+the [API reference](../api/teff.skill.md) for `resolve_skills` and
 `skills_instructions`.

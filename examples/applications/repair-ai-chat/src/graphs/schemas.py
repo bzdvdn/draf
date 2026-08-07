@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from draf.schema import json_schema_from_type
+from teff.schema import json_schema_from_type
 
 
 @dataclass

@@ -6,7 +6,7 @@ backend's ``workflow.yaml`` so the graph loads standalone via
 ``load_workflow`` without any runner-side registration.
 """
 
-from draf.node import node
+from teff.node import node
 
 # Simulates a transient external failure.  Lives outside the workflow
 # state because state is restored to the pre-node checkpoint on resume.

@@ -18,7 +18,7 @@ WORKFLOW_PATH = os.path.join(
 
 
 def _load():
-    from draf.yaml import load_workflow
+    from teff.yaml import load_workflow
 
     return load_workflow(WORKFLOW_PATH)
 
@@ -105,7 +105,7 @@ def transport(monkeypatch):
 
 
 def test_yaml_validates():
-    from draf.yaml_schema import validate_workflow_file
+    from teff.yaml_schema import validate_workflow_file
 
     assert validate_workflow_file(WORKFLOW_PATH) == []
 

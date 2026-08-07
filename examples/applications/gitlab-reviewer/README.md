@@ -1,6 +1,6 @@
 # GitLab reviewer daemon (multi-project)
 
-A production `workflow.yaml` that runs entirely through the `draf` CLI —
+A production `workflow.yaml` that runs entirely through the `teff` CLI —
 no per-app `daemon.py`.  The workflow **is** the daemon: each tick walks
 every project in `state.initial.project_ids`, lists open merge requests,
 reviews each new one, posts the verdict back to GitLab and notifies
@@ -10,7 +10,7 @@ Telegram.  Already-reviewed MRs are tracked in `kv_store` under
 ## How it works
 
 ```
-draf daemon -f workflow.yaml --interval 60
+teff daemon -f workflow.yaml --interval 60
 ```
 
 The CLI's `daemon` mode loads the workflow once, then re-runs it every
@@ -38,7 +38,7 @@ reset (context_builder) ──► reviewer (react_agent) ──► tool_exec ─
 
 ## Requirements
 
-* `draf` installed (this repo).
+* `teff` installed (this repo).
 * A GitLab instance (self-hosted or gitlab.com) and a personal access
   token with `api` scope for the reviewed projects.
 * A Telegram bot token and chat id.
@@ -74,10 +74,10 @@ state:
 
 ```bash
 # one tick (poll + review everything new), then exit
-draf daemon -f workflow.yaml --once
+teff daemon -f workflow.yaml --once
 
 # run forever, 60s between ticks
-draf daemon -f workflow.yaml --interval 60
+teff daemon -f workflow.yaml --interval 60
 ```
 
 `kv_store` records already-reviewed MRs to `data/reviewed.json` and the
@@ -88,7 +88,7 @@ if you also want to persist counters and mid-review progress.
 ## Offline validation
 
 ```bash
-draf validate workflow.yaml
+teff validate workflow.yaml
 ```
 
 ## Tests

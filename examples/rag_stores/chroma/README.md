@@ -1,13 +1,13 @@
 # RAG store: chroma
 
-RAG agent over the Draf knowledge base using the ChromaDB store.
+RAG agent over the Teff knowledge base using the ChromaDB store.
 
 ## Dependencies
 
 Install the vector-store extra:
 
 ```bash
-uv add "draf[stores-chroma]"    # or: pip install "draf[stores-chroma]"
+uv add "teff[stores-chroma]"    # or: pip install "teff[stores-chroma]"
 ```
 
 For local development against the repo, install directly:

@@ -2,14 +2,14 @@
 
 import pytest
 
-from draf.provider import ProviderRegistry
+from teff.provider import ProviderRegistry
 
 
 class TestStreamLifecycle:
     @pytest.mark.asyncio
     async def test_emits_lifecycle_events(self):
-        from draf.graph import Graph
-        from draf.node import Transform
+        from teff.graph import Graph
+        from teff.node import Transform
 
         g = Graph(
             nodes={
@@ -25,8 +25,8 @@ class TestStreamLifecycle:
 
     @pytest.mark.asyncio
     async def test_node_events_carry_ids_and_types(self):
-        from draf.graph import Graph
-        from draf.node import Transform
+        from teff.graph import Graph
+        from teff.node import Transform
 
         g = Graph(
             nodes={
@@ -45,8 +45,8 @@ class TestStreamLifecycle:
 
     @pytest.mark.asyncio
     async def test_run_end_error_on_failure(self):
-        from draf.graph import Graph
-        from draf.node import Transform
+        from teff.graph import Graph
+        from teff.node import Transform
 
         g = Graph(
             nodes={
@@ -69,8 +69,8 @@ class TestStreamLifecycle:
 class TestStreamEdges:
     @pytest.mark.asyncio
     async def test_emits_conditional_edge_events(self):
-        from draf.graph import Edge, Graph
-        from draf.node import Transform
+        from teff.graph import Edge, Graph
+        from teff.node import Transform
 
         g = Graph(
             nodes={
@@ -99,8 +99,8 @@ class TestStreamEdges:
 class TestStreamTokens:
     @pytest.mark.asyncio
     async def test_llm_tokens_stream_through(self, monkeypatch):
-        from draf.graph import Graph
-        from draf.node import LLM
+        from teff.graph import Graph
+        from teff.node import LLM
 
         monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
         sse_lines = [
@@ -150,8 +150,8 @@ class TestStreamTokens:
 
     @pytest.mark.asyncio
     async def test_stream_uses_default_model(self, monkeypatch):
-        from draf.graph import Graph
-        from draf.node import LLM
+        from teff.graph import Graph
+        from teff.node import LLM
 
         monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
         bodies = []
@@ -199,9 +199,9 @@ class TestStreamTokens:
 
     @pytest.mark.asyncio
     async def test_stream_requires_checkpoint_id_with_checkpointer(self, tmp_path):
-        from draf.checkpoint import JSONFileCheckpointer
-        from draf.graph import Graph
-        from draf.node import Transform
+        from teff.checkpoint import JSONFileCheckpointer
+        from teff.graph import Graph
+        from teff.node import Transform
 
         cp = JSONFileCheckpointer(str(tmp_path))
         g = Graph(
@@ -219,8 +219,8 @@ class TestStreamTokens:
 
     @pytest.mark.asyncio
     async def test_run_does_not_emit_tokens(self, monkeypatch):
-        from draf.graph import Graph
-        from draf.node import LLM
+        from teff.graph import Graph
+        from teff.node import LLM
 
         monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
 
@@ -253,8 +253,8 @@ class TestStreamTokens:
 
     @pytest.mark.asyncio
     async def test_ollama_native_sse_tokens(self, monkeypatch):
-        from draf.graph import Graph
-        from draf.node import LLM
+        from teff.graph import Graph
+        from teff.node import LLM
 
         monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
         raw_lines = [
@@ -303,9 +303,9 @@ class TestStreamTokens:
 class TestStreamCustomNode:
     @pytest.mark.asyncio
     async def test_custom_node_can_emit_events(self):
-        from draf.graph import Graph
-        from draf.node import Node
-        from draf.stream import StreamEvent
+        from teff.graph import Graph
+        from teff.node import Node
+        from teff.stream import StreamEvent
 
         class EmittingNode(Node):
             type = "emitter"
@@ -337,9 +337,9 @@ class TestStreamCustomNode:
 class TestStreamInterrupt:
     @pytest.mark.asyncio
     async def test_interrupt_event_and_resume(self, tmp_path):
-        from draf.checkpoint import JSONFileCheckpointer
-        from draf.graph import Edge, Graph
-        from draf.node import Interrupt, Transform
+        from teff.checkpoint import JSONFileCheckpointer
+        from teff.graph import Edge, Graph
+        from teff.node import Interrupt, Transform
 
         g = Graph(
             nodes={
@@ -380,9 +380,9 @@ class TestStreamInterrupt:
 
     @pytest.mark.asyncio
     async def test_stream_matches_run_state(self, tmp_path):
-        from draf.checkpoint import JSONFileCheckpointer
-        from draf.graph import Edge, Graph
-        from draf.node import Interrupt, Transform
+        from teff.checkpoint import JSONFileCheckpointer
+        from teff.graph import Edge, Graph
+        from teff.node import Interrupt, Transform
 
         g = Graph(
             nodes={
@@ -406,9 +406,9 @@ class TestStreamInterrupt:
 class TestStreamCheckpoint:
     @pytest.mark.asyncio
     async def test_emits_checkpoint_events(self, tmp_path):
-        from draf.checkpoint import JSONFileCheckpointer
-        from draf.graph import Graph
-        from draf.node import Transform
+        from teff.checkpoint import JSONFileCheckpointer
+        from teff.graph import Graph
+        from teff.node import Transform
 
         g = Graph(
             nodes={
@@ -433,8 +433,8 @@ class TestStreamCheckpoint:
 class TestRunEmit:
     @pytest.mark.asyncio
     async def test_run_emit_receives_events_and_returns_state(self):
-        from draf.graph import Graph
-        from draf.node import Transform
+        from teff.graph import Graph
+        from teff.node import Transform
 
         g = Graph(
             nodes={
@@ -461,8 +461,8 @@ class TestRunEmit:
 
     @pytest.mark.asyncio
     async def test_run_emit_error_emits_run_end_and_raises(self):
-        from draf.graph import Graph
-        from draf.node import Transform
+        from teff.graph import Graph
+        from teff.node import Transform
 
         g = Graph(
             nodes={
@@ -487,8 +487,8 @@ class TestRunEmit:
 
     @pytest.mark.asyncio
     async def test_run_emit_streams_llm_tokens(self, monkeypatch):
-        from draf.graph import Graph
-        from draf.node import LLM
+        from teff.graph import Graph
+        from teff.node import LLM
 
         monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
         sse_lines = [

@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1
 # repair-ai-chat — production image.
 #
-# The build context is the *repository root*: the app depends on the `draf`
+# The build context is the *repository root*: the app depends on the `teff`
 # package, which is installed from the same tree. `compose.yaml` sets
 # `build.context: ../../..` accordingly.
 
@@ -12,9 +12,9 @@ WORKDIR /build
 
 # Only what `pip wheel` needs to resolve/isolate the project.
 COPY pyproject.toml README.md ./
-COPY draf ./draf
+COPY teff ./teff
 
-# Wheel the `draf` package plus its runtime deps.  The `fastapi` extra
+# Wheel the `teff` package plus its runtime deps.  The `fastapi` extra
 # provides the server stack; `queue` provides Celery for the worker/beat
 # background jobs.  The heavy `embedding` extras are intentionally not
 # included to keep the image small.
@@ -31,9 +31,9 @@ ENV PYTHONUNBUFFERED=1 \
 WORKDIR /app
 
 # Install the wheels built above, then `pydantic-settings` (+ its transitive
-# deps) from the index — it is not a `draf` dependency. Drop the wheel cache.
+# deps) from the index — it is not a `teff` dependency. Drop the wheel cache.
 COPY --from=build /wheels /wheels
-RUN pip install --no-index --find-links=/wheels 'draf[fastapi,queue]' \
+RUN pip install --no-index --find-links=/wheels 'teff[fastapi,queue]' \
     && pip install pydantic-settings \
     && rm -rf /wheels
 
@@ -52,8 +52,8 @@ USER 65534
 
 # Durable data lives on /data (mounted from compose); seed CSVs stay baked
 # into the image under /app/data/documents.
-ENV DRAF_CATALOG_DB=/data/catalog.db \
-    DRAF_CHECKPOINT_DB=/data/checkpoints.db
+ENV TEFF_CATALOG_DB=/data/catalog.db \
+    TEFF_CHECKPOINT_DB=/data/checkpoints.db
 
 EXPOSE 8000
 ENTRYPOINT ["python", "main.py"]

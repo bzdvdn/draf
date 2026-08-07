@@ -1,6 +1,6 @@
 # Repo-health daemon (workflow.yaml)
 
-A production `workflow.yaml` that runs entirely through the `draf` CLI —
+A production `workflow.yaml` that runs entirely through the `teff` CLI —
 no per-app Python.  Each tick the **agent is the driver**: it takes a
 distributed lock, reads a priority table from a CSV, inspects a git
 repository, cross-references changed files against the CSV, de-duplicates
@@ -11,13 +11,13 @@ This example is built on the coordination tools in the core: `git`,
 `lock`, `wait_for`, `csv_query`, `redis`.
 
 > The same logic is also available as a programmatic `flow.py` (built with
-> `draf.flow.Flow`).  Choose whichever fits your setup — both run the exact
+> `teff.flow.Flow`).  Choose whichever fits your setup — both run the exact
 > same tools and steps.
 
 ## How it works
 
 ```
-draf daemon -f workflow.yaml --interval 300
+teff daemon -f workflow.yaml --interval 300
 ```
 
 ```
@@ -48,7 +48,7 @@ the prompt — no code.
 
 ## Requirements
 
-* `draf` installed (this repo), with `draf[tools]` for `redis`.
+* `teff` installed (this repo), with `teff[tools]` for `redis`.
 * A Redis-compatible server (Redis, KeyDB, Valkey) for `lock`/`redis`/
   `wait_for` — point `REDIS_URL` at it.
 * A Telegram bot token and chat id.
@@ -91,10 +91,10 @@ Two equivalent ways to run the same tick.
 
 ```bash
 # one tick, then exit
-draf daemon -f workflow.yaml --once
+teff daemon -f workflow.yaml --once
 
 # run forever, every 5 minutes
-draf daemon -f workflow.yaml --interval 300
+teff daemon -f workflow.yaml --interval 300
 ```
 
 `redis` keeps the `alerted:<file>` keys, so de-dup survives restarts
@@ -109,7 +109,7 @@ to persist counters and mid-tick progress.
 python flow.py
 ```
 
-`flow.py` builds the identical graph with `draf.flow.Flow` (a
+`flow.py` builds the identical graph with `teff.flow.Flow` (a
 `context_builder` step plus a ReAct loop) and constructs the same tool
 instances from the same env vars (`REDIS_URL`, `TELEGRAM_BOT_TOKEN`,
 `TELEGRAM_CHAT_ID`).  It reads the same `data/priority.csv` and `git`
@@ -120,7 +120,7 @@ launch it.  To run it as a repeating daemon from Python, wrap
 ## Offline validation
 
 ```bash
-draf validate workflow.yaml
+teff validate workflow.yaml
 ```
 
 ## Tests

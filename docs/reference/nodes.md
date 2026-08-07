@@ -31,7 +31,7 @@ times with an optional `delay` (seconds) between attempts. On final failure
 the last exception propagates:
 
 ```python
-from draf import Retry, LLM
+from teff import Retry, LLM
 
 flow.step(Retry(LLM(model="gpt-4", output_key="answer"), max_retries=3, delay=1.0))
 ```
@@ -199,7 +199,7 @@ error.
 | `missing_is_ok` | bool | `True` | A missing / non-dict verdict counts as a pass. |
 
 ```python
-from draf.node import Gate, LLM
+from teff.node import Gate, LLM
 
 flow.step(qa_llm)  # LLM(json_schema=QaVerdict) -> state["qa_verdict"]
 flow.step(Gate(input_key="qa_verdict", output_key="qa_ok", rounds_key="qa_rounds"))
@@ -245,8 +245,8 @@ accept=Ask(...), body=..., done=...)` re-asks until it passes. Use the
 classmethod constructors:
 
 ```python
-from draf.flow import Flow
-from draf.node import Ask, LLM, Transform
+from teff.flow import Flow
+from teff.node import Ask, LLM, Transform
 
 # exact (normalized) match
 Ask.equals("да", decision_key="plan_ok")
@@ -296,8 +296,8 @@ it's a declarative recipe that builds `[LLM extractor, *Fallback nodes]`
 classmethod constructors:
 
 ```python
-from draf.flow import Flow
-from draf.node import Extract
+from teff.flow import Flow
+from teff.node import Extract
 
 extractor = Extract.model(
     system="Ты извлекаешь данные проекта из переписки...",
@@ -340,7 +340,7 @@ Use decorators or subclasses — see [Plugins](../guide/plugins.md). The
 current registry:
 
 ```python
-from draf.node.registry import default_registry
+from teff.node.registry import default_registry
 
 print(default_registry.list())
 ```

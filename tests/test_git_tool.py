@@ -17,12 +17,12 @@ class FakeProc:
 
 class TestGitTool:
     def _tool(self, **cfg):
-        from draf.tool.builtin import GitTool
+        from teff.tool.builtin import GitTool
 
         return GitTool(cfg or {"path": "/repo"})
 
     def _patch(self, monkeypatch, responder):
-        from draf.tool.builtin import git as gmod
+        from teff.tool.builtin import git as gmod
 
         calls: list[list] = []
 
@@ -102,13 +102,13 @@ class TestGitTool:
             self._tool().run(action="")
 
     def test_schema_action_required(self):
-        from draf.harness import tool_to_schema
-        from draf.tool.builtin import GitTool
+        from teff.harness import tool_to_schema
+        from teff.tool.builtin import GitTool
 
         schema = tool_to_schema(GitTool({}))["function"]["parameters"]
         assert "action" in schema["required"]
 
     def test_registered(self):
-        from draf.tool.registry import default_tool_registry
+        from teff.tool.registry import default_tool_registry
 
         assert "git" in default_tool_registry.list()

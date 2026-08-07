@@ -1,16 +1,15 @@
 """Sub-agent tools: domain experts the coordinator drives like ordinary tools.
 
-Each tool is an :class:`~draf.tool.agent.AgentTool` — a short ReAct loop
-(:class:`~draf.harness.Harness`) against a slice of the domain tool set.
+Each tool is an :class:`~teff.tool.agent.AgentTool` — a short ReAct loop
+(:class:`~teff.harness.Harness`) against a slice of the domain tool set.
 The coordinator sees them as plain tools; the runtime injects ``__state__``
-/ ``__ctx__`` (see :func:`draf.harness.tools`), so a tool reads the shared
+/ ``__ctx__`` (see :func:`teff.harness.tools`), so a tool reads the shared
 workflow state, runs its own LLM loop, and writes the result back — the
 sub-agent is invisible in the graph topology.
 """
 
 from __future__ import annotations
 
-from draf.tool.agent import AgentTool
 from src.domain.models import (
     PROJECT_INFO_LABELS,
     PROJECT_INFO_SCHEMA,
@@ -33,6 +32,7 @@ from src.tools.user_templates import (
     QA_USER,
     SELECT_MATERIALS_USER,
 )
+from teff.tool.agent import AgentTool
 
 
 class ExtractProjectInfo(AgentTool):

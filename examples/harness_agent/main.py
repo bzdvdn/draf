@@ -18,12 +18,12 @@ Usage:
 import asyncio
 import time
 
-from draf.flow import Flow
-from draf.graph import Edge, Graph
-from draf.node import Transform
-from draf.node.agent import ReActAgent, ToolExec
-from draf.provider import ProviderRegistry
-from draf.tool import Tool
+from teff.flow import Flow
+from teff.graph import Edge, Graph
+from teff.node import Transform
+from teff.node.agent import ReActAgent, ToolExec
+from teff.provider import ProviderRegistry
+from teff.tool import Tool
 
 # Tiny fictional "upstream" database. The chat model has never seen it, so
 # it MUST call the tools to answer.

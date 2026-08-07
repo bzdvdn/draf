@@ -1,6 +1,6 @@
 import pytest
 
-from draf.node import Transform
+from teff.node import Transform
 
 ROOT = __file__.rsplit("/tests/", 1)[0]
 EXAMPLE = f"{ROOT}/examples/applications/gitlab-reviewer/workflow.yaml"
@@ -10,7 +10,7 @@ PLUGINS_EXAMPLE = f"{ROOT}/examples/plugins"
 
 class TestEnvInterpolation:
     def test_interpolates_env_in_tool_config(self, tmp_path, monkeypatch):
-        from draf.yaml import load_workflow
+        from teff.yaml import load_workflow
 
         monkeypatch.setenv("GITLAB_URL", "https://gitlab.example.com")
         monkeypatch.setenv("GITLAB_TOKEN", "secret-token")
@@ -35,7 +35,7 @@ steps:
         assert tools[0].token == "secret-token"
 
     def test_missing_env_stays_as_placeholder(self, tmp_path, monkeypatch):
-        from draf.yaml import load_workflow
+        from teff.yaml import load_workflow
 
         monkeypatch.delenv("GITLAB_URL", raising=False)
         path = tmp_path / "wf.yaml"
@@ -58,7 +58,7 @@ steps:
         assert tools[0].token == "static"
 
     def test_works_without_tools(self, tmp_path):
-        from draf.yaml import load_workflow
+        from teff.yaml import load_workflow
 
         path = tmp_path / "wf.yaml"
         path.write_text(
@@ -75,7 +75,7 @@ steps:
         assert graph.entry_point == "s"
 
     def test_interpolates_env_in_step_and_state(self, tmp_path, monkeypatch):
-        from draf.yaml import load_workflow
+        from teff.yaml import load_workflow
 
         monkeypatch.setenv("SYSTEM_HINT", "be brief")
         path = tmp_path / "wf.yaml"
@@ -101,7 +101,7 @@ state:
 
 class TestNodeTypePreserved:
     def test_yaml_load_keeps_real_node_type(self, tmp_path):
-        from draf.yaml import load_workflow
+        from teff.yaml import load_workflow
 
         path = tmp_path / "wf.yaml"
         path.write_text(
@@ -222,7 +222,7 @@ class TestAppendTransform:
 
 class TestNumericConditions:
     def _run(self, condition: str, state: dict) -> bool:
-        from draf.graph.conditions import evaluate
+        from teff.graph.conditions import evaluate
 
         return evaluate(condition, state)
 
@@ -254,7 +254,7 @@ class TestNumericConditions:
 
 class TestGitlabReviewerExample:
     def test_example_loads(self):
-        from draf.yaml import load_workflow
+        from teff.yaml import load_workflow
 
         graph, tools, initial, reducers = load_workflow(EXAMPLE)
         names = {t.name for t in tools}
@@ -271,7 +271,7 @@ class TestGitlabReviewerExample:
         assert initial["project_ids"] == ["group/repo1", "group/repo2"]
 
     def test_example_validates(self):
-        from draf.yaml_schema import validate_workflow_file
+        from teff.yaml_schema import validate_workflow_file
 
         assert validate_workflow_file(EXAMPLE) == []
 
@@ -281,7 +281,7 @@ GITHUB_EXAMPLE = f"{ROOT}/examples/applications/github-reviewer/workflow.yaml"
 
 class TestGithubReviewerExample:
     def test_example_loads(self):
-        from draf.yaml import load_workflow
+        from teff.yaml import load_workflow
 
         graph, tools, initial, reducers = load_workflow(GITHUB_EXAMPLE)
         names = {t.name for t in tools}
@@ -298,14 +298,14 @@ class TestGithubReviewerExample:
         assert initial["repo_ids"] == ["owner/repo1", "owner/repo2"]
 
     def test_example_validates(self):
-        from draf.yaml_schema import validate_workflow_file
+        from teff.yaml_schema import validate_workflow_file
 
         assert validate_workflow_file(GITHUB_EXAMPLE) == []
 
 
 class TestRepoHealthExample:
     def test_example_loads(self):
-        from draf.yaml import load_workflow
+        from teff.yaml import load_workflow
 
         graph, tools, initial, reducers = load_workflow(REPO_HEALTH)
         names = {t.name for t in tools}
@@ -322,7 +322,7 @@ class TestRepoHealthExample:
         assert initial["priority_csv"] == "data/priority.csv"
 
     def test_example_validates(self):
-        from draf.yaml_schema import validate_workflow_file
+        from teff.yaml_schema import validate_workflow_file
 
         assert validate_workflow_file(REPO_HEALTH) == []
 
@@ -352,7 +352,7 @@ class TestRepoHealthExample:
 
 class TestPluginsExample:
     def test_workflow_validates(self):
-        from draf.yaml_schema import validate_workflow_file
+        from teff.yaml_schema import validate_workflow_file
 
         assert validate_workflow_file(f"{PLUGINS_EXAMPLE}/workflow.yaml") == []
 
@@ -360,24 +360,24 @@ class TestPluginsExample:
         import asyncio
         import json
 
-        from draf.yaml import load_workflow
+        from teff.yaml import load_workflow
 
         graph, tools, initial, reducers = load_workflow(
             f"{PLUGINS_EXAMPLE}/workflow.yaml"
         )
         result = asyncio.run(graph.run(state=initial, tools=tools, reducers=reducers))
-        assert result["slug"] == "hello-world-draf-plugins"
+        assert result["slug"] == "hello-world-teff-plugins"
         assert result["count"] == "4"
         assert json.loads(result["report"]) == {
-            "slug": "hello-world-draf-plugins",
+            "slug": "hello-world-teff-plugins",
             "count": "4",
         }
 
     def test_class_based_workflow_validates_and_runs(self):
         import asyncio
 
-        from draf.yaml import load_workflow
-        from draf.yaml_schema import validate_workflow_file
+        from teff.yaml import load_workflow
+        from teff.yaml_schema import validate_workflow_file
 
         path = f"{PLUGINS_EXAMPLE}/workflow-classes.yaml"
         assert validate_workflow_file(path) == []
@@ -389,7 +389,7 @@ class TestPluginsExample:
 class TestContextBuilderListRendering:
     @pytest.mark.asyncio
     async def test_renders_lists_one_per_line(self):
-        from draf.node import ContextBuilder
+        from teff.node import ContextBuilder
 
         node = ContextBuilder(
             sections={"project_ids": "Projects to review"},
@@ -415,7 +415,7 @@ steps:
 """
 
     def test_daemon_once_runs_single_tick(self, tmp_path, capsys):
-        from draf.cli import daemon as daemon_cmd
+        from teff.cli import daemon as daemon_cmd
 
         path = tmp_path / "wf.yaml"
         path.write_text(self.YAML)
@@ -436,8 +436,8 @@ steps:
 
 class TestDeclarativeRetry:
     def test_step_retry_block_wraps_node(self, tmp_path):
-        from draf.node.retry import Retry
-        from draf.yaml import load_workflow
+        from teff.node.retry import Retry
+        from teff.yaml import load_workflow
 
         path = tmp_path / "wf.yaml"
         path.write_text(
@@ -462,7 +462,7 @@ edges: []
         assert node._backoff == 2.0
 
     def test_step_retry_disabled_leaves_node_plain(self, tmp_path):
-        from draf.yaml import load_workflow
+        from teff.yaml import load_workflow
 
         path = tmp_path / "wf.yaml"
         path.write_text(
@@ -484,8 +484,8 @@ edges: []
     async def test_declarative_retry_retries_and_succeeds(self, tmp_path):
         import asyncio
 
-        from draf.node import Node
-        from draf.yaml import load_workflow
+        from teff.node import Node
+        from teff.yaml import load_workflow
 
         attempt = 0
         original_sleep = asyncio.sleep
@@ -495,7 +495,7 @@ edges: []
 
         asyncio.sleep = fake_sleep
         try:
-            from draf.node.registry import default_registry
+            from teff.node.registry import default_registry
 
             class Flaky(Node):
                 type = "flaky"
@@ -531,7 +531,7 @@ edges: []
         assert attempt == 2
 
     def test_retry_block_validates(self, tmp_path):
-        from draf.yaml_schema import validate_workflow_file
+        from teff.yaml_schema import validate_workflow_file
 
         path = tmp_path / "wf.yaml"
         path.write_text(
@@ -573,8 +573,8 @@ edges:
 """
 
     def test_subflow_nested_graph_loads(self, tmp_path):
-        from draf.flow.sub_flow import SubFlow
-        from draf.yaml import load_workflow
+        from teff.flow.sub_flow import SubFlow
+        from teff.yaml import load_workflow
 
         path = tmp_path / "wf.yaml"
         path.write_text(self.SUBFLOW_YAML)
@@ -587,7 +587,7 @@ edges:
     def test_subflow_nested_graph_runs(self, tmp_path):
         import asyncio
 
-        from draf.yaml import load_workflow
+        from teff.yaml import load_workflow
 
         path = tmp_path / "wf.yaml"
         path.write_text(self.SUBFLOW_YAML)
@@ -599,7 +599,7 @@ edges:
     def test_subflow_round_trips(self, tmp_path):
         import asyncio
 
-        from draf.yaml import from_yaml, workflow_to_yaml
+        from teff.yaml import from_yaml, workflow_to_yaml
 
         path = tmp_path / "wf.yaml"
         path.write_text(self.SUBFLOW_YAML)
@@ -612,8 +612,8 @@ edges:
         assert result["result"] == "HI"
 
     def test_subflow_build_agent_step(self, tmp_path):
-        from draf.flow.sub_flow import SubFlow
-        from draf.yaml import load_workflow
+        from teff.flow.sub_flow import SubFlow
+        from teff.yaml import load_workflow
 
         path = tmp_path / "wf.yaml"
         path.write_text(
@@ -639,8 +639,8 @@ edges: []
         assert node.config["build"]["output_key"] == "answer"
 
     def test_subflow_build_rejects_recipe_providers(self, tmp_path):
-        from draf.errors import ConfigError
-        from draf.yaml import load_workflow
+        from teff.errors import ConfigError
+        from teff.yaml import load_workflow
 
         path = tmp_path / "wf.yaml"
         path.write_text(
@@ -666,8 +666,8 @@ edges: []
             load_workflow(str(path))
 
     def test_subflow_requires_graph_or_build(self, tmp_path):
-        from draf.errors import ConfigError
-        from draf.yaml import load_workflow
+        from teff.errors import ConfigError
+        from teff.yaml import load_workflow
 
         path = tmp_path / "wf.yaml"
         path.write_text(
@@ -684,8 +684,8 @@ edges: []
             load_workflow(str(path))
 
     def test_subflow_unknown_build_recipe(self, tmp_path):
-        from draf.errors import ConfigError
-        from draf.yaml import load_workflow
+        from teff.errors import ConfigError
+        from teff.yaml import load_workflow
 
         path = tmp_path / "wf.yaml"
         path.write_text(

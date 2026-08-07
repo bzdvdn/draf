@@ -5,13 +5,13 @@ from __future__ import annotations
 from pathlib import Path
 from types import SimpleNamespace
 
-from draf.rag.base import VectorStore
-from draf.rag.embedder import Embedder
-from draf.rag.stores import PGVectorStore, SQLiteVectorStore
 from src.domain.services.budget import BudgetService
 from src.domain.services.material import MaterialService
 from src.domain.services.room import RoomService
 from src.rag.catalog import MaterialCatalog
+from teff.rag.base import VectorStore
+from teff.rag.embedder import Embedder
+from teff.rag.stores import PGVectorStore, SQLiteVectorStore
 
 #: Relative to the example root; points at ``data/documents/materials.csv``.
 DEFAULT_CATALOG = (

@@ -1,13 +1,13 @@
 # RAG store: weaviate
 
-RAG agent over the Draf knowledge base using the Weaviate store.
+RAG agent over the Teff knowledge base using the Weaviate store.
 
 ## Dependencies
 
 Install the vector-store extra:
 
 ```bash
-uv add "draf[stores-weaviate]"  # or: pip install "draf[stores-weaviate]"
+uv add "teff[stores-weaviate]"  # or: pip install "teff[stores-weaviate]"
 ```
 
 Ollama must be running locally with:

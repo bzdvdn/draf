@@ -5,9 +5,9 @@
 progress before the run finishes:
 
 ```python
-from draf.flow import Flow
-from draf.node import LLM
-from draf.provider import ProviderRegistry
+from teff.flow import Flow
+from teff.node import LLM
+from teff.provider import ProviderRegistry
 
 flow = Flow(
     "chat",
@@ -47,7 +47,7 @@ node start/end with latency, edge routing, checkpoints, retries, and LLM token
 usage. Fold it into a summary afterwards.
 
 ```python
-from draf import Graph, RunTracer
+from teff import Graph, RunTracer
 
 tracer = RunTracer()
 await graph.run(state, tracer=tracer)
@@ -56,5 +56,5 @@ print(tracer.to_json())  # {"summary": {...}, "events": [...]}
 print(tracer.summary())  # RunSummary(status, total_ms, nodes, tokens, ...)
 ```
 
-The CLI exposes the same report: `draf -f workflow.yaml --trace`. Cost and
+The CLI exposes the same report: `teff -f workflow.yaml --trace`. Cost and
 token accounting live in [Providers](../reference/providers.md#cost-token-reports).

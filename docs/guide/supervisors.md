@@ -1,10 +1,10 @@
 # Multi-agent supervisors (`route` + `agent_step`)
 
-The most powerful (and most complex) pattern in draf is the **supervisor
+The most powerful (and most complex) pattern in teff is the **supervisor
 loop**: one *decider* node picks which specialist agent handles the next
 turn; that agent runs and control returns to the decider, which picks again —
 until it says `finish` and the loop exits. This is what
-[`service_desk`](../examples.md) and the `draf new` scaffolds build.
+[`service_desk`](../examples.md) and the `teff new` scaffolds build.
 
 Two building blocks make it short:
 
@@ -23,9 +23,9 @@ control returns to the decider. When the key equals `"finish"`, the loop
 exits through the optional `finish` chain.
 
 ```python
-from draf.flow import Flow
-from draf.node import LLM
-from draf.provider import ProviderRegistry
+from teff.flow import Flow
+from teff.node import LLM
+from teff.provider import ProviderRegistry
 
 flow = Flow(
     "support",
@@ -65,15 +65,15 @@ is, only that the previous `flow.step(...)` wrote `key`.
 
 ## A ready-made decider: `Supervisor`
 
-For the common case — "ask the model which agent, then route" — draf ships a
-safe decider built in: `draf.node.Supervisor` (wired via `flow.supervisor()`).
+For the common case — "ask the model which agent, then route" — teff ships a
+safe decider built in: `teff.node.Supervisor` (wired via `flow.supervisor()`).
 It asks the model for a one-word reply, writes it to the routing key, and
 applies deterministic guards so the loop can't hang and free-form text can't
 silently end the graph:
 
 ```python
-from draf.flow import Flow, agent_step
-from draf.provider import ProviderRegistry
+from teff.flow import Flow, agent_step
+from teff.provider import ProviderRegistry
 
 flow = Flow(
     "support",
@@ -130,12 +130,12 @@ flow.supervisor(
 flow.route("next_agent", finish=..., direct=..., planner=..., estimator=...)
 ```
 
-See [`examples/applications/service_desk`](https://github.com/bzdvdn/draf/tree/main/examples/applications/service_desk/)
+See [`examples/applications/service_desk`](https://github.com/bzdvdn/teff/tree/main/examples/applications/service_desk/)
 for a concrete chat router built on these guards (one-word dispatch, the
 `done_keys` / `fallback_agent` guards, a bounded loop and a human `Interrupt`
 deploy gate).  For the alternative design — a single ReAct coordinator that
 drives specialists as *tools* instead of a decider node — see
-[`examples/applications/repair-ai-chat`](https://github.com/bzdvdn/draf/tree/main/examples/applications/repair-ai-chat/).
+[`examples/applications/repair-ai-chat`](https://github.com/bzdvdn/teff/tree/main/examples/applications/repair-ai-chat/).
 
 Two override hooks cover deterministic policies:
 
@@ -169,7 +169,7 @@ ContextBuilder ──► ReAct harness ──► AppendAssistant
   (`messages_key`).
 
 ```python
-from draf.flow import agent_step
+from teff.flow import agent_step
 
 planner = agent_step(
     "You are the planning agent. Produce a step list.",
@@ -202,8 +202,8 @@ builder); only the final reply reaches the shared `messages`.
 ## The full pattern (repair-ai style)
 
 ```python
-from draf.flow import Flow, agent_step
-from draf.provider import ProviderRegistry
+from teff.flow import Flow, agent_step
+from teff.provider import ProviderRegistry
 
 flow = Flow(
     "support",
@@ -247,15 +247,15 @@ that is how writer + reviewer collaborate through the same conversation.
 
 ## Run it
 
-- [`examples/simple_router/`](https://github.com/bzdvdn/draf/tree/main/examples/simple_router/)
+- [`examples/simple_router/`](https://github.com/bzdvdn/teff/tree/main/examples/simple_router/)
   — a minimal two-agent supervisor, offline tests.
-- [`examples/applications/service_desk/`](https://github.com/bzdvdn/draf/tree/main/examples/applications/service_desk/)
+- [`examples/applications/service_desk/`](https://github.com/bzdvdn/teff/tree/main/examples/applications/service_desk/)
   — the default `supervisor()` chat router: specialists, guards, bounded loop
   and a human approval gate.
-- [`examples/applications/repair-ai-chat/`](https://github.com/bzdvdn/draf/tree/main/examples/applications/repair-ai-chat/)
+- [`examples/applications/repair-ai-chat/`](https://github.com/bzdvdn/teff/tree/main/examples/applications/repair-ai-chat/)
   — the alternative: one ReAct coordinator driving specialists as tools (RAG + streaming).
-- `draf new <name>` — scaffolds the same supervisor with `HOW TO EXTEND`
+- `teff new <name>` — scaffolds the same supervisor with `HOW TO EXTEND`
   comments (see [CLI](../cli.md)).
 
-See also [`draf.flow.route`](../api/draf.flow.flow.md) and
-[`draf.flow.agent_step`](../api/draf.flow.agent.md) in the API reference.
+See also [`teff.flow.route`](../api/teff.flow.flow.md) and
+[`teff.flow.agent_step`](../api/teff.flow.agent.md) in the API reference.

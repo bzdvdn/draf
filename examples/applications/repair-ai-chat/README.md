@@ -1,9 +1,9 @@
 # repair-ai-chat — supervisor repair assistant (production scaffold app)
 
-A runnable instance of the **production scaffold template** (`draf/scaffold`):
+A runnable instance of the **production scaffold template** (`teff/scaffold`):
 a `src/` package with typed state, domain services, per-agent
 tools, a RAG materials catalog — wired as a **supervisor Flow** built on
-[`Flow.route()`](../../draf/flow/flow.py).
+[`Flow.route()`](../../teff/flow/flow.py).
 
 ## Flow
 
@@ -44,8 +44,8 @@ project info from the whole conversation.
 - **trace dashboard** — every chat turn is captured by a `GraphObserver`
   into `data/traces.db` and browsable at **`/obs/ui`** (one click per run:
   full graph, per-node LLM prompt/response, tags, notes); mounted via
-  `draf.observability.attach_dashboard`, prefix from `DRAF_TRACES_PREFIX`
-- production layout from `draf/scaffold`: `config/`, `src/`, `domain/`,
+  `teff.observability.attach_dashboard`, prefix from `TEFF_TRACES_PREFIX`
+- production layout from `teff/scaffold`: `config/`, `src/`, `domain/`,
   `nodes/`, `tools/`, `rag/`, `graphs/`, `data/`
 
 ## Layout
@@ -56,12 +56,12 @@ repair-ai-chat/
 ├── app.py                # FastAPI app factory (uvicorn app:create_app)
 ├── cli.py                # interactive chat; or one repair-planning turn
 ├── src/                  # the production package
-│   ├── config/           # env-driven settings (.env / DRAF_* vars)
+│   ├── config/           # env-driven settings (.env / TEFF_* vars)
 │   ├── api/              # endpoint groups: router.py + chat/ + run/ + auth/
 │   ├── core/             # dependency wiring (services, catalog)
 │   ├── domain/           # entities + pure domain services (room/material/budget)
 │   ├── graphs/           # typed state, prompts, JSON schemas, flow builder
-│   ├── nodes/            # Extractor + context builders (Supervisor from draf.node)
+│   ├── nodes/            # Extractor + context builders (Supervisor from teff.node)
 │   ├── tools/            # Tool subclasses bound to services + catalog
 │   ├── rag/              # materials catalog over an in-memory vector store
 │   ├── service/          # Assistant: turn orchestration (HTTP + CLI)

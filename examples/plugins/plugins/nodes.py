@@ -1,9 +1,9 @@
 """Custom node types for the plugins example.
 
 Everything in this folder is a **plugin**: a plain Python module that
-registers new node and tool types with draf's existing ``@node`` / ``@tool``
+registers new node and tool types with teff's existing ``@node`` / ``@tool``
 decorators.  Because registration happens on import, loading the file is
-all that is needed to make the new types visible to ``draf validate`` and
+all that is needed to make the new types visible to ``teff validate`` and
 ``load_workflow``.
 
 The folder is discovered automatically — a workflow sitting next to a
@@ -18,7 +18,7 @@ tool (registered in ``tools.py``) through ``ctx.tools``.
 import json
 from dataclasses import dataclass, field
 
-from draf.node.registry import node
+from teff.node.registry import node
 
 
 @dataclass

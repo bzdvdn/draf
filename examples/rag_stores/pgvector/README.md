@@ -1,6 +1,6 @@
 # RAG store: pgvector
 
-RAG agent over the Draf knowledge base using the PostgreSQL + pgvector
+RAG agent over the Teff knowledge base using the PostgreSQL + pgvector
 store.
 
 ## Dependencies
@@ -8,7 +8,7 @@ store.
 Install the vector-store extra:
 
 ```bash
-uv add "draf[stores-pgvector]"  # or: pip install "draf[stores-pgvector]"
+uv add "teff[stores-pgvector]"  # or: pip install "teff[stores-pgvector]"
 ```
 
 Start PostgreSQL with the pgvector extension. With Docker Compose (from
@@ -28,12 +28,12 @@ docker run -d \
 ```
 
 Create the vector extension and the target table (the example assumes
-table `draf_vectors`):
+table `teff_vectors`):
 
 ```bash
 docker exec -it <container> psql -U postgres -c 'CREATE EXTENSION IF NOT EXISTS vector'
 docker exec -it <container> psql -U postgres -c \
-  'CREATE TABLE IF NOT EXISTS draf_vectors (doc_id text, embedding vector, metadata jsonb)'
+  'CREATE TABLE IF NOT EXISTS teff_vectors (doc_id text, embedding vector, metadata jsonb)'
 ```
 
 Ollama must be running locally with:

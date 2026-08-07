@@ -12,9 +12,9 @@ Usage:
 import asyncio
 from typing import Annotated, TypedDict
 
-from draf.flow import Flow
-from draf.node import Node
-from draf.state import State
+from teff.flow import Flow
+from teff.node import Node
+from teff.state import State
 
 
 class ChatState(TypedDict):

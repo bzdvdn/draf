@@ -7,7 +7,7 @@ knowledge (the LLM cannot leak incidents into billing and vice versa).
 
 from __future__ import annotations
 
-from draf.tool.tool import Tool
+from teff.tool.tool import Tool
 
 
 class _KnowledgeTool(Tool):

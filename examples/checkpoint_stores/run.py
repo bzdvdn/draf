@@ -14,7 +14,7 @@ import asyncio
 import os
 import sys
 
-from draf.yaml import load_workflow
+from teff.yaml import load_workflow
 
 
 def _resolve_checkpoint_config(config: dict, base_dir: str) -> dict:
@@ -29,15 +29,15 @@ def _resolve_checkpoint_config(config: dict, base_dir: str) -> dict:
 def _make_checkpointer(config: dict):
     ctype = config.get("type")
     if ctype == "file":
-        from draf.checkpoint import JSONFileCheckpointer
+        from teff.checkpoint import JSONFileCheckpointer
 
         return JSONFileCheckpointer(config.get("path", "checkpoints"))
     if ctype == "sqlite":
-        from draf.checkpoint import SQLiteCheckpointer
+        from teff.checkpoint import SQLiteCheckpointer
 
         return SQLiteCheckpointer(config.get("path", "checkpoints.db"))
     if ctype == "pg":
-        from draf.checkpoint.pg import PGCheckpointer
+        from teff.checkpoint.pg import PGCheckpointer
 
         return PGCheckpointer(config.get("dsn"), config.get("table", "checkpoints"))
     raise ValueError(f"unknown checkpoint type: {ctype}")

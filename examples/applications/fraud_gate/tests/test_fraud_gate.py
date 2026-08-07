@@ -2,12 +2,12 @@
 
 Runs the full graph (analyser LLM + router + optional review + finalizer LLM)
 against a mocked HTTP transport that serves a canned, system-prompt-aware
-reply, to prove the :class:`draf.node.Command` routing:
+reply, to prove the :class:`teff.node.Command` routing:
 
 * **approve** — the router returns ``Command(goto="finalize")`` and the run
   finishes with the finalizer LLM producing the summary;
 * **mid-risk review** — the router returns ``Command(update=...)`` (no
-  ``goto``), the run pauses on the :class:`draf.node.Interrupt` and resumes
+  ``goto``), the run pauses on the :class:`teff.node.Interrupt` and resumes
   with the analyst's answer; the finalizer runs afterwards;
 * **deny** — the router returns ``Command(goto=Command.STOP)``; the run ends
   immediately, ``finalize`` is **never** reached.
@@ -28,7 +28,7 @@ from fraud_gate.graphs.build import build_flow  # noqa: E402
 from fraud_gate.graphs.state import STATE_REDUCERS  # noqa: E402
 from fraud_gate.storage import build_checkpointer  # noqa: E402
 
-from draf.node.interrupt import GraphInterrupt  # noqa: E402
+from teff.node.interrupt import GraphInterrupt  # noqa: E402
 
 
 def _reply(content: str) -> dict:

@@ -5,7 +5,7 @@ import json
 
 import pytest
 
-from draf.provider import ProviderRegistry
+from teff.provider import ProviderRegistry
 
 
 def _mock_response(data: dict):
@@ -21,8 +21,8 @@ def _mock_response(data: dict):
 
 class TestNestedSchema:
     def test_flat_types(self):
-        from draf.harness import tool_to_schema
-        from draf.tool import Tool
+        from teff.harness import tool_to_schema
+        from teff.tool import Tool
 
         class Flat(Tool):
             name = "flat"
@@ -40,8 +40,8 @@ class TestNestedSchema:
         assert props["count"]["default"] == 0
 
     def test_nested_list_of_dict(self):
-        from draf.harness import tool_to_schema
-        from draf.tool import Tool
+        from teff.harness import tool_to_schema
+        from teff.tool import Tool
 
         class Nested(Tool):
             name = "nested"
@@ -60,8 +60,8 @@ class TestNestedSchema:
     def test_nested_typed_list(self):
         from typing import TypedDict
 
-        from draf.harness import tool_to_schema
-        from draf.tool import Tool
+        from teff.harness import tool_to_schema
+        from teff.tool import Tool
 
         class Item(TypedDict):
             name: str
@@ -82,8 +82,8 @@ class TestNestedSchema:
         assert "items" in schema["function"]["parameters"]["required"]
 
     def test_dict_str_to_str(self):
-        from draf.harness import tool_to_schema
-        from draf.tool import Tool
+        from teff.harness import tool_to_schema
+        from teff.tool import Tool
 
         class Map(Tool):
             name = "map_tool"
@@ -100,8 +100,8 @@ class TestNestedSchema:
     def test_typeddict_expands(self):
         from typing import TypedDict
 
-        from draf.harness import tool_to_schema
-        from draf.tool import Tool
+        from teff.harness import tool_to_schema
+        from teff.tool import Tool
 
         class Config(TypedDict):
             host: str
@@ -125,7 +125,7 @@ class TestHttpRetry:
     async def test_retries_then_succeeds(self, monkeypatch):
         import httpx
 
-        from draf.harness import Harness
+        from teff.harness import Harness
 
         monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
         calls = {"n": 0}
@@ -157,7 +157,7 @@ class TestHttpRetry:
     async def test_gives_up_after_max_retries(self, monkeypatch):
         import httpx
 
-        from draf.harness import Harness
+        from teff.harness import Harness
 
         monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
         calls = {"n": 0}
@@ -186,7 +186,7 @@ class TestFailover:
     async def test_falls_back_to_secondary_model(self, monkeypatch):
         import httpx
 
-        from draf.harness import Harness
+        from teff.harness import Harness
 
         monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
         calls = {"n": 0}
@@ -227,8 +227,8 @@ class TestToolTimeoutAndRetries:
     async def test_tool_timeout_returns_error_message(self):
         import asyncio
 
-        from draf.harness import execute_tool_calls
-        from draf.tool import Tool
+        from teff.harness import execute_tool_calls
+        from teff.tool import Tool
 
         class Slow(Tool):
             name = "slow"
@@ -247,8 +247,8 @@ class TestToolTimeoutAndRetries:
 
     @pytest.mark.asyncio
     async def test_tool_retries_flaky_tool(self):
-        from draf.harness import execute_tool_calls
-        from draf.tool import Tool
+        from teff.harness import execute_tool_calls
+        from teff.tool import Tool
 
         class Flaky(Tool):
             name = "flaky"
@@ -272,7 +272,7 @@ class TestToolTimeoutAndRetries:
 
 class TestContextManagement:
     def test_trim_messages_keeps_system(self):
-        from draf.harness import trim_messages
+        from teff.harness import trim_messages
 
         msgs = [
             {"role": "system", "content": "sys"},
@@ -292,7 +292,7 @@ class TestContextManagement:
         assert trimmed[-1]["content"] == "d"
 
     def test_trim_by_tokens(self):
-        from draf.harness import trim_messages
+        from teff.harness import trim_messages
 
         long = "x" * 400  # ~100 tokens
         msgs = [
@@ -311,8 +311,8 @@ class TestTokenBudget:
     async def test_run_stops_on_budget(self, monkeypatch):
         import httpx
 
-        from draf.harness import Harness
-        from draf.tool import Tool
+        from teff.harness import Harness
+        from teff.tool import Tool
 
         monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
 
@@ -365,9 +365,9 @@ class TestTokenBudget:
 class TestToolApproval:
     @pytest.mark.asyncio
     async def test_deny_shortcircuits_call(self, monkeypatch):
-        from draf.graph import Edge, Graph
-        from draf.node.agent import ReActAgent, ToolExec
-        from draf.tool import Tool
+        from teff.graph import Edge, Graph
+        from teff.node.agent import ReActAgent, ToolExec
+        from teff.tool import Tool
 
         monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
 
@@ -434,9 +434,9 @@ class TestToolApproval:
 
     @pytest.mark.asyncio
     async def test_approve_allows_execution(self, monkeypatch):
-        from draf.graph import Edge, Graph
-        from draf.node.agent import ReActAgent, ToolExec
-        from draf.tool import Tool
+        from teff.graph import Edge, Graph
+        from teff.node.agent import ReActAgent, ToolExec
+        from teff.tool import Tool
 
         monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
 
@@ -499,10 +499,10 @@ class TestToolApproval:
 
     @pytest.mark.asyncio
     async def test_pause_raises_interrupt(self, monkeypatch):
-        from draf.graph import Edge, Graph
-        from draf.node.agent import ReActAgent, ToolExec
-        from draf.node.interrupt import GraphInterrupt
-        from draf.tool import Tool
+        from teff.graph import Edge, Graph
+        from teff.node.agent import ReActAgent, ToolExec
+        from teff.node.interrupt import GraphInterrupt
+        from teff.tool import Tool
 
         monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
 
@@ -565,11 +565,11 @@ class TestToolApproval:
 
     @pytest.mark.asyncio
     async def test_pause_then_resume_approves(self, monkeypatch, tmp_path):
-        from draf.checkpoint import JSONFileCheckpointer
-        from draf.graph import Edge, Graph
-        from draf.node.agent import ReActAgent, ToolExec
-        from draf.node.interrupt import GraphInterrupt
-        from draf.tool import Tool
+        from teff.checkpoint import JSONFileCheckpointer
+        from teff.graph import Edge, Graph
+        from teff.node.agent import ReActAgent, ToolExec
+        from teff.node.interrupt import GraphInterrupt
+        from teff.tool import Tool
 
         monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
 
@@ -658,8 +658,8 @@ class TestToolApproval:
     async def test_harness_on_tool_call_hook(self, monkeypatch):
         import httpx
 
-        from draf.harness import Harness
-        from draf.tool import Tool
+        from teff.harness import Harness
+        from teff.tool import Tool
 
         monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
         seen = []
@@ -714,8 +714,8 @@ class TestToolApproval:
 class TestReActStreaming:
     @pytest.mark.asyncio
     async def test_agent_streams_tokens(self, monkeypatch):
-        from draf.graph import Graph
-        from draf.node.agent import ReActAgent
+        from teff.graph import Graph
+        from teff.node.agent import ReActAgent
 
         monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
 

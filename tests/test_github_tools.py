@@ -55,7 +55,7 @@ class TestGitHubTools:
         self._make_client = make_client
 
     async def test_list_open_prs(self):
-        from draf.tool.builtin import GitHubListOpenPRsTool
+        from teff.tool.builtin import GitHubListOpenPRsTool
 
         self._make_client(
             [[{"number": 5, "id": 123, "state": "open", "title": "Fix flaky test"}]]
@@ -69,14 +69,14 @@ class TestGitHubTools:
         assert self._calls[0]["headers"]["Authorization"] == "Bearer tok"
 
     async def test_list_open_prs_empty(self):
-        from draf.tool.builtin import GitHubListOpenPRsTool
+        from teff.tool.builtin import GitHubListOpenPRsTool
 
         self._make_client([[]])
         tool = GitHubListOpenPRsTool({"token": "tok"})
         assert await tool.arun(repo="owner/repo") == "no open pull requests"
 
     async def test_get_pr_changes(self):
-        from draf.tool.builtin import GitHubGetPRChangesTool
+        from teff.tool.builtin import GitHubGetPRChangesTool
 
         self._make_client(
             [
@@ -98,7 +98,7 @@ class TestGitHubTools:
         assert self._calls[0]["url"].endswith("/repos/owner/repo/pulls/5/files")
 
     async def test_post_comment(self):
-        from draf.tool.builtin import GitHubPostCommentTool
+        from teff.tool.builtin import GitHubPostCommentTool
 
         self._make_client([{"id": 99}])
         tool = GitHubPostCommentTool({"token": "tok"})
@@ -109,7 +109,7 @@ class TestGitHubTools:
         assert self._calls[0]["url"].endswith("/repos/owner/repo/issues/5/comments")
 
     async def test_approve(self):
-        from draf.tool.builtin import GitHubApproveTool
+        from teff.tool.builtin import GitHubApproveTool
 
         self._make_client([{"id": 1}])
         tool = GitHubApproveTool({"token": "tok"})
@@ -120,13 +120,13 @@ class TestGitHubTools:
         assert self._calls[0]["url"].endswith("/repos/owner/repo/pulls/5/reviews")
 
     def test_default_base_url(self):
-        from draf.tool.builtin import GitHubListOpenPRsTool
+        from teff.tool.builtin import GitHubListOpenPRsTool
 
         tool = GitHubListOpenPRsTool({"token": "tok"})
         assert tool.url == "https://api.github.com"
 
     def test_custom_base_url(self):
-        from draf.tool.builtin import GitHubListOpenPRsTool
+        from teff.tool.builtin import GitHubListOpenPRsTool
 
         tool = GitHubListOpenPRsTool(
             {"url": "https://ghe.example.com/", "token": "tok"}
@@ -134,13 +134,13 @@ class TestGitHubTools:
         assert tool.url == "https://ghe.example.com"
 
     async def test_requires_token(self):
-        from draf.tool.builtin import GitHubListOpenPRsTool
+        from teff.tool.builtin import GitHubListOpenPRsTool
 
         with pytest.raises(ValueError, match="token"):
             await GitHubListOpenPRsTool({}).arun(repo="owner/repo")
 
     async def test_requires_repo(self):
-        from draf.tool.builtin import GitHubListOpenPRsTool
+        from teff.tool.builtin import GitHubListOpenPRsTool
 
         with pytest.raises(ValueError, match="owner/repo"):
             await GitHubListOpenPRsTool({"token": "tok"}).arun(repo="bad")
@@ -148,7 +148,7 @@ class TestGitHubTools:
     async def test_http_error_surfaces(self, monkeypatch):
         import httpx
 
-        from draf.tool.builtin import GitHubListOpenPRsTool
+        from teff.tool.builtin import GitHubListOpenPRsTool
 
         class FakeResponse:
             status_code = 401
@@ -172,8 +172,8 @@ class TestGitHubTools:
             await GitHubListOpenPRsTool({"token": "tok"}).arun(repo="owner/repo")
 
     def test_schema_required_args(self):
-        from draf.harness import tool_to_schema
-        from draf.tool.builtin import (
+        from teff.harness import tool_to_schema
+        from teff.tool.builtin import (
             GitHubApproveTool,
             GitHubGetPRChangesTool,
             GitHubListOpenPRsTool,

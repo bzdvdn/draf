@@ -24,7 +24,7 @@ from src.graphs.build import build_flow  # noqa: E402
 from src.graphs.state import STATE_REDUCERS, initial_state  # noqa: E402
 from src.storage import TRANSIENT_KEYS, build_checkpointer  # noqa: E402
 
-from draf import Assistant, TurnResult  # noqa: E402
+from teff import Assistant, TurnResult  # noqa: E402
 
 
 def _reply(content: str) -> dict:

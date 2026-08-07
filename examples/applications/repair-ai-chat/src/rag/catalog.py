@@ -10,8 +10,8 @@ from __future__ import annotations
 import csv
 from dataclasses import dataclass
 
-from draf.rag.stores import InMemoryVectorStore
-from draf.rag.tool import load_documents_csv
+from teff.rag.stores import InMemoryVectorStore
+from teff.rag.tool import load_documents_csv
 
 
 @dataclass
@@ -54,7 +54,7 @@ class MaterialCatalog:
 
     Args:
         embedder: Anything exposing ``async embed(text) -> list[float]``.
-        store: :class:`~draf.rag.VectorStore` (defaults to in-memory).
+        store: :class:`~teff.rag.VectorStore` (defaults to in-memory).
         top_k: Default number of results per search.
     """
 

@@ -5,7 +5,7 @@ import pytest
 
 class TestCsvQueryTool:
     def _tool(self, **cfg):
-        from draf.tool.builtin import CsvQueryTool
+        from teff.tool.builtin import CsvQueryTool
 
         return CsvQueryTool(cfg or {})
 
@@ -122,13 +122,13 @@ class TestCsvQueryTool:
             self._tool().run(action="", path=p)
 
     def test_schema_action_required(self):
-        from draf.harness import tool_to_schema
-        from draf.tool.builtin import CsvQueryTool
+        from teff.harness import tool_to_schema
+        from teff.tool.builtin import CsvQueryTool
 
         schema = tool_to_schema(CsvQueryTool({}))["function"]["parameters"]
         assert "action" in schema["required"]
 
     def test_registered(self):
-        from draf.tool.registry import default_tool_registry
+        from teff.tool.registry import default_tool_registry
 
         assert "csv_query" in default_tool_registry.list()

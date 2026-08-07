@@ -152,7 +152,7 @@ def _fake_redis(monkeypatch):
 
 class TestRedisTool:
     def _tool(self, **cfg):
-        from draf.tool.builtin import RedisTool
+        from teff.tool.builtin import RedisTool
 
         return RedisTool(cfg or {"host": "localhost", "port": 6379})
 
@@ -259,7 +259,7 @@ class TestRedisTool:
         # Pinning redis to None makes the lazy import fail with ImportError
         # whether or not the 'redis' package is installed in the test env.
         monkeypatch.setitem(sys.modules, "redis", None)
-        with pytest.raises(ImportError, match="draf\\[tools\\]"):
+        with pytest.raises(ImportError, match="teff\\[tools\\]"):
             self._tool().run(action="ping")
 
     def test_import_error_when_module_is_none(self, monkeypatch):
@@ -268,14 +268,14 @@ class TestRedisTool:
             self._tool().run(action="ping")
 
     def test_schema_has_required_action(self):
-        from draf.harness import tool_to_schema
-        from draf.tool.builtin import RedisTool
+        from teff.harness import tool_to_schema
+        from teff.tool.builtin import RedisTool
 
         schema = tool_to_schema(RedisTool({}))["function"]["parameters"]
         assert "action" in schema["required"]
         assert "key" not in schema["required"]
 
     def test_registered(self):
-        from draf.tool.registry import default_tool_registry
+        from teff.tool.registry import default_tool_registry
 
         assert "redis" in default_tool_registry.list()

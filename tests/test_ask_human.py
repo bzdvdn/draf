@@ -4,7 +4,7 @@ import json
 
 import pytest
 
-from draf.provider import ProviderRegistry
+from teff.provider import ProviderRegistry
 
 
 def _mock_response(data: dict):
@@ -45,8 +45,8 @@ def _final_response(content: str) -> dict:
 
 class TestAskHumanTool:
     def test_schema_and_description(self):
-        from draf.harness import tool_to_schema
-        from draf.tool.builtin import AskHuman
+        from teff.harness import tool_to_schema
+        from teff.tool.builtin import AskHuman
 
         tool = AskHuman()
         assert tool.name == "ask_human"
@@ -60,14 +60,14 @@ class TestAskHumanTool:
         assert "pause" in fn["description"].lower()
 
     def test_registered_in_default_registry(self):
-        from draf.tool.builtin import AskHuman
-        from draf.tool.registry import default_tool_registry
+        from teff.tool.builtin import AskHuman
+        from teff.tool.registry import default_tool_registry
 
         assert "ask_human" in default_tool_registry.list()
         assert isinstance(default_tool_registry.create("ask_human"), AskHuman)
 
     def test_direct_arun_is_intercepted_only(self):
-        from draf.tool.builtin import AskHuman
+        from teff.tool.builtin import AskHuman
 
         with pytest.raises(NotImplementedError, match="intercepted"):
             import asyncio
@@ -81,10 +81,10 @@ async def test_ask_human_pauses_without_a_reply(monkeypatch):
     interrupt carrying the question."""
     import httpx
 
-    from draf.graph import Edge, Graph
-    from draf.node.agent import ReActAgent, ToolExec
-    from draf.node.interrupt import GraphInterrupt
-    from draf.tool.builtin import AskHuman
+    from teff.graph import Edge, Graph
+    from teff.node.agent import ReActAgent, ToolExec
+    from teff.node.interrupt import GraphInterrupt
+    from teff.tool.builtin import AskHuman
 
     monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
 
@@ -122,11 +122,11 @@ async def test_ask_human_resume_delivers_the_answer(monkeypatch, tmp_path):
     it and the agent continues (the re-invoke pattern of tool_approval)."""
     import httpx
 
-    from draf.checkpoint import JSONFileCheckpointer
-    from draf.graph import Edge, Graph
-    from draf.node.agent import ReActAgent, ToolExec
-    from draf.node.interrupt import GraphInterrupt
-    from draf.tool.builtin import AskHuman
+    from teff.checkpoint import JSONFileCheckpointer
+    from teff.graph import Edge, Graph
+    from teff.node.agent import ReActAgent, ToolExec
+    from teff.node.interrupt import GraphInterrupt
+    from teff.tool.builtin import AskHuman
 
     monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
 
@@ -193,10 +193,10 @@ async def test_ask_human_through_flow_harness(monkeypatch, tmp_path):
     """The high-level ``Flow.react(...)`` harness supports ask_human."""
     import httpx
 
-    from draf.checkpoint import JSONFileCheckpointer
-    from draf.flow import Flow
-    from draf.node.interrupt import GraphInterrupt
-    from draf.tool.builtin import AskHuman
+    from teff.checkpoint import JSONFileCheckpointer
+    from teff.flow import Flow
+    from teff.node.interrupt import GraphInterrupt
+    from teff.tool.builtin import AskHuman
 
     monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
 

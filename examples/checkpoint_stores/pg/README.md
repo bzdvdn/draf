@@ -7,7 +7,7 @@ Workflow with crash/resume persistence backed by PostgreSQL.
 Install the checkpoint extra:
 
 ```bash
-uv add "draf[pg-checkpoint]"        # or: pip install "draf[pg-checkpoint]"
+uv add "teff[pg-checkpoint]"        # or: pip install "teff[pg-checkpoint]"
 ```
 
 Start PostgreSQL. With Docker Compose (from `examples/checkpoint_stores/`):
