@@ -952,176 +952,6 @@ wheels = [
 ]
 
 [[package]]
-name = "teff"
-version = "0.1.0a0"
-source = { editable = "." }
-dependencies = [
-    { name = "httpx" },
-    { name = "jsonschema" },
-    { name = "pyyaml" },
-    { name = "typer" },
-]
-
-[package.optional-dependencies]
-all = [
-    { name = "asyncpg" },
-    { name = "beautifulsoup4" },
-    { name = "boto3" },
-    { name = "celery", extra = ["redis"] },
-    { name = "chromadb" },
-    { name = "faiss-cpu" },
-    { name = "fastapi" },
-    { name = "lancedb" },
-    { name = "mcp" },
-    { name = "openpyxl" },
-    { name = "pgvector" },
-    { name = "pinecone" },
-    { name = "psycopg" },
-    { name = "pymilvus" },
-    { name = "pypdf" },
-    { name = "qdrant-client" },
-    { name = "redis" },
-    { name = "slack-sdk" },
-    { name = "sqlalchemy" },
-    { name = "sse-starlette" },
-    { name = "uvicorn" },
-    { name = "weaviate-client" },
-]
-docs = [
-    { name = "mkdocs" },
-    { name = "mkdocs-gen-files" },
-    { name = "mkdocs-material" },
-    { name = "mkdocstrings", extra = ["python"] },
-]
-embedding = [
-    { name = "asyncpg" },
-    { name = "chromadb" },
-    { name = "faiss-cpu" },
-    { name = "lancedb" },
-    { name = "pgvector" },
-    { name = "pinecone" },
-    { name = "pymilvus" },
-    { name = "qdrant-client" },
-    { name = "sqlalchemy" },
-    { name = "weaviate-client" },
-]
-fastapi = [
-    { name = "fastapi" },
-    { name = "sse-starlette" },
-    { name = "uvicorn" },
-]
-mcp = [
-    { name = "mcp" },
-]
-observability = [
-    { name = "fastapi" },
-    { name = "uvicorn" },
-]
-pg-checkpoint = [
-    { name = "asyncpg" },
-]
-queue = [
-    { name = "celery", extra = ["redis"] },
-]
-rag-excel = [
-    { name = "openpyxl" },
-]
-rag-pdf = [
-    { name = "pypdf" },
-]
-stores-chroma = [
-    { name = "chromadb" },
-]
-stores-faiss = [
-    { name = "faiss-cpu" },
-]
-stores-lance = [
-    { name = "lancedb" },
-]
-stores-milvus = [
-    { name = "pymilvus" },
-]
-stores-pgvector = [
-    { name = "asyncpg" },
-    { name = "pgvector" },
-    { name = "sqlalchemy" },
-]
-stores-pinecone = [
-    { name = "pinecone" },
-]
-stores-qdrant = [
-    { name = "qdrant-client" },
-]
-stores-weaviate = [
-    { name = "weaviate-client" },
-]
-tools = [
-    { name = "beautifulsoup4" },
-    { name = "boto3" },
-    { name = "psycopg" },
-    { name = "pypdf" },
-    { name = "redis" },
-    { name = "slack-sdk" },
-]
-
-[package.dev-dependencies]
-dev = [
-    { name = "mypy" },
-    { name = "pytest-asyncio" },
-    { name = "pytest-cov" },
-    { name = "ruff" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "asyncpg", marker = "extra == 'pg-checkpoint'", specifier = ">=0.29" },
-    { name = "asyncpg", marker = "extra == 'stores-pgvector'", specifier = ">=0.29" },
-    { name = "beautifulsoup4", marker = "extra == 'tools'", specifier = ">=4.12" },
-    { name = "boto3", marker = "extra == 'tools'", specifier = ">=1.34" },
-    { name = "celery", extras = ["redis"], marker = "extra == 'queue'", specifier = ">=5.4" },
-    { name = "chromadb", marker = "extra == 'stores-chroma'", specifier = ">=0.5" },
-    { name = "teff", extras = ["embedding", "tools", "mcp", "rag-pdf", "rag-excel", "pg-checkpoint", "fastapi", "queue", "observability"], marker = "extra == 'all'" },
-    { name = "teff", extras = ["stores-qdrant", "stores-chroma", "stores-pgvector", "stores-faiss", "stores-lance", "stores-milvus", "stores-weaviate", "stores-pinecone"], marker = "extra == 'embedding'" },
-    { name = "faiss-cpu", marker = "extra == 'stores-faiss'", specifier = ">=1.7" },
-    { name = "fastapi", marker = "extra == 'fastapi'", specifier = ">=0.115" },
-    { name = "fastapi", marker = "extra == 'observability'", specifier = ">=0.115" },
-    { name = "httpx", specifier = ">=0.27,<1.0" },
-    { name = "jsonschema", specifier = ">=4.18,<5.0" },
-    { name = "lancedb", marker = "extra == 'stores-lance'", specifier = ">=0.26" },
-    { name = "mcp", marker = "extra == 'mcp'", specifier = ">=2.0,<3.0" },
-    { name = "mkdocs", marker = "extra == 'docs'", specifier = ">=1.6" },
-    { name = "mkdocs-gen-files", marker = "extra == 'docs'", specifier = ">=0.5" },
-    { name = "mkdocs-material", marker = "extra == 'docs'", specifier = ">=9.5" },
-    { name = "mkdocstrings", extras = ["python"], marker = "extra == 'docs'", specifier = ">=0.26" },
-    { name = "openpyxl", marker = "extra == 'rag-excel'", specifier = ">=3.1" },
-    { name = "pgvector", marker = "extra == 'stores-pgvector'", specifier = ">=0.2" },
-    { name = "pinecone", marker = "extra == 'stores-pinecone'", specifier = ">=5.0" },
-    { name = "psycopg", marker = "extra == 'tools'", specifier = ">=3.1" },
-    { name = "pymilvus", marker = "extra == 'stores-milvus'", specifier = ">=2.4" },
-    { name = "pypdf", marker = "extra == 'rag-pdf'", specifier = ">=4.0" },
-    { name = "pypdf", marker = "extra == 'tools'", specifier = ">=4.0" },
-    { name = "pyyaml", specifier = ">=6.0,<7.0" },
-    { name = "qdrant-client", marker = "extra == 'stores-qdrant'", specifier = ">=1.9" },
-    { name = "redis", marker = "extra == 'tools'", specifier = ">=5.0" },
-    { name = "slack-sdk", marker = "extra == 'tools'", specifier = ">=3.27" },
-    { name = "sqlalchemy", marker = "extra == 'stores-pgvector'", specifier = ">=2.0" },
-    { name = "sse-starlette", marker = "extra == 'fastapi'", specifier = ">=2.0" },
-    { name = "typer", specifier = ">=0.12,<1.0" },
-    { name = "uvicorn", marker = "extra == 'fastapi'", specifier = ">=0.30" },
-    { name = "uvicorn", marker = "extra == 'observability'", specifier = ">=0.30" },
-    { name = "weaviate-client", marker = "extra == 'stores-weaviate'", specifier = ">=4.4" },
-]
-provides-extras = ["stores-qdrant", "stores-chroma", "stores-pgvector", "stores-faiss", "stores-lance", "stores-milvus", "stores-weaviate", "stores-pinecone", "embedding", "rag-pdf", "rag-excel", "pg-checkpoint", "tools", "mcp", "fastapi", "observability", "queue", "docs", "all"]
-
-[package.metadata.requires-dev]
-dev = [
-    { name = "mypy", specifier = ">=1.11" },
-    { name = "pytest-asyncio", specifier = ">=1.4.0" },
-    { name = "pytest-cov", specifier = ">=5.0" },
-    { name = "ruff", specifier = ">=0.6" },
-]
-
-[[package]]
 name = "durationpy"
 version = "0.10"
 source = { registry = "https://pypi.org/simple" }
@@ -4112,6 +3942,176 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/eb/e3/7c1dc7381d9f8ab7d854328ebfa884e62cb3f3d8549ddfd37c7814f42afa/starlette-1.3.1.tar.gz", hash = "sha256:05d0213193f2fbaae60e2ecb593b4add4262ad4e46536b54abe36f11a71724e0", size = 2703240, upload-time = "2026-06-12T09:23:11.602Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/ec/bb/2799cc2ede3ed41131f8975621e7213dfc7ef4acbbaadfa440f32500c370/starlette-1.3.1-py3-none-any.whl", hash = "sha256:c7372aae11c3c3f26a42df7bd626cec2f47d03483d261d369516a615a53714c6", size = 73632, upload-time = "2026-06-12T09:23:10.017Z" },
+]
+
+[[package]]
+name = "teff"
+version = "0.1.0a0"
+source = { editable = "." }
+dependencies = [
+    { name = "httpx" },
+    { name = "jsonschema" },
+    { name = "pyyaml" },
+    { name = "typer" },
+]
+
+[package.optional-dependencies]
+all = [
+    { name = "asyncpg" },
+    { name = "beautifulsoup4" },
+    { name = "boto3" },
+    { name = "celery", extra = ["redis"] },
+    { name = "chromadb" },
+    { name = "faiss-cpu" },
+    { name = "fastapi" },
+    { name = "lancedb" },
+    { name = "mcp" },
+    { name = "openpyxl" },
+    { name = "pgvector" },
+    { name = "pinecone" },
+    { name = "psycopg" },
+    { name = "pymilvus" },
+    { name = "pypdf" },
+    { name = "qdrant-client" },
+    { name = "redis" },
+    { name = "slack-sdk" },
+    { name = "sqlalchemy" },
+    { name = "sse-starlette" },
+    { name = "uvicorn" },
+    { name = "weaviate-client" },
+]
+docs = [
+    { name = "mkdocs" },
+    { name = "mkdocs-gen-files" },
+    { name = "mkdocs-material" },
+    { name = "mkdocstrings", extra = ["python"] },
+]
+embedding = [
+    { name = "asyncpg" },
+    { name = "chromadb" },
+    { name = "faiss-cpu" },
+    { name = "lancedb" },
+    { name = "pgvector" },
+    { name = "pinecone" },
+    { name = "pymilvus" },
+    { name = "qdrant-client" },
+    { name = "sqlalchemy" },
+    { name = "weaviate-client" },
+]
+fastapi = [
+    { name = "fastapi" },
+    { name = "sse-starlette" },
+    { name = "uvicorn" },
+]
+mcp = [
+    { name = "mcp" },
+]
+observability = [
+    { name = "fastapi" },
+    { name = "uvicorn" },
+]
+pg-checkpoint = [
+    { name = "asyncpg" },
+]
+queue = [
+    { name = "celery", extra = ["redis"] },
+]
+rag-excel = [
+    { name = "openpyxl" },
+]
+rag-pdf = [
+    { name = "pypdf" },
+]
+stores-chroma = [
+    { name = "chromadb" },
+]
+stores-faiss = [
+    { name = "faiss-cpu" },
+]
+stores-lance = [
+    { name = "lancedb" },
+]
+stores-milvus = [
+    { name = "pymilvus" },
+]
+stores-pgvector = [
+    { name = "asyncpg" },
+    { name = "pgvector" },
+    { name = "sqlalchemy" },
+]
+stores-pinecone = [
+    { name = "pinecone" },
+]
+stores-qdrant = [
+    { name = "qdrant-client" },
+]
+stores-weaviate = [
+    { name = "weaviate-client" },
+]
+tools = [
+    { name = "beautifulsoup4" },
+    { name = "boto3" },
+    { name = "psycopg" },
+    { name = "pypdf" },
+    { name = "redis" },
+    { name = "slack-sdk" },
+]
+
+[package.dev-dependencies]
+dev = [
+    { name = "mypy" },
+    { name = "pytest-asyncio" },
+    { name = "pytest-cov" },
+    { name = "ruff" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "asyncpg", marker = "extra == 'pg-checkpoint'", specifier = ">=0.29" },
+    { name = "asyncpg", marker = "extra == 'stores-pgvector'", specifier = ">=0.29" },
+    { name = "beautifulsoup4", marker = "extra == 'tools'", specifier = ">=4.12" },
+    { name = "boto3", marker = "extra == 'tools'", specifier = ">=1.34" },
+    { name = "celery", extras = ["redis"], marker = "extra == 'queue'", specifier = ">=5.4" },
+    { name = "chromadb", marker = "extra == 'stores-chroma'", specifier = ">=0.5" },
+    { name = "faiss-cpu", marker = "extra == 'stores-faiss'", specifier = ">=1.7" },
+    { name = "fastapi", marker = "extra == 'fastapi'", specifier = ">=0.115" },
+    { name = "fastapi", marker = "extra == 'observability'", specifier = ">=0.115" },
+    { name = "httpx", specifier = ">=0.27,<1.0" },
+    { name = "jsonschema", specifier = ">=4.18,<5.0" },
+    { name = "lancedb", marker = "extra == 'stores-lance'", specifier = ">=0.26" },
+    { name = "mcp", marker = "extra == 'mcp'", specifier = ">=2.0,<3.0" },
+    { name = "mkdocs", marker = "extra == 'docs'", specifier = ">=1.6" },
+    { name = "mkdocs-gen-files", marker = "extra == 'docs'", specifier = ">=0.5" },
+    { name = "mkdocs-material", marker = "extra == 'docs'", specifier = ">=9.5" },
+    { name = "mkdocstrings", extras = ["python"], marker = "extra == 'docs'", specifier = ">=0.26" },
+    { name = "openpyxl", marker = "extra == 'rag-excel'", specifier = ">=3.1" },
+    { name = "pgvector", marker = "extra == 'stores-pgvector'", specifier = ">=0.2" },
+    { name = "pinecone", marker = "extra == 'stores-pinecone'", specifier = ">=5.0" },
+    { name = "psycopg", marker = "extra == 'tools'", specifier = ">=3.1" },
+    { name = "pymilvus", marker = "extra == 'stores-milvus'", specifier = ">=2.4" },
+    { name = "pypdf", marker = "extra == 'rag-pdf'", specifier = ">=4.0" },
+    { name = "pypdf", marker = "extra == 'tools'", specifier = ">=4.0" },
+    { name = "pyyaml", specifier = ">=6.0,<7.0" },
+    { name = "qdrant-client", marker = "extra == 'stores-qdrant'", specifier = ">=1.9" },
+    { name = "redis", marker = "extra == 'tools'", specifier = ">=5.0" },
+    { name = "slack-sdk", marker = "extra == 'tools'", specifier = ">=3.27" },
+    { name = "sqlalchemy", marker = "extra == 'stores-pgvector'", specifier = ">=2.0" },
+    { name = "sse-starlette", marker = "extra == 'fastapi'", specifier = ">=2.0" },
+    { name = "teff", extras = ["embedding", "tools", "mcp", "rag-pdf", "rag-excel", "pg-checkpoint", "fastapi", "queue", "observability"], marker = "extra == 'all'" },
+    { name = "teff", extras = ["stores-qdrant", "stores-chroma", "stores-pgvector", "stores-faiss", "stores-lance", "stores-milvus", "stores-weaviate", "stores-pinecone"], marker = "extra == 'embedding'" },
+    { name = "typer", specifier = ">=0.12,<1.0" },
+    { name = "uvicorn", marker = "extra == 'fastapi'", specifier = ">=0.30" },
+    { name = "uvicorn", marker = "extra == 'observability'", specifier = ">=0.30" },
+    { name = "weaviate-client", marker = "extra == 'stores-weaviate'", specifier = ">=4.4" },
+]
+provides-extras = ["stores-qdrant", "stores-chroma", "stores-pgvector", "stores-faiss", "stores-lance", "stores-milvus", "stores-weaviate", "stores-pinecone", "embedding", "rag-pdf", "rag-excel", "pg-checkpoint", "tools", "mcp", "fastapi", "observability", "queue", "docs", "all"]
+
+[package.metadata.requires-dev]
+dev = [
+    { name = "mypy", specifier = ">=1.11" },
+    { name = "pytest-asyncio", specifier = ">=1.4.0" },
+    { name = "pytest-cov", specifier = ">=5.0" },
+    { name = "ruff", specifier = ">=0.6" },
 ]
 
 [[package]]

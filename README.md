@@ -1,5 +1,11 @@
 # Teff
 
+[![CI](https://github.com/bzdvdn/teff/actions/workflows/ci.yml/badge.svg)](https://github.com/bzdvdn/teff/actions)
+[![Docs](https://img.shields.io/badge/docs-GitHub%20Pages-blue)](https://bzdvdn.github.io/teff/)
+[![PyPI](https://img.shields.io/pypi/v/teff)](https://pypi.org/project/teff/)
+[![Python](https://img.shields.io/badge/python-3.11%20%7C%203.12%20%7C%203.13-blue)](https://pypi.org/project/teff/)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+
 **Workflow as data. Agents as graphs.**
 
 Teff is a Python framework for building durable AI agents and workflows —
@@ -12,9 +18,18 @@ runtime magic.
 - **Durable** — checkpoint/resume across file, SQLite, and PostgreSQL backends.
 - **Embeddable** — a library, not a platform. You import us; we never import you.
 
+**Status:** 0.1.0-alpha — the API is live and the docs and tests are complete;
+expect refinements as it matures.
+
 Full documentation (guide, node/tool/provider references, and an auto-generated
 API reference) lives in [`docs/`](docs/). Build it locally with
 `uv run pip install -e ".[docs]"` then `uv run mkdocs serve`.
+
+See it in action:
+
+| Deterministic workflow (`teff run` / `--trace` / `teff graph`) | Streaming ReAct agent + LLM YAML workflow (`--trace`) |
+| --- | --- |
+| ![Teff CLI demo: run, trace, and graph](docs/assets/hello-workflow-cli.gif) | ![Teff LLM demo: streaming agent and trace](docs/assets/react-agent-cli.gif) |
 
 ## Install
 

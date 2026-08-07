@@ -68,10 +68,13 @@ nav:
       - Install: getting-started/install.md
       - Learning path: getting-started/learning-path.md
       - Quick start: getting-started/quickstart.md
+      - Tutorial: getting-started/tutorial.md
+      - Anatomy of a run: getting-started/anatomy-of-a-run.md
       - Concepts: getting-started/concepts.md
   - Guide:
       - YAML workflows: guide/yaml-workflows.md
       - Choosing your abstraction: guide/choosing-your-abstraction.md
+      - Core entities: guide/core-entities.md
       - Best practices: guide/best-practices.md
       - Flow builder: guide/flow-builder.md
       - Command routing: guide/commands.md
@@ -88,6 +91,7 @@ nav:
       - Streaming: guide/streaming.md
       - Logging: guide/logging.md
       - Errors & resilience: guide/errors.md
+      - Troubleshooting: guide/troubleshooting.md
       - Observability: guide/observability.md
       - Testing: guide/testing.md
   - Recipes:
@@ -103,6 +107,7 @@ nav:
       - Providers: reference/providers.md
       - Top-level helpers: reference/helpers.md
   - CLI Reference: cli.md
+  - CLI cheat-sheet: getting-started/cli-cheatsheet.md
   - API Reference:
       - Overview: api/index.md
       - Top level (teff): api/teff.md
