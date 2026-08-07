@@ -184,7 +184,9 @@ def create_http_app(
     """
     app = FastAPI(title="teff channels (workflow.yaml over HTTP)", version="0.1")
     app.include_router(
-        create_http_router(assistant, dependencies=dependencies, turn_kwargs=turn_kwargs)
+        create_http_router(
+            assistant, dependencies=dependencies, turn_kwargs=turn_kwargs
+        )
     )
     return app
 
@@ -216,5 +218,7 @@ class HTTPChannel:
         self.router = create_http_router(
             assistant, dependencies=dependencies, turn_kwargs=turn_kwargs
         )
-        self.app = FastAPI(title="teff channels (workflow.yaml over HTTP)", version="0.1")
+        self.app = FastAPI(
+            title="teff channels (workflow.yaml over HTTP)", version="0.1"
+        )
         self.app.include_router(self.router)

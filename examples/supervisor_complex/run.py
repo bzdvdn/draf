@@ -42,13 +42,17 @@ def _scripted_transport() -> None:
         if "team lead" in system:
             content = next(supervisor_answers)
         elif "senior planner" in system:
-            content = "1. Разбить задачу на функции\n2. Определить сигнатуры\n3. Написать код"
+            content = (
+                "1. Разбить задачу на функции\n2. Определить сигнатуры\n3. Написать код"
+            )
         elif "senior developer" in system:
             content = "def calculate_total(items):\n    return sum(items)"
         elif "fix exactly one code issue" in system:
             content = "# исправлено\nreturn sum(float(x) for x in items)"
         elif "apply the reviewer's fixes" in system:
-            content = "def calculate_total(items):\n    return sum(float(x) for x in items)"
+            content = (
+                "def calculate_total(items):\n    return sum(float(x) for x in items)"
+            )
         elif "strict code reviewer" in system:
             reviewer_calls["n"] += 1
             if reviewer_calls["n"] == 1:

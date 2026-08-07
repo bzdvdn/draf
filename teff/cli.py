@@ -796,12 +796,8 @@ def bot(
     token_env: str = typer.Option(
         "TELEGRAM_BOT_TOKEN", "--token-env", help="Env var holding the bot token"
     ),
-    mode: str = typer.Option(
-        "polling", "--mode", help="Transport: polling or webhook"
-    ),
-    once: bool = typer.Option(
-        False, "--once", help="Process pending updates and exit"
-    ),
+    mode: str = typer.Option("polling", "--mode", help="Transport: polling or webhook"),
+    once: bool = typer.Option(False, "--once", help="Process pending updates and exit"),
 ) -> None:
     """Run a workflow as a Telegram bot (long-polling or webhook).
 

@@ -87,14 +87,18 @@ server-side so callers cannot hijack another user's session.
 ```python
 from fastapi import Depends, Header, HTTPException
 
+
 def require_key(x_api_key: str | None = Header(default=None, alias="X-API-Key")):
     if x_api_key != "secret":
         raise HTTPException(status_code=401, detail="missing api key")
 
+
 app = create_http_app(assistant, dependencies=[Depends(require_key)])
+
 
 def traced(owner: str, session_id: str) -> dict:
     return {"tracer": my_tracer(owner, session_id)}
+
 
 app = create_http_app(assistant, turn_kwargs=traced)
 ```

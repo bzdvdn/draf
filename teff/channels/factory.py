@@ -75,6 +75,7 @@ def build_assistant(
 
         def make_state():
             return dict(seed)
+
     return Assistant(
         graph,
         tools,

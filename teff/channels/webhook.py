@@ -55,9 +55,7 @@ class WebhookChannel:
         self.path = spec.get("path", "/webhook")
         self.schema = spec.get("schema") or {}
         self.session_key = spec.get("session_key")
-        self.message_template = spec.get("input", {}).get(
-            "message", "{message}"
-        )
+        self.message_template = spec.get("input", {}).get("message", "{message}")
         self.max_iterations = spec.get("max_iterations", 80)
         self.owner_spec = spec.get("owner") or "default"
 

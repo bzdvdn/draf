@@ -151,20 +151,12 @@ class TestWebhookChannel:
                 {"input": {"message": "{text}"}, "owner": owner_spec},
             )
 
+        assert hook("payload.customer").owner_for({"customer": "alice"}) == "alice"
         assert (
-            hook("payload.customer").owner_for({"customer": "alice"}) == "alice"
-        )
-        assert (
-            hook("header.X-User-Id").owner_for(
-                {"x": 1}, {"X-User-Id": "bob"}
-            )
-            == "bob"
+            hook("header.X-User-Id").owner_for({"x": 1}, {"X-User-Id": "bob"}) == "bob"
         )
         # header lookup is case-insensitive
-        assert (
-            hook("header.X-User-Id").owner_for({}, {"x-user-id": "carol"})
-            == "carol"
-        )
+        assert hook("header.X-User-Id").owner_for({}, {"x-user-id": "carol"}) == "carol"
         assert hook("fixed:ops").owner_for({}) == "ops"
         assert hook("default").owner_for({}) == "default"
         # missing payload/header fields fall back to "default"
@@ -249,7 +241,9 @@ class TestHTTPChannel:
         assert body["key"] == "approved"
         assert body["message"] == "Approve?"
         # resume with the operator's answer
-        r2 = client.post("/api/chat", json={"message": "yes", "session_id": body["session_id"]})
+        r2 = client.post(
+            "/api/chat", json={"message": "yes", "session_id": body["session_id"]}
+        )
         assert r2.status_code == 200
 
     def test_mount_router_into_existing_app(self, workflow, mock_llm):
@@ -273,7 +267,9 @@ class TestHTTPChannel:
         from fastapi import Depends, Header, HTTPException
         from fastapi.testclient import TestClient
 
-        def require_key(x_api_key: str | None = Header(default=None, alias="X-API-Key")):
+        def require_key(
+            x_api_key: str | None = Header(default=None, alias="X-API-Key"),
+        ):
             if x_api_key != "secret":
                 raise HTTPException(status_code=401, detail="missing api key")
 

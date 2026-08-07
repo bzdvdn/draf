@@ -98,7 +98,9 @@ def _resolve_includes(data: dict, base_dir: str) -> dict:
             path = inc.get("path")
             prefix = str(inc.get("prefix") or "")
         else:
-            raise ConfigError("include entries must be a path or a {path, prefix} mapping")
+            raise ConfigError(
+                "include entries must be a path or a {path, prefix} mapping"
+            )
         if not isinstance(path, str) or not path:
             raise ConfigError("include entry requires a 'path'")
         full = os.path.join(base_dir, path)
