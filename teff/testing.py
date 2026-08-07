@@ -78,9 +78,12 @@ class MockLLM:
         msg: dict = {"role": "assistant", "content": self.content}
         if self.tool_calls:
             msg["tool_calls"] = self.tool_calls
+        # Both OpenAI (``choices[0].message``) and Ollama (root ``message``)
+        # response shapes, so the mock works for every provider type.
         return (
             {
                 "choices": [{"message": msg}],
+                "message": msg,
                 "usage": {"prompt_tokens": 10, "completion_tokens": 5},
             },
             False,

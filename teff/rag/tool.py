@@ -229,93 +229,9 @@ class RAGTool(Tool):
             self.name = config["name"]
         self.embedder = embedder_from_config(config)
 
-        store_cfg = config.get("store") or {}
-        store_type = store_cfg.get("type", "in_memory")
-        if store_type == "in_memory":
-            from teff.rag.stores import InMemoryVectorStore
+        from teff.rag.stores.factory import store_from_config
 
-            self.store = InMemoryVectorStore(dim=store_cfg.get("dim", 768))
-        elif store_type == "sqlite":
-            from teff.rag.stores import SQLiteVectorStore
-
-            self.store = SQLiteVectorStore(
-                path=store_cfg.get("path", "./vectors.db"),
-                dim=store_cfg.get("dim"),
-            )
-        elif store_type == "chroma":
-            from teff.rag.stores import ChromaVectorStore
-
-            self.store = ChromaVectorStore(
-                path=store_cfg.get("path", "./chroma"),
-                collection=store_cfg.get("collection", "teff"),
-            )
-        elif store_type == "qdrant":
-            from teff.rag.stores import QdrantVectorStore
-
-            self.store = QdrantVectorStore(
-                host=store_cfg.get("host", "localhost"),
-                port=store_cfg.get("port", 6333),
-                collection=store_cfg.get("collection", "teff"),
-            )
-        elif store_type == "pgvector":
-            from teff.rag.stores import PGVectorStore
-
-            self.store = PGVectorStore(
-                dsn=store_cfg.get("dsn", ""),
-                table=store_cfg.get("table", "teff_vectors"),
-            )
-        elif store_type == "faiss":
-            from teff.rag.stores import FAISSVectorStore
-
-            self.store = FAISSVectorStore(
-                dim=store_cfg.get("dim", 1536),
-                path=store_cfg.get("path"),
-            )
-        elif store_type in ("lance", "lancedb"):
-            from teff.rag.stores import LanceVectorStore
-
-            self.store = LanceVectorStore(
-                path=store_cfg.get("path", "./lance"),
-                table=store_cfg.get("table", "vectors"),
-                dim=store_cfg.get("dim"),
-            )
-        elif store_type == "milvus":
-            from teff.rag.stores import MilvusVectorStore
-
-            self.store = MilvusVectorStore(
-                uri=store_cfg.get("uri", "./milvus.db"),
-                token=store_cfg.get("token", ""),
-                collection=store_cfg.get("collection", "teff"),
-                dim=store_cfg.get("dim"),
-            )
-        elif store_type == "weaviate":
-            from teff.rag.stores import WeaviateVectorStore
-
-            self.store = WeaviateVectorStore(
-                collection=store_cfg.get("collection", "teff"),
-                embedded=bool(store_cfg.get("embedded", False)),
-                host=store_cfg.get("host", "localhost"),
-                http_port=store_cfg.get("http_port", 8080),
-                http_secure=bool(store_cfg.get("http_secure", False)),
-                grpc_port=store_cfg.get("grpc_port", 50051),
-                grpc_secure=bool(store_cfg.get("grpc_secure", False)),
-                api_key=store_cfg.get("api_key", ""),
-                headers=store_cfg.get("headers"),
-                dim=store_cfg.get("dim"),
-            )
-        elif store_type == "pinecone":
-            from teff.rag.stores import PineconeVectorStore
-
-            self.store = PineconeVectorStore(
-                index_name=store_cfg.get("index_name", "teff"),
-                api_key=store_cfg.get("api_key", ""),
-                host=store_cfg.get("host", ""),
-                namespace=store_cfg.get("namespace", ""),
-                dim=store_cfg.get("dim"),
-            )
-        else:
-            msg = f"unsupported store type: {store_type}"
-            raise ValueError(msg)
+        self.store = store_from_config(config.get("store") or {})
 
         if config.get("chunker"):
             self.chunker = Chunker(**config["chunker"])

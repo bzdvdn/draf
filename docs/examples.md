@@ -37,6 +37,9 @@ README for exact commands.
 | [fraud_gate](https://github.com/bzdvdn/teff/tree/main/examples/applications/fraud_gate/) | Production FastAPI payment gate — LLM scorer + `Command` routing (approve / mid-risk human review / deny-and-stop) |
 | [service_desk](https://github.com/bzdvdn/teff/tree/main/examples/applications/service_desk/) | Default `supervisor()` chat router — one-word dispatch, `done_keys`/`fallback_agent` guards, bounded loop and a human `Interrupt` deploy gate (Russian support desk) |
 | [repair-ai-chat](https://github.com/bzdvdn/teff/tree/main/examples/applications/repair-ai-chat/) | Full FastAPI app — one ReAct coordinator driving specialist *tools* (extract, plan, materials, estimate, QA), RAG, streaming (Russian repair workflow) |
+| [channels](https://github.com/bzdvdn/teff/tree/main/examples/channels/) | One durable `Assistant` over every transport — HTTP/SSE (`teff serve`), Telegram (`teff bot`) and terminal (`teff chat`); zero-code `channels:` YAML block |
+| [channels/supervisor](https://github.com/bzdvdn/teff/tree/main/examples/channels/supervisor/) | Multi-agent supervisor (planner/coder/QA) wrapped in the `channels:` block — `llm_chat` JSON verdicts, `Command` routing, loop-until-pass refine, human `approve` gate (Russian prompts) |
+| [channels/rag_ingest](https://github.com/bzdvdn/teff/tree/main/examples/channels/rag_ingest/) | Grow the vector store from any channel — `llm_chat` normalizes a raw row, then the `rag_ingest` tool chunks/embeds it to SQLite; query the grown base with `rag` |
 
 All LLM examples use `llama3.1:8b` (`ollama pull llama3.1:8b`);
 [pdf_agent](https://github.com/bzdvdn/teff/tree/main/examples/pdf_agent/) uses `qwen2.5:7b`

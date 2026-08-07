@@ -27,6 +27,7 @@ from teff.tool.builtin.human import AskHuman
 from teff.tool.builtin.lock import LockTool
 from teff.tool.builtin.notify import SendEmailTool, SendTelegramTool
 from teff.tool.builtin.pdf import PDFReadTool
+from teff.tool.builtin.rag_ingest import RAGIngestTool
 from teff.tool.builtin.redis import RedisTool
 from teff.tool.builtin.s3 import S3GetTool, S3PutTool, S3Tool
 from teff.tool.builtin.shell import ShellTool
@@ -78,6 +79,7 @@ default_tool_registry.register(GitHubPostCommentTool)
 default_tool_registry.register(GitHubApproveTool)
 default_tool_registry.register(MemoryTool)
 default_tool_registry.register(AskHuman)
+default_tool_registry.register(RAGIngestTool)
 
 __all__ = [
     "CalculatorTool",
@@ -121,4 +123,5 @@ __all__ = [
     "GitHubApproveTool",
     "MemoryTool",
     "AskHuman",
+    "RAGIngestTool",
 ]

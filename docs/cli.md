@@ -23,6 +23,9 @@ teff new support-ai                       # scaffold a FastAPI app (default)
 teff new support-cli --template cli       # scaffold a terminal-only app
 teff new support-worker --template daemon # scaffold a background worker
 teff new support-chat --template fastapi --with postgres,rag,celery  # + variants
+teff serve -f workflow.yaml               # serve a workflow over HTTP/SSE + webhooks
+teff bot -f workflow.yaml --token-env TELEGRAM_BOT_TOKEN   # run a workflow as a Telegram bot
+teff chat -f workflow.yaml                # chat with a workflow from the terminal REPL
 teff obs-server --db traces.db --port 8001 # serve the trace dashboard + ingest
 teff version
 ```

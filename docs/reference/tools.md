@@ -52,6 +52,7 @@ print(default_tool_registry.list())  # all registered names
 | `redis` | `RedisTool` | `redis` | Redis get/set/hash/list ops |
 | `wait_for` | `WaitForTool` | — | Poll until a condition holds |
 | `rag` | `RAGTool` | `teff[stores-*]` | Retrieval over a vector store |
+| `rag_ingest` | `RAGIngestTool` | `teff[stores-*]` | Add documents to a vector store (chunk+embed+store) |
 | `memory` | `MemoryTool` | `teff[stores-*]` | Long-term memory (remember/recall/forget) |
 
 ## Configuring tools

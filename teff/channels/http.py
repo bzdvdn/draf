@@ -30,15 +30,24 @@ The interrupt flow is folded into :class:`TurnResult` by
 operator's answer as the next ``message``.  A turn always answers with
 ``{"session_id", "waiting", "message"}`` — ``message`` is the reply when
 ``waiting`` is false and the interrupt prompt when true.
+
+Hooks: ``create_http_app`` / :class:`HTTPChannel` accept FastAPI
+*dependencies* (auth gates applied to every non-health endpoint) and a
+``turn_kwargs`` factory ``(owner, session_id) -> kwargs`` whose result is
+merged into every ``Assistant.run``/``Assistant.stream`` call — the hook
+used to attach an observability ``tracer``/``on_llm_payload`` per turn.
+The endpoints also live on an :class:`APIRouter` (``HTTPChannel.router``)
+so the channel can be mounted into an existing app with
+``app.include_router(channel.router)`` instead of being served standalone.
 """
 
 from __future__ import annotations
 
 import json
 import uuid
-from typing import Any, AsyncIterator
+from typing import Any, AsyncIterator, Callable, Sequence
 
-from fastapi import FastAPI, Header, HTTPException
+from fastapi import APIRouter, FastAPI, Header, HTTPException
 from pydantic import BaseModel
 
 from teff.assistant import Assistant
@@ -63,33 +72,41 @@ def _session(owner: str) -> str:
     return uuid.uuid4().hex
 
 
-def create_http_app(assistant: Assistant) -> FastAPI:
-    """Build a FastAPI app bound to *assistant* (one durable service).
+def create_http_router(
+    assistant: Assistant,
+    *,
+    dependencies: Sequence[Any] | None = None,
+    turn_kwargs: Callable[[str, str], dict] | None = None,
+) -> APIRouter:
+    """Build the HTTP/SSE routes bound to *assistant* as a mountable router.
 
-    Requires the ``teff[channels]`` extra.
+    *dependencies* (FastAPI ``Depends`` objects) are attached to every
+    endpoint except ``GET /api/health`` — e.g. ``[Depends(require_api_key)]``.
+    *turn_kwargs* is called as ``turn_kwargs(owner, session_id)`` before each
+    turn; its result is merged into the ``Assistant.run``/``Assistant.stream``
+    call (and may override ``max_iterations``).
     """
-    app = FastAPI(title="teff channels (workflow.yaml over HTTP)", version="0.1")
+    router = APIRouter()
+    endpoint_deps = list(dependencies) if dependencies else None
 
-    @app.get("/api/health")
+    @router.get("/api/health")
     async def health() -> dict:
         return {"status": "ok", "workflow": "yaml"}
 
-    @app.post("/api/chat")
+    @router.post("/api/chat", dependencies=endpoint_deps)
     async def chat(
         req: ChatRequest,
         x_user_id: str | None = Header(default=None, alias="X-User-Id"),
     ) -> dict:
         owner = x_user_id or DEFAULT_OWNER
         session_id = _session(owner)
-        result = await assistant.run(
-            session_id,
-            req.message,
-            owner=owner,
-            max_iterations=req.max_iterations,
-        )
+        kwargs: dict[str, Any] = {"max_iterations": req.max_iterations}
+        if turn_kwargs is not None:
+            kwargs.update(turn_kwargs(owner, session_id) or {})
+        result = await assistant.run(session_id, req.message, owner=owner, **kwargs)
         return turn_response(result, session_id)
 
-    @app.post("/api/chat/stream")
+    @router.post("/api/chat/stream", dependencies=endpoint_deps)
     async def chat_stream(
         req: ChatRequest,
         x_user_id: str | None = Header(default=None, alias="X-User-Id"),
@@ -103,11 +120,11 @@ def create_http_app(assistant: Assistant) -> FastAPI:
                 "event": "chat_id",
                 "data": json.dumps({"session_id": session_id}),
             }
+            kwargs: dict[str, Any] = {"max_iterations": req.max_iterations}
+            if turn_kwargs is not None:
+                kwargs.update(turn_kwargs(owner, session_id) or {})
             async for event in assistant.stream(
-                session_id,
-                req.message,
-                owner=owner,
-                max_iterations=req.max_iterations,
+                session_id, req.message, owner=owner, **kwargs
             ):
                 data: dict[str, Any] = {"session_id": session_id}
                 if event.node_id is not None:
@@ -127,7 +144,7 @@ def create_http_app(assistant: Assistant) -> FastAPI:
 
         return EventSourceResponse(events())
 
-    @app.get("/api/runs/{session_id}")
+    @router.get("/api/runs/{session_id}", dependencies=endpoint_deps)
     async def get_run(
         session_id: str,
         x_user_id: str | None = Header(default=None, alias="X-User-Id"),
@@ -140,7 +157,7 @@ def create_http_app(assistant: Assistant) -> FastAPI:
             raise HTTPException(status_code=404, detail="run not found")
         return {"session_id": session_id, "state": saved.state}
 
-    @app.delete("/api/runs/{session_id}")
+    @router.delete("/api/runs/{session_id}", dependencies=endpoint_deps)
     async def delete_run(
         session_id: str,
         x_user_id: str | None = Header(default=None, alias="X-User-Id"),
@@ -151,6 +168,24 @@ def create_http_app(assistant: Assistant) -> FastAPI:
         await assistant.checkpointer.delete(session_id, owner=owner)
         return {"session_id": session_id, "status": "deleted"}
 
+    return router
+
+
+def create_http_app(
+    assistant: Assistant,
+    *,
+    dependencies: Sequence[Any] | None = None,
+    turn_kwargs: Callable[[str, str], dict] | None = None,
+) -> FastAPI:
+    """Build a FastAPI app bound to *assistant* (one durable service).
+
+    See :func:`create_http_router` for the ``dependencies`` / ``turn_kwargs``
+    hooks.  Requires the ``teff[channels]`` extra.
+    """
+    app = FastAPI(title="teff channels (workflow.yaml over HTTP)", version="0.1")
+    app.include_router(
+        create_http_router(assistant, dependencies=dependencies, turn_kwargs=turn_kwargs)
+    )
     return app
 
 
@@ -162,8 +197,24 @@ class HTTPChannel:
         assistant = build_assistant("workflow.yaml")
         channel = HTTPChannel(assistant)
         uvicorn.run(channel.app, host=..., port=...)
+
+    The endpoints also live on :attr:`router`, so the channel can be mounted
+    into an existing app::
+
+        app = FastAPI()
+        app.include_router(HTTPChannel(assistant).router)
     """
 
-    def __init__(self, assistant: Assistant):
+    def __init__(
+        self,
+        assistant: Assistant,
+        *,
+        dependencies: Sequence[Any] | None = None,
+        turn_kwargs: Callable[[str, str], dict] | None = None,
+    ):
         self.assistant = assistant
-        self.app = create_http_app(assistant)
+        self.router = create_http_router(
+            assistant, dependencies=dependencies, turn_kwargs=turn_kwargs
+        )
+        self.app = FastAPI(title="teff channels (workflow.yaml over HTTP)", version="0.1")
+        self.app.include_router(self.router)

@@ -585,7 +585,7 @@ def load_workflow(path: str) -> tuple[Graph, list[Tool], dict, dict[str, Reducer
     for td in data.get("tools", []):
         ttype = td["type"]
         tconfig = td.get("config", {})
-        if ttype == "rag":
+        if ttype in ("rag", "rag_ingest"):
             tconfig = _resolve_rag_config(tconfig, base_dir)
         tools.append(default_tool_registry.create(ttype, tconfig))
 

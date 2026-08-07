@@ -869,6 +869,58 @@ def bot(
 
 
 @app.command()
+def chat(
+    file: str = typer.Argument(..., help="Path to workflow YAML file"),
+    session: str | None = typer.Option(
+        None, "--session", "-s", help="Durable session id (default: chat-<user>)"
+    ),
+    owner: str = typer.Option(
+        DEFAULT_OWNER, "--owner", help="Owner scoping this session's checkpoints"
+    ),
+    prompt: str = typer.Option(
+        "> ", "--prompt", help="Input prompt shown before each turn"
+    ),
+) -> None:
+    """Chat with a workflow interactively from the terminal.
+
+    Builds the durable :class:`~teff.assistant.Assistant` from *file* and
+    runs a REPL: each line is one turn, the reply is printed, and a paused
+    workflow (interrupt) asks in-chat and resumes on your answer — so the
+    same ``workflow.yaml`` that serves HTTP/Telegram/webhook also runs as a
+    plain terminal conversation.  Ctrl-D or Ctrl-C exits.
+    """
+    from teff.channels import build_assistant
+    from teff.channels.reply import turn_response
+
+    try:
+        assistant = build_assistant(file)
+    except Exception as e:
+        typer.echo(f"error: failed to build workflow: {e}", err=True)
+        raise typer.Exit(1)
+
+    session_id = session or f"chat-{owner}"
+    typer.echo(f"teff chat: session={session_id} owner={owner} (Ctrl-D to exit)")
+
+    async def _loop() -> None:
+        while True:
+            try:
+                message = input(prompt)
+            except EOFError:
+                typer.echo("\nbye")
+                return
+            if not message.strip():
+                continue
+            result = await assistant.run(session_id, message, owner=owner)
+            payload = turn_response(result, session_id)
+            typer.echo(payload["message"] if payload["message"] else "(no reply)")
+
+    try:
+        asyncio.run(_loop())
+    except (KeyboardInterrupt, EOFError):
+        typer.echo("\nbye")
+
+
+@app.command()
 def version() -> None:
     """Print the teff version."""
     typer.echo(f"teff {__version__}")

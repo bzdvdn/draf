@@ -2,6 +2,36 @@
 
 ## Unreleased
 
+- Channels: `teff[channels]` ships HTTP/SSE, Telegram and generic webhook
+  adapters bound to one durable `Assistant` built from a `workflow.yaml`:
+  - `teff serve -f workflow.yaml` runs the HTTP/SSE service; `teff bot`
+    runs a Telegram bot (polling or webhook); a `channels:` YAML block
+    declares them declaratively.
+  - `create_http_app(assistant)` serves `/api/chat` (+ SSE stream, runs
+    GET/DELETE) out of the box; `create_http_router(assistant)` returns a
+    mountable `APIRouter` so the same endpoints can be embedded in an
+    existing FastAPI app. Both accept `dependencies` (auth gates, skipped
+    on `/api/health`) and a `turn_kwargs(owner, session_id) -> kwargs`
+    hook for per-turn tracing/overrides.
+  - One unified turn response `{session_id, waiting, message}` across HTTP,
+    webhook and Telegram; owner scoping per channel (`X-User-Id` header,
+    Telegram user id, webhook `owner:` spec).
+  - `teff.new` scaffolds a `channels` template (YAML-first) and a
+    code-first variant.
+  - `teff chat` runs the same durable `Assistant` as a terminal REPL —
+    interrupts ask in-chat and resume on your answer, so a workflow that
+    serves HTTP/Telegram/webhook also works from the shell.
+  - `rag_ingest` tool: the write side of the vector store. Declared in
+    `tools:` like `rag` (same `embedder:`/`store:` config), it takes
+    `text` or a `path` (csv/txt/pdf/excel), chunks, embeds and persists
+    documents at runtime — so a Telegram/webhook/terminal turn can grow a
+    knowledge base, then answer via `rag`. AI-parsing is an explicit
+    `llm_chat` step before the tool.
+  - New examples: `examples/channels/supervisor/` (the multi-agent
+    supervisor wrapped in the `channels:` block) and
+    `examples/channels/rag_ingest/` (ingest CSV rows from any channel).
+- `teff.testing.MockLLM` now answers in both OpenAI and Ollama wire shapes,
+  so the `mock_llm` fixture works for every provider type.
 - `Ask.model(...)` is renamed to `Ask.llm(...)` (the LLM-classifier strategy);
   the internal strategy name is now `"llm"`. The old `model` name clashed with
   the model-name keyword (`Ask.model(model=...)`).

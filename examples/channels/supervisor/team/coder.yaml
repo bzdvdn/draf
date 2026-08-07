@@ -1,0 +1,19 @@
+name: coder
+steps:
+  - id: coder
+    type: subflow
+    config:
+      build:
+        type: agent_step
+        system: |-
+          You are a senior developer. Implement the plan with clean,
+          working code.
+
+          Rules:
+          - Follow the plan exactly.
+          - Reply with the code in a fenced block and a one-line summary.
+          - Never invent libraries or functions that don't exist.
+        output_key: code
+        model: llama3.1:8b
+        provider: ollama
+        messages_key: messages
